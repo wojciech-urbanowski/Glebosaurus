@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Protokół Tuya BLE 3.x: ramki, AES, punkty danych, poświadczenia, sesja. Bez zależności od biblioteki BLE. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Glebosaurus.Tuya</RootNamespace>
+  </PropertyGroup>
+
+</Project>

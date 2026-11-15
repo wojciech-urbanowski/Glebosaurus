@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Panel diagnostyczny WWW wbudowany w monitor: Kestrel (HTTPS), tylko sieć lokalna, logowanie hasłem, tylko do odczytu.
+       Wszystko z frameworka ASP.NET Core – bez dodatkowych pakietów. Na Raspberry Pi potrzebny jest runtime ASP.NET Core
+       (nie sam .NET Runtime), chyba że paczka jest publikowana jako samodzielna (self-contained). -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Glebosaurus.Web</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\Glebosaurus.Core\Glebosaurus.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Strona panelu jest wbudowana w bibliotekę (bez katalogu wwwroot przy paczce). -->
+    <EmbeddedResource Include="wwwroot\*" LogicalName="wwwroot/%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Glebosaurus.Tests" />
+  </ItemGroup>
+
+</Project>

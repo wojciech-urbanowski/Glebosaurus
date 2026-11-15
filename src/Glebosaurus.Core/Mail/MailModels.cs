@@ -1,0 +1,33 @@
+using Glebosaurus.Core.Config;
+using Glebosaurus.Core.Domain;
+
+namespace Glebosaurus.Core.Mail;
+
+/// <summary>Załącznik wiadomości (np. pełny dziennik agenta jako plik tekstowy).</summary>
+public sealed record MailAttachment(string FileName, byte[] Content, string ContentType = "text/plain; charset=utf-8");
+
+/// <summary>Gotowa wiadomość: tekst i HTML jako alternatywy tej samej treści, opcjonalnie z załącznikami.</summary>
+public sealed record MailMessage(
+    IReadOnlyList<string> To, string Subject, string TextBody, string HtmlBody, IReadOnlyList<MailAttachment>? Attachments = null);
+
+public interface IMailGateway
+{
+    /// <exception cref="MailTransportException">Błąd połączenia lub logowania do serwera poczty.</exception>
+    Task SendAsync(MailMessage message, CancellationToken cancellationToken);
+}
+
+/// <summary>Błąd połączenia lub uwierzytelnienia SMTP; ponowna próba ma sens dopiero później.</summary>
+public sealed class MailTransportException(string message, Exception innerException) : Exception(message, innerException);
+
+/// <param name="IsReminder">true = przypomnienie o alercie, o którym już wysłano wiadomość.</param>
+public sealed record AlertNotice(SensorConfig Sensor, AlertRecord Alert, StoredReading? Latest, bool IsReminder);
+
+/// <summary>Stan jednego czujnika do raportu: ostatni odczyt i otwarte alerty.</summary>
+public sealed record SensorSnapshot(SensorConfig Sensor, StoredReading? Latest, IReadOnlyList<AlertKind> OpenAlerts)
+{
+    /// <summary>
+    /// Odczyty z ostatnich dób (dowolna kolejność) do wykresu w raporcie (<see cref="MailChart"/>); pusta lista = karta bez
+    /// wykresu. Monitor wypełnia ją odczytami z <see cref="Monitoring.SnapshotBuilder.HistoryWindow"/> (od 2026-11-14).
+    /// </summary>
+    public IReadOnlyList<StoredReading> History { get; init; } = [];
+}

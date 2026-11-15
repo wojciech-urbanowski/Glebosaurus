@@ -1,0 +1,12 @@
+# W repozytorium zawsze LF; na dysku zależnie od systemu (Windows: CRLF przy core.autocrlf).
+* text=auto
+
+# Pliki uruchamiane na Linuksie (Raspberry Pi) muszą mieć LF niezależnie od systemu, na którym je pobrano.
+*.service text eol=lf
+*.sh      text eol=lf
+
+# Binarne – bez zamiany końców linii.
+*.png  binary
+*.ico  binary
+*.pfx  binary
+*.db   binary

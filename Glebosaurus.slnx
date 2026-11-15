@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Glebosaurus.Tuya/Glebosaurus.Tuya.csproj" />
+    <Project Path="src/Glebosaurus.Core/Glebosaurus.Core.csproj" />
+    <Project Path="src/Glebosaurus.Data/Glebosaurus.Data.csproj" />
+    <Project Path="src/Glebosaurus.Mail/Glebosaurus.Mail.csproj" />
+    <Project Path="src/Glebosaurus.Web/Glebosaurus.Web.csproj" />
+    <Project Path="src/Glebosaurus.Agent/Glebosaurus.Agent.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Glebosaurus.Tuya.Tests/Glebosaurus.Tuya.Tests.csproj" />
+    <Project Path="tests/Glebosaurus.Tests/Glebosaurus.Tests.csproj" />
+  </Folder>
+</Solution>
+
+

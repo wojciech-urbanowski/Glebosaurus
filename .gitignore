@@ -1,0 +1,30 @@
+bin/
+obj/
+.vs/
+.idea/
+*.user
+TestResults/
+publish/
+artifacts/
+
+# Robocze pliki użytkownika: konfiguracja, klucze czujników, baza, dzienniki
+local/
+
+# Klucze lokalne czujników i raporty z parowania – nigdy do repozytorium
+secrets/
+*.credentials.json
+
+# Sekrety panelu WWW (skrót hasła, certyfikat z kluczem prywatnym) – na wypadek konfiguracji poza local/
+glebosaurus-web.password
+*.pfx
+
+# Dane robocze monitora: dziennik i lokalna baza odczytów
+logs/
+*.db
+*.db-wal
+*.db-shm
+
+# Pliki robocze Claude Code (blokady, lokalne ustawienia)
+.claude/scheduled_tasks.lock
+.claude/settings.local.json
+.claude/worktrees/

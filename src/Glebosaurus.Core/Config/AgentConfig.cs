@@ -1,0 +1,165 @@
+using System.Net;
+using System.Net.Sockets;
+using Glebosaurus.Tuya;
+
+namespace Glebosaurus.Core.Config;
+
+/// <summary>
+/// Konfiguracja monitora. W fazie 1 to lokalny plik JSON (zawiera sekrety: klucze czujników i hasło aplikacji Gmail,
+/// więc nie trafia do repozytorium). W fazie 2 ten sam model przyjdzie z zaszyfrowanej konfiguracji w chmurze.
+/// </summary>
+public sealed class AgentConfig
+{
+    public string MonitorName { get; set; } = Environment.MachineName;
+
+    /// <summary>Domyślny odstęp między odczytami czujnika, w minutach (ułamki dozwolone, minimum 0,5).</summary>
+    public double ReadIntervalMinutes { get; set; } = 15;
+
+    /// <summary>
+    /// Jak długo łącznie nasłuchiwać reklam w poszukiwaniu czujników, które czekają na odczyt (czas połączeń się nie wlicza).
+    /// Znaleziony czujnik jest czytany od razu, więc dłuższe okno kosztuje tylko przy czujniku poza zasięgiem. 60 s, bo przy
+    /// słabym sygnale reklamy przychodzą seriami z przerwami do ok. 27 s (pomiar 2026-11-13).
+    /// </summary>
+    public int ScanWindowSeconds { get; set; } = 60;
+
+    /// <summary>Plik bazy SQLite; ścieżka względna jest liczona od katalogu pliku konfiguracji.</summary>
+    public string Database { get; set; } = "glebosaurus.db";
+
+    /// <summary>Jak długo przechowywać odczyty w lokalnej bazie.</summary>
+    public int RetentionDays { get; set; } = 400;
+
+    public List<SensorConfig> Sensors { get; set; } = [];
+    public MailConfig? Mail { get; set; }
+    public ReportsConfig Reports { get; set; } = new();
+    public AlertsConfig Alerts { get; set; } = new();
+    public LogsConfig Logs { get; set; } = new();
+
+    /// <summary>Panel diagnostyczny WWW (HTTPS, tylko sieć lokalna, hasło). Brak sekcji = panel wyłączony.</summary>
+    public WebConfig? Web { get; set; }
+}
+
+/// <summary>
+/// Panel diagnostyczny w przeglądarce, wbudowany w działający monitor (<c>run</c>): podgląd stanu i odczyt czujników na
+/// żądanie; konfiguracji nie zmienia. Hasło (jego skrót)
+/// i certyfikat HTTPS leżą w osobnych plikach obok konfiguracji – tworzy je polecenie <c>web-password</c>.
+/// </summary>
+public sealed class WebConfig
+{
+    public const int DefaultPort = 8470;
+
+    /// <summary>Sieci, z których panel zawsze przyjmuje połączenia: loopback i adresy prywatne (sieć domowa).</summary>
+    public static readonly IReadOnlyList<string> PrivateNetworks =
+        ["127.0.0.0/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16", "fe80::/10", "fc00::/7"];
+
+    /// <summary>Pozwala chwilowo wyłączyć panel bez usuwania sekcji.</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>Port HTTPS (1024–65535, żeby na Linuksie nie trzeba było uprawnień roota).</summary>
+    public int Port { get; set; } = DefaultPort;
+
+    /// <summary>
+    /// Sieci (CIDR, np. „192.168.1.0/24”, albo pojedyncze adresy), z których wolno się łączyć. Pusta lista = wszystkie
+    /// prywatne (<see cref="PrivateNetworks"/>). Loopback jest dozwolony zawsze.
+    /// </summary>
+    public List<string> AllowedNetworks { get; set; } = [];
+
+    /// <summary>Jak długo ważne jest zalogowanie (godziny). Restart monitora i tak wylogowuje.</summary>
+    public double SessionHours { get; set; } = 12;
+
+    /// <summary>Dozwolone sieci jako <see cref="IPNetwork"/>; rzuca <see cref="InvalidDataException"/> przy błędnym wpisie.</summary>
+    public IReadOnlyList<IPNetwork> ParseAllowedNetworks()
+    {
+        var entries = AllowedNetworks.Count > 0 ? AllowedNetworks.Concat(["127.0.0.0/8", "::1/128"]) : PrivateNetworks;
+        var result = new List<IPNetwork>();
+        foreach (var raw in entries)
+        {
+            var text = raw.Trim();
+            if (!text.Contains('/') && IPAddress.TryParse(text, out var single))
+                text += single.AddressFamily == AddressFamily.InterNetworkV6 ? "/128" : "/32";
+            if (!IPNetwork.TryParse(text, out var network))
+                throw new InvalidDataException($"web.allowedNetworks: „{raw}” nie jest siecią w zapisie CIDR (np. 192.168.1.0/24) ani adresem IP.");
+            result.Add(network);
+        }
+        return result;
+    }
+}
+
+public sealed class SensorConfig
+{
+    /// <summary>Stabilny identyfikator czujnika (w chmurze będzie losowy i nic nie zdradzający).</summary>
+    public string Id { get; set; } = "";
+
+    /// <summary>Nazwa widoczna w mailach, np. „Monstera w salonie”.</summary>
+    public string Name { get; set; } = "";
+
+    /// <summary>Dane lokalnego przypisania Tuya wpisane wprost: mac, uuid, deviceId, localKeyHex, productId.</summary>
+    public TuyaCredentials Tuya { get; set; } = new();
+
+    /// <summary>
+    /// Plik z danymi przypisania (tworzony przez polecenie pair); ścieżka względna liczy się od katalogu konfiguracji.
+    /// Zamiast <see cref="Tuya"/> – klucze nie muszą wtedy leżeć w głównym pliku konfiguracji.
+    /// </summary>
+    public string? TuyaFile { get; set; }
+
+    /// <summary>Własny odstęp odczytów; null = domyślny z <see cref="AgentConfig.ReadIntervalMinutes"/>.</summary>
+    public double? ReadIntervalMinutes { get; set; }
+
+    /// <summary>Alert „czas podlać”, gdy wilgotność jest niższa niż ta wartość przez <see cref="ConsecutiveReadings"/> odczytów.</summary>
+    public int WateringBelowPercent { get; set; } = 25;
+
+    /// <summary>Alert „czas podlać” wygasa dopiero po przekroczeniu tej wartości (histereza).</summary>
+    public int WateringClearAbovePercent { get; set; } = 35;
+
+    public int ConsecutiveReadings { get; set; } = 2;
+
+    /// <summary>Alert „słaba bateria”, gdy wskazanie baterii wynosi tyle procent lub mniej.</summary>
+    public int LowBatteryPercent { get; set; } = 18;
+
+    public bool IsBatteryLow(int batteryPercent) => batteryPercent <= LowBatteryPercent;
+
+    /// <summary>Alert „brak odczytów”, gdy od ostatniego udanego odczytu minie tyle godzin.</summary>
+    public double SilentAfterHours { get; set; } = 6;
+}
+
+public sealed class MailConfig
+{
+    /// <summary>Konto Gmail nadawcy.</summary>
+    public string GmailAddress { get; set; } = "";
+
+    /// <summary>Hasło aplikacji Gmail (https://myaccount.google.com/apppasswords), nie hasło do konta.</summary>
+    public string AppPassword { get; set; } = "";
+
+    public List<string> AlertRecipients { get; set; } = [];
+
+    /// <summary>Odbiorcy raportów; pusta lista = ci sami, co alertów.</summary>
+    public List<string> ReportRecipients { get; set; } = [];
+
+    public IReadOnlyList<string> EffectiveReportRecipients => ReportRecipients.Count > 0 ? ReportRecipients : AlertRecipients;
+
+    /// <summary>
+    /// Administrator: dostaje techniczny dziennik agenta z całego poprzedniego dnia, wysyłany w pierwszym przebiegu
+    /// kolejnego dnia. Osobna lista od alertów i raportów; pusta = dzienniki nie są wysyłane.
+    /// </summary>
+    public List<string> AdminRecipients { get; set; } = [];
+}
+
+public sealed class LogsConfig
+{
+    /// <summary>Ile dni wstecz agent trzyma pliki dziennika (starsze są usuwane); dziennik z wczoraj jest potrzebny do wysyłki, więc minimum 1.</summary>
+    public int RetentionDays { get; set; } = 7;
+}
+
+public sealed class ReportsConfig
+{
+    /// <summary>Pory wysyłki raportów w czasie lokalnym, format HH:mm. Pusta lista wyłącza raporty.</summary>
+    public List<string> Times { get; set; } = ["07:00", "19:00"];
+
+    /// <summary>Jeśli monitor był wyłączony o zaplanowanej porze, nadrabia raport przez tyle godzin; potem go pomija.</summary>
+    public double CatchUpHours { get; set; } = 3;
+}
+
+public sealed class AlertsConfig
+{
+    /// <summary>Co ile godzin przypominać o wciąż otwartym alercie.</summary>
+    public double ReminderHours { get; set; } = 24;
+}

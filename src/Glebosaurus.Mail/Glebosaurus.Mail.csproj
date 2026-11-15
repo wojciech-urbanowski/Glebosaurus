@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Wysyłka przez Gmail SMTP (MailKit) z hasłem aplikacji – to samo podejście co w LibrusNotifier. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Glebosaurus.Mail</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Glebosaurus.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MailKit" Version="5.0.0" />
+    <ProjectReference Include="..\Glebosaurus.Core\Glebosaurus.Core.csproj" />
+  </ItemGroup>
+
+</Project>

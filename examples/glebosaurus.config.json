@@ -1,0 +1,73 @@
+// Wzór konfiguracji monitora Glebosaurus (komentarze i końcowe przecinki są dozwolone).
+// Skopiuj jako glebosaurus.config.json i uzupełnij. Plik zawiera sekrety (klucze czujników, hasło aplikacji Gmail) –
+// nie dodawaj go do repozytorium. Zmiana pliku wymaga ponownego uruchomienia monitora.
+{
+  // Nazwa tego monitora w mailach i dzienniku.
+  "monitorName": "Raspberry Pi – salon",
+
+  // Domyślny odstęp między odczytami czujnika (minuty, min. 0,5). Częstsze odczyty szybciej wyczerpują baterie czujników.
+  "readIntervalMinutes": 15,
+
+  // Jak długo łącznie (sekundy, 5–120) nasłuchiwać reklam BLE w poszukiwaniu czujników czekających na odczyt. Znaleziony
+  // czujnik jest czytany od razu, więc dłuższe okno kosztuje tylko przy czujniku poza zasięgiem (słaby sygnał: przerwy do ~27 s).
+  "scanWindowSeconds": 60,
+
+  // Plik bazy SQLite z odczytami i alertami; ścieżka względna liczy się od katalogu tego pliku.
+  "database": "glebosaurus.db",
+
+  "sensors": [
+    {
+      "id": "monstera",                 // litery, cyfry, '.', '_' i '-'
+      "name": "Monstera w salonie",     // nazwa w mailach
+
+      // Dane przypisania czujnika: plik utworzony przez `glebosaurus pair` (klucz nie leży wtedy w tym pliku konfiguracji;
+      // ścieżka względna liczy się od katalogu konfiguracji). Gotowy wpis do wklejenia podaje samo polecenie pair.
+      "tuyaFile": "monstera.credentials.json",
+      // Alternatywnie dane wprost (zamiast tuyaFile, nie oba naraz):
+      // "tuya": { "mac": "DC:23:51:CC:03:C9", "uuid": "0123456789abcdef", "deviceId": "…", "localKeyHex": "…", "productId": "gvygg3m8" },
+
+
+      // Wszystko poniżej jest opcjonalne (podane wartości domyślne).
+      "wateringBelowPercent": 25,       // alert „czas podlać”, gdy wilgotność < 25% przez kilka odczytów z rzędu
+      "wateringClearAbovePercent": 35,  // alert wygasa dopiero powyżej 35% (histereza)
+      "consecutiveReadings": 2,
+      "lowBatteryPercent": 18,
+      "silentAfterHours": 6,            // alert „brak odczytów” po tylu godzinach bez udanego odczytu
+      "readIntervalMinutes": null       // własny odstęp dla tego czujnika
+    }
+  ],
+
+  // Bez tej sekcji alerty i raporty trafiają tylko do dziennika. Hasło aplikacji: https://myaccount.google.com/apppasswords
+  "mail": {
+    "gmailAddress": "nadawca@gmail.com",
+    "appPassword": "HASLO_APLIKACJI",
+    "alertRecipients": ["ja@example.com"],   // odbiorcy alertów (co najmniej jeden); można podać kilku
+    "reportRecipients": [],                  // odbiorcy raportów; puste = ci sami, co alertów
+    // Administrator dostaje techniczny dziennik agenta z całego poprzedniego dnia (załącznik + streszczenie), wysyłany w
+    // pierwszym przebiegu każdego dnia. Osobna lista od alertów i raportów; puste = dzienniki nie są wysyłane.
+    "adminRecipients": ["admin@example.com"]
+  },
+
+  "reports": {
+    "times": ["07:00", "19:00"],        // pory raportów (czas lokalny, HH:mm); pusta lista wyłącza raporty
+    "catchUpHours": 3                   // nadrabiaj raport spóźniony o tyle godzin, potem pomiń
+  },
+
+  "alerts": {
+    "reminderHours": 24                 // co ile przypominać o wciąż otwartym alercie
+  },
+
+  // Dziennik agenta (pliki dzienne w katalogu logs/ obok tego pliku).
+  "logs": {
+    "retentionDays": 7                  // pliki starsze niż tyle dni są usuwane (1–365)
+  }
+
+  // Panel diagnostyczny w przeglądarce (HTTPS, tylko sieć lokalna, hasło; podgląd i odczyt na żądanie). Bez tej sekcji panel jest
+  // wyłączony. Przed pierwszym użyciem: glebosaurus web-password --config <ten plik> (hasło i certyfikat obok tego pliku).
+  // Żeby włączyć, usuń komentarze i dopisz przecinek po sekcji "logs".
+  // "web": {
+  //   "port": 8470,                    // port HTTPS (1024–65535); adres: https://<nazwa-komputera>:8470/
+  //   "allowedNetworks": [],           // np. ["192.168.1.0/24"]; puste = wszystkie sieci prywatne (loopback zawsze)
+  //   "sessionHours": 12               // jak długo ważne jest zalogowanie (restart monitora i tak wylogowuje)
+  // }
+}

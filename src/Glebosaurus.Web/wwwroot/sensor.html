@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="same-origin">
+<title>Czujnik – Glebosaurus</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/app.css">
+<script type="module" src="/sensor.js"></script>
+</head>
+<body>
+<header class="top">
+  <div class="top-row">
+    <div>
+      <div class="brand"><a href="/">GLEBOSAURUS</a> · <a href="/" class="back">wszystkie czujniki</a></div>
+      <h1 id="sensor-name">Czujnik</h1>
+      <div class="muted" id="sensor-line">Wczytywanie…</div>
+    </div>
+    <form method="post" action="/logout"><button type="submit" class="quiet">Wyloguj</button></form>
+  </div>
+  <div class="toolbar picker">
+    <label>Inny czujnik <select id="sensor-pick"></select></label>
+  </div>
+</header>
+<main>
+  <div id="banner" class="banner tone-grey" hidden></div>
+
+  <div id="content">
+    <section>
+      <h2>Teraz</h2>
+      <div id="action-note" class="action-note" role="status" hidden></div>
+      <div id="now"></div>
+    </section>
+
+    <section>
+      <h2>Wilgotność i temperatura</h2>
+      <div class="toolbar chart-toolbar" role="group" aria-label="Zakres wykresu">
+        <span id="presets" class="presets"></span>
+        <span class="nav">
+          <button type="button" class="quiet small" id="pan-back" title="Wcześniej" aria-label="Wcześniej">◀</button>
+          <button type="button" class="quiet small" id="zoom-out" title="Pomniejsz (dłuższy okres)" aria-label="Pomniejsz">−</button>
+          <button type="button" class="quiet small" id="zoom-in" title="Powiększ (krótszy okres)" aria-label="Powiększ">+</button>
+          <button type="button" class="quiet small" id="pan-forward" title="Później" aria-label="Później">▶</button>
+          <button type="button" class="quiet small" id="go-now">Teraz</button>
+        </span>
+      </div>
+      <div id="chart"></div>
+      <div id="view-info" class="view-info small"></div>
+      <div id="overview"></div>
+      <div class="muted small hint">Przeciągnij wykres albo prostokąt na pasku pod nim, żeby przesunąć okres; powiększenie: Ctrl + kółko myszy, dwa palce albo przyciski. Strzałki na klawiaturze przechodzą po kolejnych punktach.</div>
+    </section>
+
+    <section>
+      <h2>Otwarte alerty</h2>
+      <div id="alerts"></div>
+    </section>
+
+    <section>
+      <h2>Odczyty</h2>
+      <div id="readings"></div>
+    </section>
+
+    <section>
+      <h2>Diagnostyka</h2>
+      <div id="diagnostics"></div>
+    </section>
+
+    <section>
+      <h2>Ustawienia czujnika</h2>
+      <div id="settings"></div>
+    </section>
+
+    <section>
+      <h2>Dziennik</h2>
+      <div class="toolbar">
+        <label>Dzień <select id="log-day"><option value="0">dziś</option><option value="1">wczoraj</option></select></label>
+        <label>Pokaż <select id="log-level"><option value="all">wszystko</option><option value="warn">ostrzeżenia i błędy</option></select></label>
+        <button id="log-refresh" type="button" class="quiet">Odśwież</button>
+      </div>
+      <div id="log-note" class="muted small"></div>
+      <div id="log"></div>
+    </section>
+  </div>
+</main>
+<footer class="muted small" id="footer">Glebosaurus · panel diagnostyczny</footer>
+</body>
+</html>

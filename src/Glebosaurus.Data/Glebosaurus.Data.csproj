@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Lokalny magazyn monitora w SQLite (bufor offline). Bez EF Core: kilka tabel, proste zapytania, mały ślad na Raspberry Pi. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Glebosaurus.Data</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="11.0.0" />
+    <ProjectReference Include="..\Glebosaurus.Core\Glebosaurus.Core.csproj" />
+  </ItemGroup>
+
+</Project>

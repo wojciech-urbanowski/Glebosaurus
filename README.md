@@ -1,0 +1,271 @@
+# Glebosaurus
+
+Bezobsługowy monitor czujników gleby Tuya BLE (ATLO SMS1) dla Windows 11 i Raspberry Pi OS: odczyty do lokalnej bazy SQLite,
+alerty „czas podlać” i raporty o stałych porach mailem przez Gmail.
+
+Dokumenty: [docs/ARCHITEKTURA.md](docs/ARCHITEKTURA.md) – projekt i fakty zmierzone na sprzęcie ·
+[docs/ROADMAP.md](docs/ROADMAP.md) – kolejne fazy i decyzje · [CLAUDE.md](CLAUDE.md) – kontekst dla dalszej pracy nad kodem.
+
+## Stan
+
+Zrobione i sprawdzone na sprzęcie (Windows 11, prawdziwy czujnik): protokół Tuya BLE z lokalnym parowaniem bez konta Tuya,
+monitor (odczyty, SQLite, alerty, raport HTML, czyste zatrzymanie), polecenie `pair`. Gotowe w kodzie, **ale jeszcze
+niesprawdzone**: praca na Raspberry Pi. Wysyłka maili przez Gmail i ich wygląd na telefonie są sprawdzone (2026-11-13). Praca w tle na Windows (zadanie
+Harmonogramu) i chmura z interfejsem WWW to kolejne fazy – patrz [ROADMAP](docs/ROADMAP.md). Lokalny panel diagnostyczny w
+przeglądarce (HTTPS, sieć lokalna, hasło; pulpit z wykresem ostatnich 3 dób przy każdym czujniku, strona czujnika z pełną
+historią, odczyt czujników i raport mailowy na żądanie) działa od 2026-11-14 – patrz „Panel WWW” niżej.
+
+| Projekt | Rola |
+|---|---|
+| `Glebosaurus.Tuya` | protokół Tuya BLE 3.x, lokalne przypisanie, sesja, profil czujnika |
+| `Glebosaurus.Core` | konfiguracja, reguły alertów, harmonogram raportów, szablony maili, dane do wykresów, silnik monitora |
+| `Glebosaurus.Data` | lokalny magazyn SQLite |
+| `Glebosaurus.Mail` | wysyłka przez Gmail (MailKit, hasło aplikacji) |
+| `Glebosaurus.Web` | panel diagnostyczny WWW wbudowany w `run` (Kestrel, HTTPS, hasło; pulpit z wykresami, strona czujnika, odczyt i raport na żądanie) |
+| `Glebosaurus.Agent` | CLI: `run`, `pair`, `status`, `report`, `mail-test`, `mail-preview`, `send-log`, `web-password`, `scan`, `read`, `listen` |
+
+## Budowanie i testy
+
+```powershell
+dotnet build Glebosaurus.slnx -c Release
+dotnet test --solution Glebosaurus.slnx -c Release
+```
+
+`global.json` włącza Microsoft Testing Platform (wymagane przez xunit.v3 na SDK 10+).
+
+## Szybki start
+
+Robocze pliki (konfiguracja, klucze czujników, baza, dzienniki) trzymaj w katalogu `local/` – jest poza repozytorium.
+
+1. Sparuj czujnik (patrz niżej) – powstanie plik klucza `<id>.credentials.json`.
+2. Skopiuj [examples/glebosaurus.config.json](examples/glebosaurus.config.json) do `local/glebosaurus.config.json` i wpisz
+   czujnik z `tuyaFile` (polecenie `pair` podaje gotowy wpis). Sekcję `mail` dodaj, gdy chcesz maile.
+3. Uruchom `glebosaurus run --config local/glebosaurus.config.json`.
+
+## Nowy czujnik: parowanie lokalne
+
+Bez konta i aplikacji Tuya: agent sam wymyśla `deviceId` i 6-bajtowy klucz, zapisuje je w czujniku przez BLE i sprawdza na
+nowym połączeniu. Po włożeniu baterii czujnik nadaje jako niesparowany tylko ok. 20 s, dlatego skan rusza pierwszy:
+
+```powershell
+glebosaurus pair --id monstera --name "Monstera w salonie" --config local/glebosaurus.config.json --confirm-bind
+# ... po komunikacie „Czekam na czujnik” włóż baterie do czujnika
+```
+
+Polecenie zapisuje klucz w `monstera.credentials.json` obok konfiguracji (to jedyna kopia – zrób jej kopię zapasową; bez niej
+czujnik trzeba resetować) i podaje gotowy wpis do listy `sensors`:
+`{ "id": "monstera", "name": "Monstera w salonie", "tuyaFile": "monstera.credentials.json" }`.
+Przerwane parowanie wznawia się tym samym poleceniem (ten sam klucz). Gdy w zasięgu jest kilka niesparowanych czujników,
+polecenie nie zgaduje – wymaga `--mac`, żeby nie sparować niewłaściwego. Sparowany czujnik znika z aplikacji Smart Life; reset
+przyciskiem przywraca stan fabryczny. Tuż po przypisaniu czujnik reklamuje się rzadko, więc weryfikacja potrafi potrwać
+do ok. 30 s (limit 90 s).
+
+### Wymiana baterii i reset
+
+**Wymiana baterii nie kasuje przypisania** (sprawdzone: minuta bez zasilania, bez przycisku reset – po włożeniu baterii ten
+sam klucz od razu uwierzytelnił sesję). Wystarczy włożyć nowe baterie, monitor czyta czujnik dalej.
+
+Przypisanie kasuje dopiero **reset przyciskiem**. Wtedy uruchom `glebosaurus pair --id <to samo id> --config … --confirm-bind`
+(skan rusza pierwszy) i dopiero potem zresetuj czujnik i włóż baterie. Polecenie użyje zapisanego klucza – zwiąże czujnik
+ponownie albo, jeśli nadal jest sparowany, tylko sprawdzi klucz. Nie tworzy drugiego klucza i nie ruszy czujnika o innym
+UUID. Monitor, który trafi na niesparowany czujnik, zapisuje w dzienniku dokładnie to polecenie.
+
+## Konfiguracja
+
+Wzór z komentarzami: [examples/glebosaurus.config.json](examples/glebosaurus.config.json). Plik konfiguracji zawiera sekrety
+(hasło aplikacji Gmail), a pliki `*.credentials.json` klucze czujników – żaden z nich nie trafia do repozytorium. Bez sekcji
+`mail` alerty i raporty trafiają tylko do dziennika. Hasło aplikacji Gmail tworzysz na
+https://myaccount.google.com/apppasswords (wymaga weryfikacji dwuetapowej).
+
+## Użycie (Windows)
+
+Polecenia poniżej zakładają opublikowany `glebosaurus.exe`; z kodu źródłowego:
+`dotnet run --project src/Glebosaurus.Agent -f net10.0-windows10.0.19041.0 -- <polecenie> …`.
+
+```powershell
+glebosaurus run --config local/glebosaurus.config.json        # praca ciągła; dziennik w logs/ obok pliku konfiguracji
+glebosaurus status --config local/glebosaurus.config.json     # ostatnie odczyty i alerty z bazy
+glebosaurus report --config local/glebosaurus.config.json --out raport.html
+glebosaurus mail-test --config local/glebosaurus.config.json  # wysyła PRAWDZIWĄ wiadomość próbną do odbiorców alertów
+glebosaurus mail-test --samples --config local/glebosaurus.config.json  # j.w. + przykładowy alert i raport ([PRZYKŁAD]) na telefon
+glebosaurus mail-preview --out mail-preview                   # zapisuje przykładowe maile (HTML i tekst), niczego nie wysyła
+glebosaurus send-log --config local/glebosaurus.config.json   # wysyła PRAWDZIWY log z wczoraj do administratora (--date RRRR-MM-DD: inny dzień)
+glebosaurus web-password --config local/glebosaurus.config.json  # hasło i certyfikat panelu WWW (panel działa w ramach run)
+glebosaurus scan --seconds 15 --verbose                       # diagnostyka: urządzenia Tuya w zasięgu
+glebosaurus read --credentials local/monstera.credentials.json  # diagnostyka: jednorazowy odczyt jednego czujnika
+glebosaurus listen --credentials local/monstera.credentials.json --out local/listen.log  # diagnostyka: wszystkie ramki czujnika
+```
+
+### Czy czujnik oddaje zaległe pomiary?
+
+Tak: ATLO SMS1 zapisuje pomiar co godzinę i przy każdym połączeniu, a przy połączeniu oddaje całą zaległą serię i ją kasuje.
+`run` zapisuje te zaległe pomiary w bazie z czasem czujnika, a najnowszy z nich traktuje jako stan bieżący. Do podglądu
+surowych ramek (np. po zmianie sprzętu) służy `listen`:
+
+1. Zatrzymaj monitor (`run`) i zamknij Smart Life na telefonie – czujnik przyjmuje jedno połączenie naraz.
+2. Zostaw czujnik na kilka godzin bez żadnych odczytów (najlepiej na noc).
+3. Raz uruchom `glebosaurus listen --credentials … --out local/listen.log`. Polecenie zostaje połączone, aż czujnik zamilknie na
+   `--linger` sekund (domyślnie 20, najdłużej 5 min), i wypisuje każdą ramkę: komendę, punkty danych, czas czujnika i surowe bajty.
+   Do czujnika nie wysyła nic poza zwykłym uwierzytelnieniem i prośbą o stan; w wyniku nie ma kluczy.
+4. Ramki `0x8003` z różnymi czasami to historia. Same `0x8001` (jedna ramka) znaczyłyby, że czujnik oddaje tylko bieżący stan.
+   Na ATLO SMS1 sprawdzone 2026-11-13: czujnik oddaje historię w `0x8003` i **kasuje ją po odebraniu** – `listen` zużywa
+   zaległe rekordy, więc zapisuj wynik przez `--out` (szczegóły: docs/ARCHITEKTURA.md).
+
+Jak to działa: co 30 s monitor sprawdza, które czujniki czekają na odczyt (odstęp `readIntervalMinutes`, domyślnie 15 min).
+Dla nich nasłuchuje reklam BLE i każdy czujnik, który się pojawi, czyta od razu, a potem słucha dalej po pozostałe – czujnik
+poza zasięgiem nie opóźnia więc tych w zasięgu. `scanWindowSeconds` (domyślnie 60 s) to łączny czas nasłuchu; czujnik, którego
+nie było przez całe okno, jest „nie znaleziony”. Potem monitor zapisuje odczyty, przelicza alerty i wysyła maile.
+Czujnik, który nie odpowiada, jest ponawiany z rosnącym odstępem (1, 2, 4, 8, max 10 min). Połączenie trwa ok. 14–17 s plus
+ok. 1,1 s na każdy zaległy rekord (czujnik oddaje je od najstarszego, a stan z chwili połączenia jest ostatni, więc nie
+kończymy na pierwszym komplecie, tylko po 3 s ciszy). Każdy odczyt kosztuje baterię czujnika.
+
+Zasięg: w dzienniku przy każdym odczycie jest poziom sygnału („sygnał -77 dBm”), a przy „nie znaleziono w reklamach” – ostatni
+usłyszany poziom i jak dawno. Z pomiarów na Windows (kilka prób): przy −75…−81 dBm odczyty się udawały, przy ok. −94 dBm czujnika nie było w reklamach. Poziom
+zależy od ułożenia czujnika (ok. 14 dB różnicy w tej samej skrzynce), nie od ziemi; `glebosaurus scan` pokazuje średnią i zakres
+dla każdego urządzenia, więc pozycję czujnika można dobrać na żywo (patrz docs/ARCHITEKTURA.md, „Zasięg Cisy”).
+
+Alerty: „czas podlać” (wilgotność poniżej progu przez kilka odczytów z rzędu, wygasa dopiero powyżej progu wygaszenia),
+„słaba bateria”, „brak odczytów”. Mail o nowych alertach idzie od razu (kilka naraz w jednej wiadomości), przypomnienie co
+`reminderHours`. Raporty o porach z `reports.times`; spóźniony raport jest nadrabiany do `catchUpHours`.
+Wilgotność z tańszych czujników wymaga kalibracji – domyślne progi (25% / 35%) są tylko punktem wyjścia.
+
+### Maile (alerty i raporty)
+
+Maile są pisane z myślą o telefonie: HTML to jedna wąska kolumna (do 480 px) z kartą na czujnik – nazwa, plakietka stanu,
+trzy duże liczby (wilgotność, temperatura gleby, bateria) i pasek wilgotności – a wersja tekstowa ma krótkie wiersze.
+Elementy są kwadratowe, w pastelowych kolorach (czerwień – podlej, żółć – słaba bateria, zieleń – OK, szarość – brak odczytów).
+Tytuł zaczyna się od tego, co ważne („Monstera – czas podlać”, „Poranny raport – do podlania: Monstera, Fikus +1”), a
+w podglądzie na liście wiadomości widać wilgotność wszystkich roślin. Raporty idą o porach z `reports.times` (domyślnie
+07:00 i 19:00: „Poranny” i „Wieczorny”), alerty od razu po otwarciu, przypomnienia co `reminderHours`.
+
+Odbiorców ustawiasz w sekcji `mail`: `alertRecipients` (alerty i wiadomość próbna) oraz `reportRecipients` (raporty; puste =
+ci sami co alertów). Można podać kilka adresów; adresy są walidowane przy starcie. Wygląd obejrzysz bez wysyłania:
+`glebosaurus mail-preview` zapisuje przykładowe maile jako pliki HTML (w przeglądarce użyj widoku telefonu), a
+`glebosaurus mail-test --samples` wysyła je prawdziwie na telefon (tytuły z „[PRZYKŁAD]”, dane zmyślone). Każdy raport ma przy
+czujniku wykres ostatnich 3 dób z samego HTML (kolumny po 2 godz.: niebieska kreska – średnia wilgotność, blady pasek –
+temperatura od najniższej do najwyższej, różowe tło – poniżej progu podlania; przy wielu czujnikach kolumny są szersze,
+żeby Gmail nie przyciął maila), a wersja tekstowa linijkę `▁…█`. `mail-preview` zapisuje też `raport-20.html` z 20 czujnikami. W stopce każdego
+maila jest wersja Glebosaurusa („Wiadomość automatyczna · Glebosaurus 0.1.0”); numer wersji jest w jednym miejscu,
+w `Directory.Build.props`.
+
+### Log techniczny dla administratora
+
+Agent trzyma własny dziennik w plikach dziennych `logs/glebosaurus-RRRRMMDD.log` obok pliku konfiguracji (czas lokalny) i
+usuwa pliki starsze niż `logs.retentionDays` (domyślnie 7 dni; wczorajszy plik zawsze zostaje). **W pierwszym przebiegu
+każdego dnia** (po północy albo przy pierwszym starcie danego dnia) wysyła pod adres z `mail.adminRecipients` – osobny
+od odbiorców alertów i raportów – dziennik z **całego poprzedniego dnia**: w treści streszczenie (liczba wpisów, ostatnie
+ostrzeżenia i błędy, w tym samym wąskim, pastelowym stylu co reszta), a pełny dziennik jako załącznik `.log` (nazwa
+`glebosaurus-<agent>-RRRRMMDD.log`, do 5 mln znaków; dłuższy jest obcinany od początku). Puste `adminRecipients` wyłącza wysyłkę.
+
+- Wysłanie jest odnotowane w bazie, więc restart agenta w ciągu dnia nie powtarza maila, a nieudana wysyłka jest ponawiana
+  po 5 minutach (niezależnie od alertów – kłopot z tym mailem nie opóźnia „czas podlać”).
+- Jeśli agent poprzedniego dnia nie działał (brak pliku), nie ma czego wysyłać; dni starsze niż wczorajszy nie są
+  dosyłane wstecz. Brak maila z logiem pierwszego dnia po północy to też sygnał, że agent wczoraj nie pracował.
+- Na żądanie: `glebosaurus send-log [--date RRRR-MM-DD]` wysyła prawdziwy dziennik z wybranego dnia (nie zmienia znacznika
+  automatycznej wysyłki); `mail-test --samples` wysyła też przykładowy log, a `mail-preview` zapisuje go do obejrzenia.
+- Dziennik zawiera m.in. nazwy czujników, odczyty i ścieżki plików; agent nie zapisuje w nim kluczy czujników ani hasła
+  Gmaila (zasada projektu), więc załącznik można bezpiecznie wysyłać mailem.
+
+## Panel WWW (diagnostyka w przeglądarce)
+
+Pracujący monitor (`run`) może pokazywać swój stan w przeglądarce, w sieci lokalnej. Wygląd jak w mailach: kwadratowe,
+pastelowe karty, jedna kolumna na telefonie. Strony odświeżają się same co 30 s (co 3 s, gdy trwa albo czeka odczyt lub raport).
+
+**Pulpit** (strona główna) – to, co najważniejsze: karta każdego czujnika (alerty, wilgotność, temperatura, bateria, wiek
+odczytu, ewentualny problem z ostatnią próbą) z **wykresem ostatnich 3 dób**, a pod kartami otwarte alerty, stan poczty
+(ostatnia wysyłka, ostatni błąd, wstrzymanie), najbliższy raport, końcówka dziennika (dziś lub wcześniej, wszystko albo same
+ostrzeżenia i błędy) i ustawienia monitora.
+
+**Strona czujnika** (nazwa na karcie albo „Szczegóły i pełna historia”) – wszystko o jednym czujniku: stan teraz (z
+sygnałem), **przeglądalny wykres całej historii**, jego otwarte alerty, ostatnie odczyty w tabeli („Pokaż więcej” do 1000),
+diagnostyka (ostatnia próba i jej wynik, ponowienia, sygnał, najstarszy odczyt w bazie), ustawienia (progi, MAC, produkt) i
+wpisy dziennika o tym czujniku. Lista „Inny czujnik” przełącza między czujnikami.
+
+**Wykresy:** wilgotność (lewa oś, %) i temperatura gleby (prawa oś, °C) na jednym wykresie; każda oś obejmuje zakres
+wartości z widocznego okresu (wilgotność co najmniej 10 punktów procentowych, temperatura 2 °C – żeby szum nie wyglądał jak
+skoki), cienka czerwona linia to próg podlania (gdy mieści się w zakresie). Przerwa w linii = brak odczytów dłużej niż
+kilka interwałów. Najechanie, dotknięcie albo strzałki na klawiaturze pokazują wartości w danym miejscu. Przy dłuższych
+okresach monitor uśrednia odczyty (np. z 2 godz. albo z doby) – wtedy za linią widać blady pas od najmniejszej do
+największej wartości, a dymek podaje średnią, zakres i liczbę odczytów. Na stronie czujnika: zakresy 3 doby / 7 dni / 30 dni
+/ 90 dni / rok / całość, przesuwanie przeciąganiem (też palcem) i strzałkami ◀ ▶, powiększanie Ctrl + kółkiem myszy,
+dwoma palcami albo przyciskami − +, „Teraz” wraca do bieżącego czasu, a pasek pod wykresem pokazuje całą historię z
+prostokątem widocznego okresu (można go przeciągać). Wykresy to SVG rysowany w przeglądarce, bez dodatkowych bibliotek.
+
+**Odczyt na żądanie:** przycisk „Odczytaj teraz” na karcie czujnika i „Odczytaj wszystkie teraz” nad kartami zlecają odczyt
+wcześniej, niż przewiduje harmonogram (także w trakcie odstępu po nieudanych próbach). Zlecenie trafia do kolejki monitora,
+który budzi się od razu i czyta po kolei – nigdy równolegle z trwającym połączeniem (czujnik przyjmuje jedno naraz). Karta
+pokazuje „czeka na odczyt…”, potem „odczyt trwa…”, a na końcu nowy wynik (albo przyczynę porażki). Każde połączenie kosztuje
+baterię, dlatego ten sam czujnik można wymusić najwyżej **raz na minutę** od ostatniej próby (przycisk pokazuje, od kiedy).
+Zlecenia trafiają do dziennika (kto i co). Konfiguracji panel nie zmienia – to robi się w pliku i restartem monitora.
+
+**Raport na żądanie:** „Wyślij raport teraz…” w sekcji „Poczta i raporty” wysyła **prawdziwy mail** – ten sam raport co z
+harmonogramu, do tych samych odbiorców (`mail.reportRecipients`, a gdy pusta – odbiorcy alertów) – dlatego panel najpierw
+pyta, pokazując adresy. Monitor wysyła go w najbliższym cyklu (budzi się od razu; jeśli trwa odczyt czujników, raport idzie
+zaraz po nim, więc pokazuje świeże dane). Zaplanowane raporty idą dalej o swoich porach. Wynik (wysłany albo błąd poczty)
+pojawia się w notce i w karcie raportów; kolejny raport na żądanie najwcześniej **minutę** po poprzedniej próbie. Przycisk
+jest nieaktywny, gdy poczta nie jest skonfigurowana.
+
+Włączenie:
+
+1. Dodaj do konfiguracji sekcję `"web": { "port": 8470 }` (wzór w [examples/glebosaurus.config.json](examples/glebosaurus.config.json)).
+2. Na komputerze monitora uruchom `glebosaurus web-password --config local/glebosaurus.config.json` i podaj hasło (co
+   najmniej 12 znaków, dwa razy). Polecenie zapisuje tylko **skrót** hasła (PBKDF2-SHA256, 600 tys. iteracji) w
+   `glebosaurus-web.password` obok konfiguracji, tworzy certyfikat HTTPS `glebosaurus-web.pfx` i wypisuje adresy panelu oraz
+   **odcisk SHA-256 certyfikatu**.
+3. Uruchom monitor ponownie i otwórz np. `https://<nazwa-komputera>:8470/`. Przeglądarka ostrzeże, że certyfikat nie pochodzi
+   z zaufanego urzędu – to oczekiwane (certyfikat z podpisem własnym); porównaj odcisk w szczegółach certyfikatu z tym z
+   `web-password` albo z dziennika monitora i przejdź dalej.
+4. Windows: dostęp z innych urządzeń wymaga reguły Zapory (PowerShell jako administrator; `web-password` wypisuje ją z
+   właściwym portem). Reguła wpuszcza tylko profil Prywatny i lokalną podsieć:
+
+```powershell
+New-NetFirewallRule -DisplayName "Glebosaurus panel" -Direction Inbound -Protocol TCP -LocalPort 8470 -Profile Private -RemoteAddress LocalSubnet -Action Allow
+```
+
+Zabezpieczenia (kilka warstw):
+
+- **Tylko sieć lokalna:** połączenia spoza loopbacku i sieci prywatnych (10/8, 172.16/12, 192.168/16, link-local, IPv6 ULA) są
+  odrzucane, nawet gdy router przekieruje port na zewnątrz. Węższą listę ustawia `web.allowedNetworks` (np.
+  `["192.168.1.0/24"]`); loopback jest dozwolony zawsze.
+- **HTTPS** z certyfikatem z podpisem własnym (ECDSA P-256, ważny 825 dni, odnawiany automatycznie 30 dni przed końcem –
+  wtedy zmienia się odcisk).
+- **Hasło:** na dysku tylko skrót; logowanie daje ciasteczko sesji `Secure`, `HttpOnly`, `SameSite=Strict`, ważne
+  `web.sessionHours` (domyślnie 12 godz.); restart monitora wylogowuje. Po 5 błędnych hasłach z jednego adresu w ciągu
+  15 min adres jest blokowany na 15 min.
+- **Sekrety nie wychodzą:** panel nie pokazuje kluczy czujników (`localKey`, `deviceId`) ani hasła aplikacji Gmail (testy
+  sprawdzają, że ich nie ma w odpowiedziach). Ścisłe nagłówki (CSP bez skryptów inline, zakaz osadzania w ramkach,
+  `no-store`), POST tylko z samego panelu (`Sec-Fetch-Site`), a akcje dodatkowo wymagają własnego nagłówka, którego formularz
+  z obcej strony nie umie wysłać. Odrzucone żądania trafiają do dziennika.
+- **Monitor ważniejszy niż panel:** brak hasła, zajęty port czy inny kłopot z panelem kończy się wpisem w dzienniku – monitor
+  pracuje dalej bez panelu.
+
+Pliki `glebosaurus-web.password` i `glebosaurus-web.pfx` (z kluczem prywatnym) są sekretami jak klucze czujników – leżą w
+`local/` (poza repozytorium); na Linuksie powstają z prawami 600. Nowe hasło: ponownie `web-password` i restart monitora.
+
+## Raspberry Pi (linux-arm64) – niesprawdzone
+
+Paczka: `publish/Glebosaurus-<wersja>-linux-arm64.tar.gz` (wersja pochodzi z `Directory.Build.props`, obecnie 0.1.0, i jest widoczna
+w stopce maili; `publish/` jest poza repozytorium; zależna od frameworka – od 2026-11-14
+(panel WWW) wymaga **ASP.NET Core Runtime 10** (zawiera .NET Runtime; sam .NET Runtime już nie wystarczy), np.
+`./dotnet-install.sh --channel 10.0 --runtime aspnetcore`; budowanie:
+`dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self-contained false`).
+
+```bash
+sudo mkdir -p /opt/glebosaurus && sudo tar -xzf Glebosaurus-<wersja>-linux-arm64.tar.gz -C /opt/glebosaurus
+systemctl status bluetooth          # BlueZ musi działać
+dotnet /opt/glebosaurus/glebosaurus.dll scan --seconds 15 --verbose
+```
+
+Plik konfiguracji i pliki kluczy skopiuj osobno, nie w paczce. Jako usługa: [deploy/glebosaurus.service](deploy/glebosaurus.service)
+(wzór). Czujnik przyjmuje jedno połączenie naraz – telefon ani drugi monitor nie mogą go wtedy trzymać. Jeśli `scan` zgłasza brak
+dostępu do Bluetooth: użytkownik powinien być w grupie `bluetooth`, a polityka D-Bus dla BlueZ musi mu na to pozwalać (uwagi w
+dokumentacji Shiny dla Linuxa). Na Linuxie dopasowanie po adresie MAC opiera się na identyfikatorze urządzenia z BlueZ
+(nieprzetestowane); zapasowo działa UUID Tuya z reklamy.
+
+Windows jako praca w tle: plan i zadania w [ROADMAP](docs/ROADMAP.md#faza-1b--domknięcie-lokalnego-monitora) (zadanie
+Harmonogramu przy logowaniu, bez okna; jeszcze niezrobione).
+
+## Licencje
+
+Kod protokołu Tuya powstał na podstawie projektów MIT – [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Kod wysyłki Gmail
+pochodzi z LibrusNotifier (ten sam autor). Licencja samego projektu: do decyzji (patrz ROADMAP).

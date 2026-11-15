@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="same-origin">
+<title>Glebosaurus</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/app.css">
+<script type="module" src="/app.js"></script>
+</head>
+<body>
+<header class="top">
+  <div class="top-row">
+    <div>
+      <div class="brand">GLEBOSAURUS</div>
+      <h1 id="monitor-name">Monitor</h1>
+      <div class="muted" id="monitor-line">Wczytywanie…</div>
+    </div>
+    <form method="post" action="/logout"><button type="submit" class="quiet">Wyloguj</button></form>
+  </div>
+</header>
+<main>
+  <div id="banner" class="banner tone-grey">Wczytywanie stanu monitora…</div>
+
+  <section>
+    <div class="section-head">
+      <h2>Czujniki</h2>
+      <button id="read-all" type="button" class="quiet small">Odczytaj wszystkie teraz</button>
+    </div>
+    <div id="action-note" class="action-note" role="status" hidden></div>
+    <div id="sensors" class="cards"></div>
+  </section>
+
+  <section>
+    <h2>Otwarte alerty</h2>
+    <div id="alerts"></div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>Poczta i raporty</h2>
+      <button id="report-now" type="button" class="quiet small" disabled>Wyślij raport teraz…</button>
+    </div>
+    <div id="report-confirm" class="confirm" hidden>
+      <div id="report-confirm-text"></div>
+      <div class="confirm-actions">
+        <button id="report-send" type="button" class="small">Wyślij raport</button>
+        <button id="report-cancel" type="button" class="quiet small">Anuluj</button>
+      </div>
+    </div>
+    <div id="report-note" class="action-note" role="status" hidden></div>
+    <div id="mail"></div>
+  </section>
+
+  <section>
+    <h2>Dziennik</h2>
+    <div class="toolbar">
+      <label>Dzień <select id="log-day"><option value="0">dziś</option><option value="1">wczoraj</option></select></label>
+      <label>Pokaż <select id="log-level"><option value="warn">ostrzeżenia i błędy</option><option value="all">wszystko</option></select></label>
+      <button id="log-refresh" type="button" class="quiet">Odśwież</button>
+    </div>
+    <div id="log-note" class="muted small"></div>
+    <div id="log"></div>
+  </section>
+
+  <section>
+    <h2>Ustawienia</h2>
+    <div id="settings"></div>
+  </section>
+</main>
+<footer class="muted small" id="footer">Glebosaurus · panel diagnostyczny</footer>
+</body>
+</html>

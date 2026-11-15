@@ -1,0 +1,23 @@
+# Jednostka systemd dla Raspberry Pi OS. Dostosuj User, ścieżki i położenie dotnet (which dotnet), potem:
+#   sudo cp glebosaurus.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now glebosaurus
+# Dziennik: journalctl -u glebosaurus -f  oraz katalog logs/ obok pliku konfiguracji.
+# Nieprzetestowane na Raspberry Pi – to wzór do pierwszego wdrożenia.
+# Wymaga ASP.NET Core Runtime 10 (panel WWW; sam .NET Runtime nie wystarczy). Panel (sekcja "web") słucha na porcie > 1024,
+# więc nie potrzebuje roota; hasło ustawia: dotnet glebosaurus.dll web-password --config /opt/glebosaurus/glebosaurus.config.json
+[Unit]
+Description=Glebosaurus - monitor czujnikow gleby Tuya BLE
+After=bluetooth.target network-online.target
+Wants=bluetooth.target network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/opt/glebosaurus
+ExecStart=/usr/bin/dotnet /opt/glebosaurus/glebosaurus.dll run --config /opt/glebosaurus/glebosaurus.config.json --quiet
+Restart=on-failure
+RestartSec=30
+# SIGTERM (systemctl stop) powoduje czyste zatrzymanie petli monitora.
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
