@@ -32,6 +32,9 @@ public sealed record SensorReadOutcome(SensorConfig Sensor, SoilReading? Reading
     /// skan kończy się na pierwszym dopasowaniu. null = brak ważnej wartości (np. Windows podał −127) albo czujnika nie znaleziono.
     /// </summary>
     public int? SignalDbm { get; init; }
+
+    /// <summary>Uwagi sesji z czujnikiem (np. pominięty nieczytelny raport, przekroczony limit sesji) – trafiają do dziennika.</summary>
+    public IReadOnlyList<string> Notes { get; init; } = [];
 }
 
 /// <summary>Warstwa radia: znajduje czujniki w reklamach BLE i odczytuje je po kolei.</summary>

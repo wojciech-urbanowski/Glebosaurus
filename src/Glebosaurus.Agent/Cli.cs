@@ -431,7 +431,7 @@ internal static class Cli
                 Console.WriteLine($"Stan najnowszy ({reading.At.ToLocalTime():yyyy-MM-dd HH:mm:ss}):");
                 Console.WriteLine($"  Wilgotność gleby : {Show(reading.MoisturePercent, "%")}");
                 Console.WriteLine($"  Temperatura gleby: {Show(reading.SoilTemperatureCelsius, "°C")}");
-                Console.WriteLine($"  Bateria          : {Show(reading.BatteryPercent, "%")} (stan DP14: {Show(reading.BatteryState, "")})");
+                Console.WriteLine($"  Bateria          : {Show(reading.BatteryPercent, "%")} (stan baterii DP14: {Show(reading.BatteryState, "")}{(SoilSensorProfiles.BatteryStateName(reading.BatteryState) is { } state ? $" – {state}" : "")})");
             }
             foreach (var note in result.Notes) Console.WriteLine($"  Uwaga: {note}");
             return readings.Count == 0 ? 3 : 0;

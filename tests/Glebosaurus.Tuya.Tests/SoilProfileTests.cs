@@ -151,4 +151,14 @@ public class SoilProfileTests
 
     [Fact]
     public void UnknownProductHasNoProfile() => Assert.Null(SoilSensorProfiles.ForProduct("zzzzzzzz"));
+
+    [Theory]
+    [InlineData(0, "niski")]    // w bazie tylko przy DP15 16–19%
+    [InlineData(1, "średni")]   // w bazie przy DP15 21–56%
+    [InlineData(2, "wysoki")]
+    [InlineData(3, null)]
+    [InlineData(-1, null)]
+    [InlineData(null, null)]
+    public void Dp14IsBatteryStateLowMiddleHigh(int? state, string? expected) =>
+        Assert.Equal(expected, SoilSensorProfiles.BatteryStateName(state));
 }

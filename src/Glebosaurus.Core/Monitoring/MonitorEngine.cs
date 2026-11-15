@@ -293,6 +293,7 @@ public sealed class MonitorEngine(
             // odczytać z logu (poziom tuż przed porażką i jak dawno czujnik był słyszany).
             var signal = SignalStats.Format(outcome.SignalDbm);
             if (outcome.SignalDbm is { } heard) lastSignal[sensor.Id] = (heard, now);
+            foreach (var note in outcome.Notes) logger.LogWarning("{Sensor}: uwaga z sesji czujnika: {Note}", sensor.Name, note);
             switch (outcome.Failure)
             {
                 case SensorReadFailure.None when outcome.Reading is { MoisturePercent: not null } or { SoilTemperatureCelsius: not null }:

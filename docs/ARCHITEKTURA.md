@@ -39,10 +39,29 @@ podlewaniu i raporty o stałych porach mailem (Gmail), a konfigurację, alerty i
 
 **Dane**
 - Punkty danych profilu `sgs01`: DP3 wilgotność gleby %, DP5 temperatura gleby ×10 °C, DP15 bateria %, DP14 enum
-  (prawdopodobnie stan baterii), DP9 enum (prawdopodobnie jednostka temperatury), DP6 wartość 0 (nieznane; widać je w części
+  **stan baterii: 0 niski, 1 średni, 2 wysoki**, DP9 enum (prawdopodobnie jednostka temperatury), DP6 wartość 0 (nieznane; widać je w części
   rekordów – godzinowych i pierwszym po starcie – a nie w rekordach z chwili połączenia).
+- DP14 (2026-11-15): znaczenie wg [roquerodrigo/ha-tuya-ble](https://github.com/roquerodrigo/ha-tuya-ble) (ten sam produkt
+  `gvygg3m8`, „SGS01”); nasza baza się z nim zgadza – 0 tylko przy DP15 16–19% (Cyprysek, 16 rekordów), 1 przy 21–56% (120
+  rekordów, wszystkie czujniki), 2 jeszcze nie wystąpiło. Próg „niski” wypada więc ok. 20%. `SoilSensorProfiles.BatteryStateName`
+  podaje nazwę stanu; `read` ją pokazuje, alerty wciąż patrzą na DP15.
 - Wskazanie baterii rośnie po odpoczynku (27% → 34% → 37%): to szacunek z napięcia, zaniżany pod obciążeniem radia, więc do
   alertu nadaje się tylko trend albo wiele odczytów.
+
+**Porównanie z ha-tuya-ble (2026-11-15)**
+- Integracja Home Assistant [roquerodrigo/ha-tuya-ble](https://github.com/roquerodrigo/ha-tuya-ble) 1.2.1 obsługuje ten sam
+  czujnik (`gvygg3m8`); protokół ma w bibliotece [tuya-ble-sdk](https://github.com/roquerodrigo/tuya-ble-sdk) 0.1.4, na której
+  wzorowany jest `Glebosaurus.Tuya`. Nasze ramki (Device Info, parowanie sesji, prośba o stan) zgadzają się z ich wektorami
+  bajt w bajt (`ProtocolTests.FramesMatchReferenceImplementationByteForByte`); odczyt reklamy, klucze, fragmentacja, punkty danych,
+  potwierdzanie raportów, odpowiedzi na prośby o czas i nieobsługiwane raporty podpisane (`0x8004`/`0x8005`) – tak samo.
+- Różnice celowe: oni biorą `device_id` i `local_key` z konta Tuya (czujnik zostaje w Smart Life), my parujemy lokalnie (zasada 5;
+  sesja przyjęłaby też klucze z chmury). Sesja SDK kończy się po 1,5 s ciszy i po 60 s wyrzuca wszystko, co zebrała, a czujnik oddaje
+  historię co ok. 1,1 s – my czekamy 3 s ciszy, limit to 3 min, a po nim oddajemy to, co przyszło (patrz „Zaległe pomiary”).
+- Przejęte od SDK: **nieczytelna ramka z punktami danych nie przerywa odczytu** (wcześniej `InvalidDataException` wywracał całą
+  sesję i przepadało to, co już odebrane). Sesja pomija taką ramkę, ale – inaczej niż SDK – ją potwierdza: czujnik oddaje
+  historię od najstarszego rekordu, więc bez potwierdzenia ten sam rekord mógłby wracać na początku każdej sesji albo wstrzymać
+  resztę serii. Liczba pominiętych ramek i surowe bajty pierwszej trafiają do uwag sesji, a `run` zapisuje uwagi sesji w
+  dzienniku jako ostrzeżenia. Na sprzęcie nieczytelnej ramki jeszcze nie było (dzienniki z 13–14.11 czyste).
 
 **Czas i bateria**
 - Jeden odczyt (Windows, Shiny): wykrycie ok. 1–2 s, połączenie ok. 1 s, włączenie powiadomień ok. 2 s, pierwsze punkty danych
@@ -182,7 +201,7 @@ sparowanych urządzeń BLE/audio (myszy, klawiatura, słuchawki); pomiar surowym
    porażce z serii. Parowanie to osobna, interaktywna komenda uruchamiana w zasięgu czujnika (okno ok. 20 s – skan musi już działać,
    gdy użytkownik wkłada baterie). Przy kilku niesparowanych kandydatach parowanie wymaga `--mac`.
 9. **Alerty i raporty.** Progi per czujnik z histerezą, kilka kolejnych odczytów i cooldown; „czujnik milczy”,
-   niska bateria (docelowo trend/DP14 zamiast pojedynczego DP15). Raporty HTML o stałych porach, nadrabiane do
+   niska bateria (docelowo trend albo DP14 – stan baterii, 0 = niski – zamiast pojedynczego DP15). Raporty HTML o stałych porach, nadrabiane do
    `catchUpHours`. Wysyłka: Gmail SMTP (MailKit, smtp.gmail.com:465, hasło aplikacji) – kod z LibrusNotifier.
    Odbiorców alertów i raportów podaje się osobnymi listami w `mail.alertRecipients` i `mail.reportRecipients` (puste =
    jak alerty); adresy są walidowane, przycinane i pozbawiane powtórzeń przy wczytaniu konfiguracji.

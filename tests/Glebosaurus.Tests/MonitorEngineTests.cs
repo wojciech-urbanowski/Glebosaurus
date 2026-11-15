@@ -152,6 +152,18 @@ public class MonitorEngineTests
         h.Log.Entries.Any(e => e.Level == level && e.Message.Contains(fragment, StringComparison.Ordinal));
 
     [Fact]
+    public async Task SessionNotesGoToTheLogAsWarningsAndTheReadingIsStillStored()
+    {
+        using var h = new Harness();
+        h.Reader.Script = sensor => Fixtures.Ok(sensor, 50) with { Notes = ["Pominięto nieczytelne raporty punktów danych: 1"] };
+
+        await h.Engine.CycleAsync(Ct);
+
+        Assert.True(Logged(h, LogLevel.Warning, "Monstera: uwaga z sesji czujnika: Pominięto nieczytelne raporty punktów danych: 1"));
+        Assert.Equal(50, (await h.Store.GetLatestAsync("s1", Ct))!.MoisturePercent);
+    }
+
+    [Fact]
     public async Task SuccessfulReadingLogsTheSignalStrength()
     {
         using var h = new Harness();

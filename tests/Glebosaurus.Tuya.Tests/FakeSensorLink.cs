@@ -21,6 +21,9 @@ internal sealed class FakeSensorLink(byte[] deviceKey, bool bound, IReadOnlyList
     /// <summary>Dane parowania odebrane w ramce o kodzie 1 (jawne przy lokalnym przypisaniu, szyfrowane w sesji).</summary>
     public List<(byte Flag, byte[] Data)> PairRequests { get; } = [];
 
+    /// <summary>Kody raportów (0x8001/0x8003), które sesja potwierdziła – po jednym wpisie na potwierdzenie.</summary>
+    public List<ushort> Acknowledged { get; } = [];
+
     public bool IsSubscribed => handler is not null;
 
     public Task<IAsyncDisposable> SubscribeAsync(Action<byte[]> onPacket, CancellationToken cancellationToken)
@@ -50,6 +53,9 @@ internal sealed class FakeSensorLink(byte[] deviceKey, bool bound, IReadOnlyList
             case 3:
                 Send(0x8001, 0, SoilReport(), sessionKey, 5);
                 foreach (var (command, data) in afterReport ?? []) Send(command, 0, data, sessionKey, 5);
+                break;
+            case 0x8001 or 0x8003 when envelope[0] == 5 && frame.ResponseTo != 0:
+                Acknowledged.Add(frame.Command);
                 break;
         }
         return Task.CompletedTask;

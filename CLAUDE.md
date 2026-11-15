@@ -58,7 +58,10 @@ dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self
 - Shiny na Windows potrafi przerwać skan `COMException 0x80004005` (2026-11-14: 1 na 22 cykle) – nasłuch jest wtedy wznawiany
   (`ListenThenReadSensorReader`, najwyżej 3 razy z rzędu), a cykl monitora idzie dalej; szczegóły w ARCHITEKTURA.md, zasada 8.
 - Wymiana baterii nie kasuje parowania; kasuje je dopiero reset przyciskiem (wtedy `pair --id <to samo id>`).
-- Wskazanie baterii (DP15) to szacunek z napięcia – zaniżany pod obciążeniem radia; wilgotność trzeba kalibrować.
+- Wskazanie baterii (DP15) to szacunek z napięcia – zaniżany pod obciążeniem radia; DP14 to stan baterii (0 niski / 1 średni /
+  2 wysoki, „niski” od ok. 20%); wilgotność trzeba kalibrować.
+- Protokół zgadza się bajt w bajt z roquerodrigo/tuya-ble-sdk (ha-tuya-ble, ten sam `gvygg3m8`) – porównanie i różnice w
+  ARCHITEKTURA.md, „Porównanie z ha-tuya-ble”.
 
 ## Czego nie robić bez zgody użytkownika
 

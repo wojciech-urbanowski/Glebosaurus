@@ -3,7 +3,10 @@ using System.Globalization;
 namespace Glebosaurus.Tuya;
 
 /// <param name="At">Czas pomiaru wg zegara czujnika, a dla zwykłego raportu stanu (bez czasu) chwila odbioru.</param>
-/// <param name="BatteryState">Surowy enum z DP14 (znaczenie niepotwierdzone; prawdopodobnie stan baterii).</param>
+/// <param name="BatteryState">
+/// Stan baterii z DP14: 0 niski, 1 średni, 2 wysoki (opis jak w roquerodrigo/ha-tuya-ble; nasza baza się z nim zgadza –
+/// 2026-11-15: 0 tylko przy DP15 16–19%, 1 przy 21–56%, 2 jeszcze nie wystąpiło). Patrz <see cref="SoilSensorProfiles.BatteryStateName"/>.
+/// </param>
 /// <param name="RawDataPoints">Wszystkie otrzymane punkty danych (id → wartość), także niezmapowane.</param>
 public sealed record SoilReading(
     DateTimeOffset At, string Profile, int? MoisturePercent, decimal? SoilTemperatureCelsius,
@@ -12,8 +15,20 @@ public sealed record SoilReading(
 /// <summary>Mapowanie punktów danych Tuya na pomiary gleby, per profil produktu.</summary>
 public static class SoilSensorProfiles
 {
-    /// <summary>ATLO SMS1 / SGS01: DP3 wilgotność %, DP5 temperatura ×10 °C, DP15 bateria %, DP14 stan (enum).</summary>
+    /// <summary>ATLO SMS1 / SGS01: DP3 wilgotność %, DP5 temperatura ×10 °C, DP15 bateria %, DP14 stan baterii (enum 0–2).</summary>
     public const string Sgs01 = "sgs01";
+
+    /// <summary>
+    /// Nazwa stanu baterii z DP14 („niski”, „średni”, „wysoki”); null dla braku wartości albo wartości spoza zakresu.
+    /// DP14 to stopień wyznaczony przez czujnik – mniej skacze niż procent z DP15 (szacunek z napięcia, zaniżany pod obciążeniem radia).
+    /// </summary>
+    public static string? BatteryStateName(int? state) => state switch
+    {
+        0 => "niski",
+        1 => "średni",
+        2 => "wysoki",
+        _ => null
+    };
 
     /// <summary>Czujnik gleby `ojzlzzsw` (z ha_tuya_ble): DP1 temperatura ×10 °C, DP2 wilgotność %. Niesprawdzony na sprzęcie.</summary>
     public const string Ojzlzzsw = "ojzlzzsw";

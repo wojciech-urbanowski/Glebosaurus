@@ -115,7 +115,7 @@ public static class TuyaProtocol
                 0 or 5 => Convert.ToHexString(bytes),
                 1 when length == 1 => bytes[0] == 0 ? "false" : "true",
                 2 when length == 4 => BinaryPrimitives.ReadInt32BigEndian(bytes).ToString(CultureInfo.InvariantCulture),
-                3 => new UTF8Encoding(false, true).GetString(bytes),
+                3 => DecodeString(bytes, id),
                 4 when length == 1 => bytes[0].ToString(CultureInfo.InvariantCulture),
                 _ => throw new InvalidDataException($"Nieobsługiwany typ/długość DP {id}: {type}/{length}.")
             };
@@ -123,6 +123,13 @@ public static class TuyaProtocol
             offset += length;
         }
         return result;
+    }
+
+    /// <summary>Każdy błąd odczytu punktu danych to <see cref="InvalidDataException"/>, żeby sesja mogła pominąć tylko tę ramkę.</summary>
+    private static string DecodeString(ReadOnlySpan<byte> bytes, int id)
+    {
+        try { return new UTF8Encoding(false, true).GetString(bytes); }
+        catch (DecoderFallbackException e) { throw new InvalidDataException($"Niepoprawny tekst UTF-8 w DP {id}.", e); }
     }
 }
 

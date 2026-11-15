@@ -89,6 +89,46 @@ public class SessionTests
         Assert.Equal([21, 19, 18], readings.Select(r => r.MoisturePercent)); // 18 = raport stanu z atrapy
     }
 
+    [Theory]
+    [InlineData("dp-length")]      // DP3 typu „wartość” z 2 bajtami zamiast 4
+    [InlineData("dp-type")]        // nieznany typ punktu danych
+    [InlineData("utf8")]           // DP tekstowy z bajtem, który nie jest UTF-8
+    [InlineData("timestamp")]      // nieznany rodzaj znacznika czasu
+    [InlineData("ms-digits")]      // znacznik w milisekundach, który nie jest liczbą
+    public async Task UnreadableReportIsSkippedAndAcknowledgedWithoutLosingTheRestOfTheSeries(string defect)
+    {
+        var credentials = Credentials();
+        var older = new DateTimeOffset(2026, 11, 13, 6, 0, 0, TimeSpan.Zero);
+        byte[] moisture = FakeSensorLink.Dp(3, 2, FakeSensorLink.Int(20));
+        byte[] unreadable = defect switch
+        {
+            "dp-length" => FakeSensorLink.TimedReport(older.AddMinutes(30), FakeSensorLink.Dp(3, 2, 0, 20)),
+            "dp-type" => FakeSensorLink.TimedReport(older.AddMinutes(30), FakeSensorLink.Dp(3, 9, 20)),
+            "utf8" => FakeSensorLink.TimedReport(older.AddMinutes(30), FakeSensorLink.Dp(20, 3, 0xFF)),
+            "timestamp" => [7, 0, 0, 0, 0, .. moisture],
+            "ms-digits" => [0, .. "17630000000x0"u8, .. moisture],
+            _ => throw new ArgumentOutOfRangeException(nameof(defect))
+        };
+        var link = new FakeSensorLink(credentials.KeyBytes, bound: true,
+        [
+            (0x8003, FakeSensorLink.TimedReport(older, FakeSensorLink.Dp(3, 2, FakeSensorLink.Int(21)), FakeSensorLink.Dp(5, 2, FakeSensorLink.Int(200)))),
+            (0x8003, unreadable),
+            (0x8003, FakeSensorLink.TimedReport(older.AddHours(1), FakeSensorLink.Dp(3, 2, FakeSensorLink.Int(19)), FakeSensorLink.Dp(5, 2, FakeSensorLink.Int(190))))
+        ]);
+
+        var result = await new TuyaSession(link, credentials, TimeSpan.FromSeconds(5), quietTimeout: TimeSpan.FromMilliseconds(300))
+            .ReadAsync(CancellationToken.None);
+
+        // Odczyt się nie wywraca: zostają zwykły raport (18) i oba czytelne rekordy historii, bez nieczytelnego.
+        Assert.Equal([18, 21, 19], result.DataPoints.Where(p => p.Id == 3).Select(p => int.Parse(p.Value)));
+        // Potwierdzona jest każda ramka, także nieczytelna – inaczej czujnik mógłby oddawać ją na początku każdej sesji.
+        Assert.Equal([(ushort)0x8001, 0x8003, 0x8003, 0x8003], link.Acknowledged);
+        var note = Assert.Single(result.Notes, n => n.StartsWith("Pominięto nieczytelne raporty", StringComparison.Ordinal));
+        Assert.Contains(": 1 ", note);
+        Assert.Contains(Convert.ToHexString(unreadable), note); // surowe bajty do zbadania w dzienniku
+        Assert.False(link.IsSubscribed);
+    }
+
     [Fact]
     public async Task SessionDeadlineWithDataReturnsWhatWasReceivedInsteadOfDroppingIt()
     {

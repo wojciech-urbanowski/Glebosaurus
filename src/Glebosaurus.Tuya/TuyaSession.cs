@@ -50,6 +50,8 @@ public sealed class TuyaSession(
     private string protocol = "";
     private string firmware = "";
     private uint sequence;
+    private int skippedReports;
+    private string? firstSkipped;
 
     /// <summary>Uwierzytelnia sesję zapisanym kluczem, prosi o stan i zbiera punkty danych.</summary>
     /// <exception cref="TuyaUnboundException">Czujnik nie jest sparowany (np. po resecie przyciskiem).</exception>
@@ -80,7 +82,26 @@ public sealed class TuyaSession(
         }
     }
 
-    private TuyaReadResult Result() => new(dataPoints.ToArray(), protocol, firmware, notes.ToArray());
+    private TuyaReadResult Result()
+    {
+        var all = notes.ToList();
+        if (skippedReports > 0)
+            all.Add($"Pominięto nieczytelne raporty punktów danych: {skippedReports} (potwierdzone, żeby czujnik oddał resztę serii); pierwszy: {firstSkipped}.");
+        return new(dataPoints.ToArray(), protocol, firmware, all);
+    }
+
+    /// <summary>Punkty danych z ramki 0x8001 (bez czasu) albo 0x8003 (znacznik czasu czujnika: 1 + sekundy Unix albo 0 + 13 cyfr ms).</summary>
+    /// <exception cref="InvalidDataException">Ramka jest nieczytelna: nieznany znacznik czasu, typ albo długość punktu danych.</exception>
+    private static IReadOnlyList<TuyaDataPoint> ParseReport(TuyaFrame frame)
+    {
+        if (frame.Command == 0x8001) return TuyaProtocol.ParseDataPoints(frame.Data);
+        if (frame.Data.Length >= 5 && frame.Data[0] == 1)
+            return TuyaProtocol.ParseDataPoints(frame.Data, 5, DateTimeOffset.FromUnixTimeSeconds(BinaryPrimitives.ReadUInt32BigEndian(frame.Data.AsSpan(1))));
+        if (frame.Data.Length >= 14 && frame.Data[0] == 0
+            && long.TryParse(Encoding.ASCII.GetString(frame.Data, 1, 13), NumberStyles.None, CultureInfo.InvariantCulture, out var milliseconds))
+            return TuyaProtocol.ParseDataPoints(frame.Data, 14, DateTimeOffset.FromUnixTimeMilliseconds(milliseconds));
+        throw new InvalidDataException("Nieobsługiwany znacznik czasu Tuya.");
+    }
 
     private async Task<TuyaReadResult> ReadCoreAsync(Func<IReadOnlyList<TuyaDataPoint>, bool>? isComplete, CancellationToken token)
     {
@@ -216,23 +237,20 @@ public sealed class TuyaSession(
         if (frame.ResponseTo != 0) return;
         if (frame.Command is 0x8001 or 0x8003)
         {
-            var offset = 0;
-            DateTimeOffset? time = null;
-            if (frame.Command == 0x8003)
+            IReadOnlyList<TuyaDataPoint> points;
+            try { points = ParseReport(frame); }
+            catch (InvalidDataException e)
             {
-                if (frame.Data.Length >= 5 && frame.Data[0] == 1)
-                {
-                    time = DateTimeOffset.FromUnixTimeSeconds(BinaryPrimitives.ReadUInt32BigEndian(frame.Data.AsSpan(1)));
-                    offset = 5;
-                }
-                else if (frame.Data.Length >= 14 && frame.Data[0] == 0)
-                {
-                    time = DateTimeOffset.FromUnixTimeMilliseconds(long.Parse(Encoding.ASCII.GetString(frame.Data, 1, 13), CultureInfo.InvariantCulture));
-                    offset = 14;
-                }
-                else throw new InvalidDataException("Nieobsługiwany znacznik czasu Tuya.");
+                // Jedna nieczytelna ramka nie przerywa odczytu ani nie kasuje tego, co już odebrane (tak samo tuya-ble-sdk). Inaczej
+                // niż SDK potwierdzamy ją jednak niżej: czujnik oddaje historię od najstarszego rekordu, więc bez potwierdzenia ten
+                // sam rekord mógłby wracać na początku każdej sesji albo wstrzymać resztę serii. Surowe bajty idą do uwag (dziennik).
+                points = [];
+                if (skippedReports++ == 0)
+                    firstSkipped = $"{frame.Command:X4} ({e.Message}): {Convert.ToHexString(frame.Data.AsSpan(0, Math.Min(frame.Data.Length, 128)))}"
+                        + (frame.Data.Length > 128 ? "…" : "");
+                log?.Invoke($"  Pominięto nieczytelny raport {frame.Command:X4}: {e.Message}");
             }
-            foreach (var point in TuyaProtocol.ParseDataPoints(frame.Data, offset, time))
+            foreach (var point in points)
             {
                 // Wszystkie punkty zostają, także powtórzone numery: ramki 0x8003 niosą kolejne rekordy historii czujnika.
                 dataPoints.Add(point);

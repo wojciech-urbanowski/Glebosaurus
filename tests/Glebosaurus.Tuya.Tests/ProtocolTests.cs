@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 
 namespace Glebosaurus.Tuya.Tests;
@@ -6,6 +7,37 @@ public class ProtocolTests
 {
     [Fact]
     public void CrcMatchesModbusReference() => Assert.Equal(0x4B37, TuyaProtocol.Crc16("123456789"u8));
+
+    /// <summary>
+    /// Bajty z roquerodrigo/tuya-ble-sdk (tests/test_wire_vectors.py), wygenerowane implementacją PlusPlus-ua/ha_tuya_ble dla
+    /// klucza „abcdef0123456789”, srand „srand!” i IV 00..0F. Jedyny test, który porównuje nasz protokół z cudzą implementacją
+    /// (tą samą, z której korzysta ha-tuya-ble dla czujnika gvygg3m8); zgodność sprawdzona 2026-11-15.
+    /// </summary>
+    [Theory]
+    [InlineData(1u, (ushort)0x0000, "", true,
+        "00213004000102030405060708090a0b0c0d0e0f 01f8bc69d43b1f0e3bf28ac34ec4aa2723")]
+    [InlineData(2u, (ushort)0x0001, "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b", false,
+        "00513005000102030405060708090a0b0c0d0e0f 01a14a20e14a24729f8aba085a0b3b4c07796414 021f194475ed20400e52052fe5302ff8ab087f9a "
+        + "0327be3a2bd9df103ff68cacd0dd226d7064bb9f 042845024fe7fb53")]
+    [InlineData(3u, (ushort)0x0003, "", false,
+        "00213005000102030405060708090a0b0c0d0e0f 017949b6c0976133a68068991ec727311a")]
+    public void FramesMatchReferenceImplementationByteForByte(uint sequence, ushort command, string dataHex, bool login, string packetsHex)
+    {
+        var key6 = "abcdef"u8.ToArray();
+        var key = login ? MD5.HashData(key6) : MD5.HashData([.. key6, .. "srand!"u8]);
+        var data = Convert.FromHexString(dataHex);
+        var expected = packetsHex.Split(' ');
+
+        var envelope = TuyaProtocol.Encode(new(sequence, 0, command, data), key, (byte)(login ? 4 : 5), [.. Enumerable.Range(0, 16).Select(i => (byte)i)]);
+        Assert.Equal(expected, TuyaProtocol.Fragment(envelope).Select(p => Convert.ToHexString(p).ToLowerInvariant()));
+
+        var reassembler = new TuyaReassembler();
+        byte[]? received = null;
+        foreach (var packet in expected) received = reassembler.Feed(Convert.FromHexString(packet));
+        var frame = TuyaProtocol.Decode(received!, key);
+        Assert.Equal((sequence, 0u, command), (frame.Sequence, frame.ResponseTo, frame.Command));
+        Assert.Equal(data, frame.Data);
+    }
 
     [Fact]
     public void RealAdvertisementOfBoundSensorGivesUuidButHidesProduct()
@@ -93,6 +125,8 @@ public class ProtocolTests
     [InlineData("05020401")]
     [InlineData("0502")]
     [InlineData("0502020102")]
+    [InlineData("140301FF")]   // DP tekstowy, który nie jest UTF-8: ten sam wyjątek, żeby sesja pominęła tylko tę ramkę
+    [InlineData("03090114")]   // nieznany typ punktu danych
     public void TruncatedOrInvalidDatapointsAreNotReportedAsMeasurements(string hex) =>
         Assert.Throws<InvalidDataException>(() => TuyaProtocol.ParseDataPoints(Convert.FromHexString(hex)));
 
