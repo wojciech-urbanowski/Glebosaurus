@@ -106,4 +106,11 @@ prawdziwym monitorze jeszcze nie. 2026-11-14 `run` sam wysłał prawdziwy mail o
 (`MailChart`, sam HTML, kolumny po 2 godz., temperatura jako blady zakres, budżet 90 KB) jest od 2026-11-14 w każdym raporcie (`SnapshotBuilder` dociąga odczyty z 75 h); pierwszą
 wersję użytkownik obejrzał na telefonie i poprawił (2 godz., temperatura jako zakres). Niesprawdzone:
 wejście z telefonu (reguła Zapory), prawdziwy raport z `run`,
-Raspberry Pi, praca w tle na Windows, kalibracja wilgotności. Następne kroki: patrz [docs/ROADMAP.md](docs/ROADMAP.md).
+Raspberry Pi, kalibracja wilgotności. Następne kroki: patrz [docs/ROADMAP.md](docs/ROADMAP.md).
+
+Usługa Windows (2026-11-15): wydanie **0.1.0** opublikowane przez Actions (repo publiczne), a na bestia5 zainstalowane z
+GitHuba skryptem z `-ImportFrom local -NoStart`: program w `%LOCALAPPDATA%\Glebosaurus\app`, **kopia** danych z `local/` w
+`…\Glebosaurus\data`, zadanie „Glebosaurus” przy zalogowaniu. Od tej chwili prawdziwym monitorem jest usługa; `local/` zostaje
+do prób, a `run` z niego nie wystartuje obok usługi (kod 4). Niesprawdzone na żywo: pierwszy start prawdziwej usługi (okno
+Zapory dla nowej ścieżki, maile), strażnik co godzinę, uśpienie i wybudzenie, wylogowanie w trakcie odczytu, aktualizacja z
+prawdziwego wydania (na udawanym API działa).
