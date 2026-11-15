@@ -9,7 +9,7 @@ namespace Glebosaurus.Tests;
 /// Wykres ostatnich 3 dób w raporcie mailowym (prototyp z 2026-11-14, poprawki użytkownika tego samego dnia: przedziały po
 /// 2 godz., temperatura jako blady zakres od najniższej do najwyższej): sam HTML (bez SVG i obrazków), elementy na właściwej
 /// wysokości, puste kolumny przy braku odczytów, różowe tło poniżej progu, mieszczenie się w limicie Gmaila i linijka znaków
-/// w wersji tekstowej.
+/// w wersji tekstowej. Oś wilgotności zawsze 0–100% (życzenie użytkownika z 2026-11-15).
 /// </summary>
 public class MailChartTests
 {
@@ -126,21 +126,43 @@ public class MailChartTests
         Assert.Equal(6 + 2, Regex.Count(html, "<td></td>"));                  // + puste rogi pod osiami
     }
 
-    [Fact]
-    public void MoistureMarksRiseWithTheValueAndAxesShowTheRange()
-    {
-        // Wilgotność rośnie od ok. 20% (75 h temu) do 60% (teraz); bez temperatury, więc w kolumnie jest tylko kreska.
-        var html = Report(Sensor("Rośnie", h => (int)Math.Round(60 - h * 40 / 75), _ => null)).HtmlBody;
-
-        var heights = DataCells(html)
+    /// <summary>Wysokość kreski wilgotności w każdej kolumnie z danymi (dopełnienie komórki od dołu, px).</summary>
+    private static List<int> MarkHeights(string html) =>
+        DataCells(html)
             .Select(c => Regex.Match(c.Css, @"padding-bottom:(\d+)px") is { Success: true } p ? int.Parse(p.Groups[1].Value) : 0)
             .ToList();
+
+    [Fact]
+    public void MoistureMarksRiseWithTheValueOnTheZeroToHundredAxis()
+    {
+        // Wilgotność rośnie od ok. 22% (początek okna, 71 h temu) do 60% (teraz); bez temperatury, więc w kolumnie jest tylko
+        // kreska. Skala 0–100% na 61 px (64 minus kreska): 22% ≈ 14 px, 60% ≈ 36 px.
+        var html = Report(Sensor("Rośnie", h => (int)Math.Round(60 - h * 40 / 75), _ => null)).HtmlBody;
+
+        var heights = MarkHeights(html);
         Assert.Equal(Columns, heights.Count);
         Assert.Equal(heights.Order(), heights);                                // kolejne kolumny nie niżej od poprzednich
-        Assert.True(heights[0] <= 5, $"pierwsza kolumna na wysokości {heights[0]} px");
-        Assert.True(heights[^1] >= 55, $"ostatnia kolumna na wysokości {heights[^1]} px");
-        Assert.Contains(">60%<", html);
+        Assert.InRange(heights[0], 13, 15);
+        Assert.InRange(heights[^1], 35, 37);
+        Assert.Contains("<div>100%</div>", html);                              // oś nie dopasowuje się do danych
+        Assert.Contains("<div>0%</div>", html);
         Assert.DoesNotContain($"{TemperatureOnWhite}\"", html);                 // pasków temperatury brak (klucz w objaśnieniu zostaje)
+    }
+
+    [Fact]
+    public void MoistureAxisIsAlwaysZeroToHundred()
+    {
+        // Wahania o 1 p.p. (46/47%) zostają małe zamiast rozciągać się na całą wysokość; stałe 40% stoi na 40% wysokości.
+        var flat = Report(Sensor("Płaska", h => 46 + (int)(h % 2), _ => null)).HtmlBody;
+        var forty = Report(Sensor("Czterdzieści", _ => 40, _ => null)).HtmlBody;
+
+        Assert.All(MarkHeights(flat), h => Assert.InRange(h, 28, 29));         // 46–47% z 61 px
+        Assert.All(MarkHeights(forty), h => Assert.Equal(24, h));              // 40% z 61 px
+        foreach (var html in new[] { flat, forty })
+        {
+            Assert.Single(Regex.Matches(html, "<div>100%</div>"));
+            Assert.Single(Regex.Matches(html, "<div>0%</div>"));
+        }
     }
 
     [Fact]
@@ -172,9 +194,9 @@ public class MailChartTests
         var lines = text.Split('\n').Select(l => l.TrimEnd('\r')).Where(l => l.StartsWith("  3 doby: ", StringComparison.Ordinal)).ToList();
         Assert.Equal(2, lines.Count);
         Assert.All(lines, l => Assert.True(l.Length <= 40, $"za długi wiersz: {l}"));
-        Assert.Matches(@"^  3 doby: ▁.*█ 2\d→60%$", lines[0]);                // rośnie od najniższego do najwyższego słupka
-        Assert.DoesNotContain('█', lines[1]);                                  // wahania o 1 p.p. nie wyglądają jak skoki
-        Assert.DoesNotContain('▁', lines[1]);
+        // Skala jak na wykresie, 0–100% (▁ = 0%, █ = 100%): 26% → ▃, 60% → ▅, 46–47% → ▄.
+        Assert.Matches(@"^  3 doby: ▃[▃▄▅]*▅ 2\d→60%$", lines[0]);
+        Assert.Matches(@"^  3 doby: ▄{12} 4[67]→4[67]%$", lines[1]);          // wahania o 1 p.p. nie wyglądają jak skoki
     }
 
     [Fact]

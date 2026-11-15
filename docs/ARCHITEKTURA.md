@@ -223,7 +223,7 @@ sparowanych urządzeń BLE/audio (myszy, klawiatura, słuchawki); pomiar surowym
    SVG zamienia na PNG i potrzebuje adresu w internecie, `data:` nie działa (caniemail, 09.2026), a grafiki rastrowej
    użytkownik nie chce – dlatego wykres jest z samego HTML (`MailChart`): tabela z kolumnami po 2 godz. (12 na dobę; czas
    lokalny, granice jak `ReadingSeriesBuilder.LocalBucketStart`). W kolumnie niebieska kreska 3 px na wysokości średniej
-   wilgotności (skala z lewej, min. 10 p.p.; na wierzchu, bo ważniejsza) i pod nią blady pasek temperatury od najniższej do
+   wilgotności (skala z lewej, zawsze 0–100% – życzenie użytkownika z 2026-11-15; na wierzchu, bo ważniejsza) i pod nią blady pasek temperatury od najniższej do
    najwyższej w przedziale (z prawej, min. 2 °C, pasek co najmniej 2 px) – pomarańcz panelu o kryciu 35%, wyliczony z góry
    jako zwykły kolor osobno dla białego i dla różowego tła (`rgba` z przecinkami Gmail obsługuje, ale tak jest krócej i bez
    ryzyka). Położenie bez pozycjonowania (Gmail go nie obsługuje): `valign=bottom`, dopełnienie komórki od dołu i bloki o
@@ -232,7 +232,7 @@ sparowanych urządzeń BLE/audio (myszy, klawiatura, słuchawki); pomiar surowym
    90 KB; kolumna to ok. 180 B, wykres ok. 7,3 KB, więc przedziały po 2 godz. mieszczą się do ok. 9 czujników, a przy większej
    liczbie rosną (2 → 3 → 4 → 6 → 8 → 12 godz.; 20 czujników → 8 godz., ok. 86 KB); gdy nic się nie mieści – raport bez
    wykresów (testy).
-   Wersja tekstowa: 12 znaków `▁…█` (średnie z 6 godz.) i zmiana, np. „3 doby: █▇▆▅▄▃▂▁ 31→18%”. Dane: `SensorSnapshot.History` –
+   Wersja tekstowa: 12 znaków `▁…█` (średnie z 6 godz., ta sama skala 0–100%) i zmiana, np. „3 doby: ▃▃▃▃▃▃▃▃▂▂▂▂ 31→18%”. Dane: `SensorSnapshot.History` –
    od 2026-11-14 (po uwadze użytkownika, że raport na żądanie z panelu nie miał wykresów) `SnapshotBuilder` dociąga odczyty z
    ostatnich 75 h (`GetRangeAsync`), więc wykres mają raporty zaplanowane, na żądanie i polecenie `report`; przykłady
    (`mail-preview`, też `raport-20.html`) mają zmyśloną historię. `report --out` z prawdziwej bazy dał 3 wykresy (18 KB).
@@ -306,7 +306,10 @@ sparowanych urządzeń BLE/audio (myszy, klawiatura, słuchawki); pomiar surowym
     `createElementNS`, bez bibliotek (rozważone: uPlot – canvas, ECharts – ok. 1 MB w DLL, Chart.js – canvas i wtyczki),
     kolory w `app.css` (CSP bez stylów inline): wilgotność niebieska `#2a78d6`, temperatura pomarańczowa `#eb6834` (para z
     walidowanej palety, rozróżnialna przy zaburzeniach widzenia barw), tekst w kolorach tekstu, jednostki osi z kreską w kolorze
-    serii. Obie osie mają wspólną liczbę przedziałów (jedna siatka) i „okrągłe” kroki; minimalna rozpiętość 10 p.p. / 2 °C.
+    serii. Obie osie mają wspólną liczbę przedziałów (jedna siatka) i „okrągłe” kroki. Oś wilgotności jest zawsze 0–100%
+    (życzenie użytkownika z 2026-11-15; wykresy czujników i okresów są porównywalne, próg podlania zawsze widać), więc siatka
+    ma 4 albo 5 przedziałów (co 25 / co 20 p.p.); temperatura dopasowuje się do danych, z minimalną rozpiętością 2 °C. Pasek
+    przeglądu pod wykresem rysuje wilgotność w tej samej skali 0–100%.
     Pulpit pobiera dane wykresu tylko po nowym odczycie (albo co 15 min) i trzyma obiekt wykresu między odświeżeniami, więc nic
     nie miga. Strona czujnika pobiera okno z zapasem jednej szerokości po obu stronach (płynne przesuwanie), ok. 1 punkt na 2 px,
     a po geście dociąga dane, gdy okno wyjdzie poza pobrany zakres albo zmieni rozpiętość o więcej niż ~1,6×; w trakcie

@@ -10,7 +10,7 @@ namespace Glebosaurus.Core.Mail;
 /// <summary>
 /// Wykres ostatnich 3 dób w mailu, zbudowany z samego HTML – bez SVG (Gmail go nie pokazuje) i bez obrazków rastrowych.
 /// Tabela, w której każda kolumna to przedział czasu (domyślnie 2 godz., w czasie lokalnym, jak w panelu). W kolumnie:
-/// niebieska kreska na wysokości średniej wilgotności (skala po lewej) – na wierzchu, bo jest najważniejsza – a pod nią blady
+/// niebieska kreska na wysokości średniej wilgotności (skala po lewej, zawsze 0–100%) – na wierzchu, bo jest najważniejsza – a pod nią blady
 /// pomarańczowy pasek od najniższej do najwyższej temperatury z przedziału (skala po prawej). Elementy stoją na właściwej
 /// wysokości dzięki <c>valign=bottom</c>, dopełnieniu komórki od dołu i ułożonym jeden pod drugim blokom o zadanej wysokości –
 /// Gmail nie obsługuje pozycjonowania ani ujemnych marginesów, ale wysokości, tła i dopełnienia tak. Różowe tło kolumny =
@@ -40,6 +40,9 @@ internal static class MailChart
 
     public static readonly string TemperatureOnWhite = Blend(TemperatureColor, "#ffffff", TemperatureAlpha);
     public static readonly string TemperatureOnPink = Blend(TemperatureColor, Red.Soft, TemperatureAlpha);
+
+    /// <summary>Oś wilgotności zawsze od 0 do 100% (życzenie użytkownika z 2026-11-15) – jak na wykresach w panelu.</summary>
+    private static readonly (double Lo, double Hi) MoistureAxis = (0, 100);
 
     private const int PlotHeight = 64;
     private const int Mark = 3;
@@ -78,7 +81,7 @@ internal static class MailChart
     }
 
     /// <summary>Zakres osi: od najmniejszej do największej wartości, rozszerzony do minimalnej rozpiętości i zaokrąglony do całości.</summary>
-    private static (double Lo, double Hi) Domain(IEnumerable<double> values, double minSpan, double? floor = null, double? ceiling = null)
+    private static (double Lo, double Hi) Domain(IEnumerable<double> values, double minSpan)
     {
         var list = values.ToList();
         double min = list.Min(), max = list.Max();
@@ -88,8 +91,6 @@ internal static class MailChart
             min = center - minSpan / 2;
             max = center + minSpan / 2;
         }
-        if (floor is { } f && min < f) { max += f - min; min = f; }
-        if (ceiling is { } c && max > c) { min = Math.Max(floor ?? double.MinValue, min - (max - c)); max = c; }
         return (Math.Floor(min), Math.Ceiling(max));
     }
 
@@ -104,7 +105,7 @@ internal static class MailChart
         var moistureValues = columns.Where(c => c.Moisture is not null).Select(c => c.Moisture!.Value).ToList();
         var temperatureValues = columns.Where(c => c.TemperatureMin is not null).SelectMany(c => new[] { c.TemperatureMin!.Value, c.TemperatureMax!.Value }).ToList();
         if (moistureValues.Count == 0 && temperatureValues.Count == 0) return null;
-        var moisture = moistureValues.Count > 0 ? Domain(moistureValues, 10, 0, 100) : default;
+        var moisture = MoistureAxis;
         var temperature = temperatureValues.Count > 0 ? Domain(temperatureValues, 2) : default;
         var perDay = 1440 / bucketMinutes;
 
@@ -231,15 +232,15 @@ internal static class MailChart
 
     /// <summary>
     /// Wersja tekstowa: wilgotność z 3 dób jako 12 znaków (średnie z 6 godz.) i zmiana od pierwszej do ostatniej, np.
-    /// „  3 doby: ▇▇▆▅▅▄▃▂▁▁▂▃ 45→38%”; null, gdy brak wartości.
+    /// „  3 doby: ▄▄▄▄▄▄▄▃▃▃▃▃ 45→30%” (skala 0–100%, jak na wykresie); null, gdy brak wartości.
     /// </summary>
     public static string? TextLine(IReadOnlyList<StoredReading> history, DateTimeOffset now, TimeZoneInfo zone)
     {
         var values = Columns(history, now, zone, 360).Select(c => c.Moisture).ToList();
         var present = values.Where(v => v is not null).Select(v => v!.Value).ToList();
         if (present.Count == 0) return null;
-        // Ta sama minimalna rozpiętość co na wykresie (10 p.p.) – inaczej wahania o 1–2% wyglądałyby jak skoki.
-        var (lo, hi) = Domain(present, 10, 0, 100);
+        // Ta sama skala co na wykresie: ▁ = 0%, █ = 100%.
+        var (lo, hi) = MoistureAxis;
         var spark = string.Concat(values.Select(v => v is { } x
             ? SparkBlocks[Math.Clamp((int)Math.Round((x - lo) / Math.Max(1, hi - lo) * (SparkBlocks.Length - 1)), 0, SparkBlocks.Length - 1)]
             : '·'));

@@ -1,7 +1,7 @@
 // Wykres wilgotności i temperatury gleby w czasie – czysty SVG, bez bibliotek i bez grafiki rastrowej.
 //
-// Dwie serie na jednej osi czasu i dwie osie pionowe (wilgotność po lewej, temperatura po prawej), każda wyskalowana do
-// zakresu wartości z widocznego okna, z „okrągłymi” podziałkami i wspólną siatką. Dziury w danych (gapBefore z API)
+// Dwie serie na jednej osi czasu i dwie osie pionowe: wilgotność po lewej, zawsze 0–100%, temperatura po prawej,
+// wyskalowana do zakresu wartości z widocznego okna; „okrągłe” podziałki i wspólna siatka. Dziury w danych (gapBefore z API)
 // przerywają linię; przy danych uśrednionych za linią leży blady pas min–max. Najechanie, dotknięcie albo strzałki
 // pokazują pionowy znacznik i dymek ze wszystkimi wartościami w tym miejscu. Wersja „interactive” (strona czujnika)
 // pozwala przesuwać okno przeciąganiem, powiększać Ctrl+kółkiem, gestem dwóch palców i klawiszami +/−.
@@ -15,10 +15,11 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 const HOUR = 3600e3;
 const DAY = 24 * HOUR;
 
-/** Najmniejsza rozpiętość osi – przy prawie płaskim przebiegu szum nie powinien wyglądać jak skoki. */
-const MOISTURE_MIN_SPAN = 10;
+/** Oś wilgotności zawsze od 0 do 100% (życzenie użytkownika z 2026-11-15) – wykresy różnych czujników i okresów są porównywalne. */
+const MOISTURE_LO = 0;
+const MOISTURE_HI = 100;
+/** Najmniejsza rozpiętość osi temperatury – przy prawie płaskim przebiegu szum nie powinien wyglądać jak skoki. */
 const TEMPERATURE_MIN_SPAN = 2;
-const MOISTURE_STEPS = [1, 2, 5, 10, 20, 25, 50];
 const TEMPERATURE_STEPS = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50];
 
 const X_STEPS = [
@@ -104,27 +105,19 @@ function runs(points, key) {
 // ---- skale --------------------------------------------------------------------------------------------------
 
 /**
- * Oś o n przedziałach z „okrągłym” krokiem, obejmująca [min, max] rozszerzone do minSpan; lo0/hi0 to twarde granice
- * (wilgotność 0–100%). „waste” – ile razy oś jest szersza od danych (mniej = lepiej wykorzystana wysokość).
+ * Oś o n przedziałach z „okrągłym” krokiem, obejmująca [min, max] rozszerzone do minSpan. „waste” – ile razy oś jest
+ * szersza od danych (mniej = lepiej wykorzystana wysokość).
  */
-function fitAxis(min, max, n, steps, minSpan, lo0, hi0) {
+function fitAxis(min, max, n, steps, minSpan) {
   if (max - min < minSpan) {
     const center = (min + max) / 2;
     min = center - minSpan / 2;
     max = center + minSpan / 2;
   }
-  if (lo0 !== undefined && min < lo0) { max += lo0 - min; min = lo0; }
-  if (hi0 !== undefined && max > hi0) { min = Math.max(lo0 ?? -Infinity, min - (max - hi0)); max = hi0; }
   for (const step of steps) {
     if (step * n < max - min - 1e-9) continue;
-    let lo = Math.floor(min / step + 1e-9) * step;
-    if (lo0 !== undefined && lo < lo0) lo = lo0;
-    let hi = lo + n * step;
-    if (hi0 !== undefined && hi > hi0) {
-      hi = hi0;
-      lo = hi0 - n * step;
-      if (lo0 !== undefined && lo < lo0) continue;
-    }
+    const lo = Math.floor(min / step + 1e-9) * step;
+    const hi = lo + n * step;
     if (hi >= max - 1e-9) return { lo, hi, step, n, waste: (hi - lo) / (max - min) };
   }
   // Żaden okrągły krok nie pasuje przy tej liczbie przedziałów – podziałki byłyby „krzywe”, więc to wybór ostateczny.
@@ -132,13 +125,19 @@ function fitAxis(min, max, n, steps, minSpan, lo0, hi0) {
   return { lo: min, hi: max, step, n, waste: 100 };
 }
 
-/** Wspólna liczba przedziałów dla obu osi (jedna siatka), wybrana tak, by obie jak najlepiej wypełniały wysokość. */
+/**
+ * Wspólna liczba przedziałów dla obu osi (jedna siatka). Oś wilgotności jest stała (0–100%), więc przy niej w grę wchodzą
+ * tylko liczby przedziałów o całkowitym kroku (4 → co 25, 5 → co 20); spośród nich wygrywa ta, przy której temperatura
+ * najlepiej wypełnia wysokość.
+ */
 function chooseScales(moisture, temperature, counts) {
+  const span = MOISTURE_HI - MOISTURE_LO;
+  const allowed = moisture ? counts.filter((n) => span % n === 0) : counts;
   let best = null;
-  for (const n of counts) {
-    const m = moisture ? fitAxis(moisture.min, moisture.max, n, MOISTURE_STEPS, MOISTURE_MIN_SPAN, 0, 100) : null;
+  for (const n of allowed.length ? allowed : [4]) {
+    const m = moisture ? { lo: MOISTURE_LO, hi: MOISTURE_HI, step: span / n, n } : null;
     const t = temperature ? fitAxis(temperature.min, temperature.max, n, TEMPERATURE_STEPS, TEMPERATURE_MIN_SPAN) : null;
-    const score = (m ? m.waste : 0) + (t ? t.waste : 0) - (n === 4 ? 0.05 : 0);
+    const score = (t ? t.waste : 0) - (n === 4 ? 0.05 : 0);
     if (!best || score < best.score) best = { score, n, m, t };
   }
   return best;
@@ -705,11 +704,13 @@ export class OverviewStrip {
     const { from, to } = this.range;
     const x = (t) => 1 + ((t - from) / Math.max(1, to - from)) * (width - 2);
     root.append(svg('rect', { x: 0.5, y: 0.5, width: width - 1, height: height - 1 }, 'frame'));
-    for (const [key, minSpan] of [['temperature', TEMPERATURE_MIN_SPAN], ['moisture', MOISTURE_MIN_SPAN]]) {
+    for (const key of ['temperature', 'moisture']) {
       const range = extent(this.points, key);
       if (!range) continue;
-      const lo = Math.min(range.min, (range.min + range.max - minSpan) / 2);
-      const hi = Math.max(range.max, (range.min + range.max + minSpan) / 2);
+      // Wilgotność jak na wykresie: zawsze 0–100%; temperatura od najniższej do najwyższej, rozpiętość co najmniej 2 °C.
+      const moisture = key === 'moisture';
+      const lo = moisture ? MOISTURE_LO : Math.min(range.min, (range.min + range.max - TEMPERATURE_MIN_SPAN) / 2);
+      const hi = moisture ? MOISTURE_HI : Math.max(range.max, (range.min + range.max + TEMPERATURE_MIN_SPAN) / 2);
       const y = (v) => 4 + ((hi - v) / (hi - lo)) * (height - 8);
       for (const run of runs(this.points, key)) {
         if (run.length < 2) continue;
