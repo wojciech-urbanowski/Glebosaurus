@@ -15,7 +15,7 @@ podlewaniu i raporty o stałych porach mailem (Gmail), a konfigurację, alerty i
 | Wysyłka prawdziwego maila przez Gmail | zrobione: 2026-11-13 `mail-test --samples` wysłał 3 maile (próbny, alert, raport) z konta nadawcy na skrzynkę użytkownika, SMTP przyjął wszystkie (logowanie hasłem aplikacji działa); wygląd i kolorystyka obejrzane i zatwierdzone przez użytkownika na telefonie; 2026-11-14 `run` sam otworzył prawdziwy alert (słaba bateria Cypryska, 19% przy progu 20%) i wysłał o nim mail – SMTP przyjął (18:06); **niesprawdzone**: dzienny limit, zachowanie przy błędnym haśle, prawdziwy raport z `run` |
 | Log techniczny dla administratora (dziennik dzienny, retencja, mail z załącznikiem) | zrobione w kodzie i testach (2026-11-13), podgląd obejrzany w widoku telefonu; 2026-11-13 `send-log` wysłał prawdziwy dziennik z załącznikiem na skrzynkę administratora, Gmail przyjął; 2026-11-14 `run` w pierwszym przebiegu dnia sam wysłał dziennik z 13.11 (ok. 3 s po starcie), a restart monitora kilka minut później go nie powtórzył (znacznik w bazie); **niesprawdzone**: wygląd tego maila na telefonie, czyszczenie starych plików przez `FileLoggerProvider` na żywo |
 | Raspberry Pi (BlueZ przez Shiny) | paczka zbudowana, **niesprawdzone** |
-| Praca w tle na Windows (zadanie Harmonogramu) | zaprojektowane, niezrobione |
+| Praca w tle na Windows (zadanie Harmonogramu), instalacja i samoaktualizacja z wydań GitHuba | zrobione 2026-11-15 (zasada 7): usługa `glebosaurus-service` bez okna, skrypt `install-windows.ps1`, workflowy CI i wydania; testy logiki w Core. **2026-11-15 na żywo (Windows, katalog próbny, udawane API wydań na loopbacku, monitor z atrapą czujnika):** instalacja z przejęciem konfiguracji, `stop` (1 s), aktualizacja o codziennej porze (monitor zatrzymany czysto, skrypt w tle, nowa usługa wystartowana przez Harmonogram), aktualizacja przy starcie (po wymuszonym powrocie do starszej wersji), zepsute wydanie (zły skrót – stara wersja wraca, próba odłożona o dobę, bez pętli), blokada drugiego monitora (kod 4), odinstalowanie. **Niesprawdzone**: strażnik co godzinę, zachowanie po uśpieniu i wybudzeniu, wylogowanie w trakcie odczytu, 7 dni ciągłej pracy |
 | Lokalny panel diagnostyczny WWW (HTTPS, sieć lokalna, hasło; podgląd, odczyt i raport na żądanie) | zrobione w kodzie i testach (2026-11-14, w tym testy na prawdziwym Kestrelu z TLS); `web-password` uruchomione na żywo, a strona obejrzana na prawdziwych danych (kopia bazy, dzienniki, konfiguracja) przez program podglądu na loopbacku, także w widoku telefonu 375 px. **2026-11-14 na żywo (Windows, `run` z prawdziwą konfiguracją):** panel startuje z monitorem, odcisk certyfikatu z dziennika zgadza się z `web-password` i z serwerem (127.0.0.1 i adres LAN), bez logowania 302/401; użytkownik zalogował się w przeglądarce (połączenie przyszło z adresu IPv6 link-local – filtr sieci go przepuścił). Próba wykryła błąd: przy `Referrer-Policy: no-referrer` przeglądarka wysyła z formularza `Origin: null`, a filtr POST odrzucał je jako obcą stronę (403, bez wpisu w dzienniku) – teraz rozstrzyga `Sec-Fetch-Site`, polityka to `same-origin`, odrzucenie trafia do dziennika (testy odtwarzają nagłówki przeglądarki). Wykresy (pulpit: 3 doby; strona czujnika: cała historia) – 2026-11-14 w testach i w przeglądarce na programie podglądu z danymi próbnymi (zasada 11). **Niesprawdzone**: wejście z telefonu w sieci domowej (reguła Zapory), wykresy na prawdziwym monitorze, Raspberry Pi |
 | Chmura, konfiguracja zaszyfrowana, wiele monitorów, interfejs WWW | zaprojektowane, niezrobione (fazy 2–3) |
 
@@ -178,8 +178,48 @@ sparowanych urządzeń BLE/audio (myszy, klawiatura, słuchawki); pomiar surowym
 6. **Warstwa BLE: Shiny.BluetoothLE (+ `.Linux`, BlueZ)** za własnym wąskim interfejsem (`IGattLink`); protokół Tuya
    jest czysto zarządzany (`Glebosaurus.Tuya`) i nie zna biblioteki BLE. Zapasowo: SimpleSharpBLE (licencja BUSL-1.1,
    tylko użytek niekomercyjny) albo bezpośrednio WinRT + Linux.Bluetooth.
-7. **Uruchamianie.** Windows: ukryte zadanie Harmonogramu przy logowaniu (nie usługa – BLE przez WinRT w sesji 0 bywa
-   kapryśne, do sprawdzenia). Raspberry Pi: usługa systemd.
+7. **Uruchamianie, instalacja i aktualizacje.** Raspberry Pi: usługa systemd (wzór w `deploy/`). Windows (2026-11-15, decyzje
+   użytkownika: konto użytkownika zamiast administratora, start przy zalogowaniu, aktualizacja przy starcie i raz na dobę,
+   wydania budowane przez GitHub Actions, repozytorium publiczne): zadanie Harmonogramu „Glebosaurus” uruchamia przy
+   zalogowaniu `glebosaurus-service.exe` (projekt `Glebosaurus.Service`, podsystem okienkowy – bez okna konsoli). Nie usługa
+   Windows: ta wymaga administratora, startuje przed zalogowaniem (BLE przez WinRT w sesji 0 – niesprawdzone) i potrzebowałaby
+   hasła konta.
+   - **Układ** `%LOCALAPPDATA%\Glebosaurus`: `app\` (program; ścieżka stała, bo reguły Zapory są per ścieżka programu – wersje w
+     osobnych katalogach pytałyby o Zaporę po każdej aktualizacji), `app.old\` (poprzednia wersja), `data\` (konfiguracja,
+     klucze, baza, dzienniki, sekrety panelu – aktualizacja ich nie dotyka), `updates\` (pobrane pliki, dziennik ostatniej
+     aktualizacji, ślad próby), `install.json` (ustawienia skryptu: repozytorium, adres API, nazwa zadania, pora, `autoUpdate`).
+   - **Usługa** (`Supervisor`) uruchamia `glebosaurus.exe run --quiet` z `CreateNoWindow` (bez okna także wtedy, gdy domyślnym
+     terminalem jest Windows Terminal – `-WindowStyle Hidden` tego nie gwarantuje) i z prywatnym zdarzeniem zatrzymania;
+     wyjście monitora trafia do `service-RRRRMMDD.log`. Po zakończeniu monitora wznawia go po 1, 2, 5, potem co 15 min (licznik
+     zeruje godzina spokojnej pracy; kod 4 „monitor już działa” – co 5 min, `RestartBackoff`). Wydania sprawdza przy starcie,
+     potem codziennie o 03:30 czasu lokalnego, po błędzie sieci po 30 min (`UpdateCheckSchedule`); decyzję podejmuje
+     `UpdatePolicy` (tylko nowsza, kompletna, nie robocza wersja; po nieudanej próbie ta sama wersja czeka dobę).
+   - **Aktualizacja = ten sam skrypt co instalacja.** Usługa pobiera `install-windows.ps1` z nowego wydania, sprawdza go z
+     `SHA256SUMS`, zapisuje ślad próby (`updates\update-attempt.json`), zatrzymuje czysto monitor, uruchamia skrypt
+     (`-Unattended`, bez okna) i kończy pracę – jej plików nie da się podmienić w trakcie działania. Skrypt czeka na koniec
+     usługi, pobiera paczkę, sprawdza skrót, wyłącza zadanie na czas podmiany, przenosi `app\` do `app.old\`, rozpakowaną paczkę do
+     `app\`, rejestruje zadanie od nowa, usuwa ślad próby i uruchamia zadanie (zapasowo usługę wprost). Przy porażce zapisuje
+     przyczynę w śladzie i uruchamia dotychczasową wersję – bez śladu zepsute wydanie albo skrypt, który w ogóle nie ruszył,
+     dawałyby pętlę „przekaż – porażka – start – przekaż” przy stojącym monitorze.
+   - **Jedna instancja i czyste zatrzymanie** (`Glebosaurus.Core/Hosting`): muteks `Local\Glebosaurus.Monitor` trzyma każdy
+     `run` (drugi kończy się kodem 4 – deweloperski `run` obok usługi walczyłby o czujniki i wysyłał maile podwójnie),
+     `Local\Glebosaurus.Service` – usługa. Muteksem włada osobny wątek (zwalnia go tylko właściciel, a kod asynchroniczny wraca na
+     dowolnym wątku). Zdarzenie `Local\Glebosaurus.Stop` (polecenie `stop`, skrypt) zatrzymuje monitor i usługę; nikt nie zabija
+     procesu, bo zabicie w trakcie rozłączania potrafi zawiesić następny odczyt. `Stop-ScheduledTask` zabija – nie używać.
+   - **Zadanie Harmonogramu**: wyzwalacz przy logowaniu własnego użytkownika z powtórką co godzinę (strażnik: przy działającej
+     usłudze nowa kopia jest pomijana – `MultipleInstances IgnoreNew`), `LogonType Interactive`, `RunLevel Limited`, start i
+     praca na baterii, bez limitu czasu (domyślne 72 godz. zatrzymałoby monitor), 3 ponowienia po minucie.
+   - **Sprawdzone 2026-11-15 na bestia5** (Windows 11 Pro 26300, konto Microsoft w grupie Administratorzy, bez podniesienia
+     uprawnień): zadanie z wyzwalaczem przy logowaniu **własnego** użytkownika rejestruje się bez administratora (wyzwalacz „dowolny
+     użytkownik” – odmowa dostępu); powtórka co godzinę zapisuje się jako `PT1H` bez końca; usługa i monitor nie mają okien
+     (`MainWindowHandle` 0, bez procesów Windows Terminal), choć domyślny terminal to „niech Windows zdecyduje”; skrypt uruchomiony
+     przez usługę, która zaraz potem się kończy, działa dalej, a `Start-ScheduledTask` z tego skryptu uruchamia nową kopię zadania
+     (rodzicem nowej usługi jest Harmonogram – zapasowy start wprost nie był potrzebny); reguły Zapory panelu są per ścieżka
+     programu (były dwie: `bin\Release\…` i `publish\win\…`). Paczka samodzielna win-x64: ok. 54 MB zip, 142 MB po rozpakowaniu
+     (największy jest `Microsoft.Windows.SDK.NET.dll`, 25 MB – projekcja WinRT).
+   - **Bezpieczeństwo aktualizacji:** HTTPS do GitHuba i skrót SHA-256 z tego samego wydania chronią przed uszkodzonym
+     pobraniem, nie przed przejęciem konta GitHub (podpis wydań – ROADMAP, faza 4). Skrypt nie potrzebuje administratora i
+     nie zmienia Zapory.
 8. **Odczyty.** Monitor słucha reklam i łączy się, gdy czujnik jest widoczny, a odczyt należny; domyślny interwał
    15 min. **Nasłuch na przemian z odczytem** (2026-11-14, `ListenThenReadSensorReader` w Core, radio Shiny za
    `ISensorRadio`): gdy w reklamach pojawi się którykolwiek z należnych czujników, nasłuch się kończy, czujnik jest czytany
@@ -328,9 +368,11 @@ src/Glebosaurus.Core      konfiguracja, reguły alertów, harmonogram raportów,
 src/Glebosaurus.Data      lokalny magazyn SQLite (Microsoft.Data.Sqlite)
 src/Glebosaurus.Mail      GmailSender (MailKit)
 src/Glebosaurus.Web       lokalny panel diagnostyczny (Kestrel, HTTPS, hasło; pulpit z wykresami, strona czujnika, odczyt i raport na żądanie; strony w wwwroot/ wbudowane w bibliotekę)
-src/Glebosaurus.Agent     CLI/monitor: run, pair, status, report, mail-test, mail-preview, send-log, web-password, scan, read, listen (Shiny; net10.0 + net10.0-windows10.0.19041.0)
+src/Glebosaurus.Agent     CLI/monitor: run, stop, pair, status, report, mail-test, mail-preview, send-log, web-password, scan, read, listen (Shiny; net10.0 + net10.0-windows10.0.19041.0)
+src/Glebosaurus.Service   usługa Windows bez okna (glebosaurus-service.exe): nadzór monitora, sprawdzanie wydań, przekazanie aktualizacji skryptowi
 tests/                    testy jednostkowe: protokół i sesja na atrapie czujnika; alerty, raporty, magazyn, silnik na atrapach
-examples/                 wzór konfiguracji            deploy/    wzór unitu systemd
+examples/                 wzór konfiguracji            deploy/    install-windows.ps1, package-windows.ps1, wzór unitu systemd
+.github/workflows/        ci.yml (build + testy), release.yml (tag v* → testy, paczka, próba instalacji, wydanie)
 docs/                     dokumentacja                 publish/   gotowe paczki (win-x64, linux-arm64) – wynik budowania, poza repozytorium
 local/                    robocze pliki użytkownika (konfiguracja, klucze, baza, dzienniki) – poza repozytorium
 ```
@@ -342,6 +384,9 @@ Interfejsy brzegowe, za którymi fazy 2–3 podmieniają implementacje: `IGattLi
 
 - Shiny na prawdziwej Raspberry Pi (BlueZ, uprawnienia D-Bus) i w trybie bez MAUI.
 - BLE w usłudze Windows (sesja 0) – dlatego zadanie Harmonogramu.
+- Samoaktualizacja ufa kontu GitHub (skrót chroni przed uszkodzeniem, nie przed podmianą wydania); zepsute wydanie wstrzymuje
+  się samo (stara wersja wraca, kolejna próba po dobie), ale wymaga nowego wydania z poprawką.
+- Wylogowanie i zamknięcie systemu kończą monitor bez pytania (kilka sekund) – może to wypaść w trakcie odczytu (niesprawdzone).
 - Koszt baterii przy częstych odczytach (decyduje o interwale); dryf wskazań wilgotności bez kalibracji.
 - Zasięg BLE określa liczbę monitorów; wiele innych urządzeń Tuya w eterze (część to czujniki użytkownika do sparowania
   lokalnie – każdy wymaga resetu, który usuwa go ze Smart Life).

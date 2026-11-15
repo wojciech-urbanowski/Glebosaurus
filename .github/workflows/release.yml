@@ -1,0 +1,69 @@
+# Wydanie: tag v<wersja> (ta sama co w Directory.Build.props) → testy, paczka Windows x64, próba instalacji skryptem
+# i wydanie na GitHubie z plikami: Glebosaurus-<wersja>-win-x64.zip, install-windows.ps1, SHA256SUMS.
+# Usługi zainstalowane skryptem znajdą je same (przy starcie i codziennie o 03:30).
+name: Wydanie
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            10.0.x
+            11.0.x
+
+      - name: Tag zgodny z wersją w Directory.Build.props
+        id: version
+        shell: pwsh
+        run: |
+          $version = ([xml](Get-Content Directory.Build.props -Raw)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
+          if ("v$version" -ne $env:GITHUB_REF_NAME) { throw "Tag $env:GITHUB_REF_NAME nie zgadza się z wersją $version w Directory.Build.props." }
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Testy
+        run: dotnet test --solution Glebosaurus.slnx -c Release
+
+      - name: Paczka
+        shell: pwsh
+        run: ./deploy/package-windows.ps1 -OutputDir out
+
+      - name: Próba instalacji z paczki (Windows PowerShell 5.1, bez zadania Harmonogramu)
+        shell: powershell
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'glebosaurus'
+          & ./out/install-windows.ps1 -PackagePath "out/Glebosaurus-${{ steps.version.outputs.version }}-win-x64.zip" -InstallDir $dir -NoTask -NoStart
+          $reported = & (Join-Path $dir 'app/glebosaurus.exe') --version
+          if ($reported -ne '${{ steps.version.outputs.version }}') { throw "glebosaurus --version: $reported" }
+          if (-not (Test-Path (Join-Path $dir 'app/glebosaurus-service.exe'))) { throw 'Brak glebosaurus-service.exe.' }
+          & ./out/install-windows.ps1 -InstallDir $dir -NoTask -Uninstall -RemoveData
+          if (Test-Path $dir) { throw "Odinstalowanie zostawiło $dir." }
+
+      - name: Wydanie na GitHubie
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = '${{ steps.version.outputs.version }}'
+          $notes = @"
+          Glebosaurus $version – monitor czujników gleby Tuya BLE.
+
+          **Windows 11** (na koncie użytkownika, bez administratora): pobierz i uruchom skrypt instalacji –
+          ``````powershell
+          `$s = "`$env:TEMP\glebosaurus-install.ps1"
+          Invoke-WebRequest https://github.com/${{ github.repository }}/releases/latest/download/install-windows.ps1 -OutFile `$s -UseBasicParsing
+          powershell -NoProfile -ExecutionPolicy Bypass -File `$s
+          ``````
+          Szczegóły (przejęcie istniejącej konfiguracji, aktualizacje, odinstalowanie): README.md, sekcja "Windows: instalacja jako usługa".
+          "@
+          gh release create $env:GITHUB_REF_NAME out/Glebosaurus-$version-win-x64.zip out/install-windows.ps1 out/SHA256SUMS `
+            --title "Glebosaurus $version" --notes $notes --verify-tag

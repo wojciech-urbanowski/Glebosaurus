@@ -2,7 +2,9 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using Glebosaurus.Agent.Ble;
+using Glebosaurus.Core;
 using Glebosaurus.Core.Config;
+using Glebosaurus.Core.Hosting;
 using Glebosaurus.Core.Mail;
 using Glebosaurus.Core.Monitoring;
 using Glebosaurus.Data;
@@ -16,18 +18,23 @@ namespace Glebosaurus.Agent;
 
 internal sealed record CliOptions(
     string Command, int? Seconds, int Timeout, string? Credentials, string? Config, string? Output, bool Verbose, bool Quiet,
-    int? Minutes, bool ConfirmBind, string? Id, string? Name, string? Mac, int? Linger, bool Samples, string? Date);
+    int? Minutes, bool ConfirmBind, string? Id, string? Name, string? Mac, int? Linger, bool Samples, string? Date, string? StopEvent);
 
 internal static class Cli
 {
     private static readonly string Help = $"""
-        Glebosaurus – monitor czujników gleby Tuya BLE (BLE: {BleHost.Backend})
+        Glebosaurus {AppInfo.Version} – monitor czujników gleby Tuya BLE (BLE: {BleHost.Backend})
 
         Praca ciągła:
           glebosaurus run [--config PLIK] [--quiet] [--minutes N]
               Czyta czujniki co ustalony odstęp, zapisuje odczyty w SQLite, pilnuje alertów i wysyła maile/raporty.
               Dziennik trafia do katalogu logs/ obok pliku konfiguracji; --quiet wyłącza wyjście na konsolę;
               --minutes N kończy pracę (czysto, z rozłączeniem czujnika) po N minutach – do prób i diagnostyki.
+              Na jednym koncie działa naraz tylko jeden monitor (drugi kończy się kodem 4) – także obok usługi Windows.
+          glebosaurus stop [--seconds N]
+              Windows: czysto zatrzymuje działający monitor i usługę Glebosaurus (sygnał, potem czeka na koniec, domyślnie
+              do 240 s). Usługa wróci przy następnym zalogowaniu albo po uruchomieniu zadania Harmonogramu „Glebosaurus”.
+              Kod 2: nic nie działa. Na Linuksie: systemctl stop glebosaurus.
           glebosaurus status [--config PLIK]
               Ostatnie odczyty i otwarte alerty z lokalnej bazy (bez użycia radia).
           glebosaurus report [--config PLIK] [--out raport.html]
@@ -75,8 +82,10 @@ internal static class Cli
         --linger N       listen: ile sekund ciszy po ostatniej ramce kończy nasłuch (domyślnie 20)
         --credentials    plik klucza lokalnego czujnika (JSON, tworzony przez pair)
         --verbose        surowe dane reklam
+        --version        sam numer wersji
 
-        Kody wyjścia: 0 sukces, 1 błąd, 2 nie znaleziono czujnika, 3 czujnik niesparowany, brak danych lub nieudane parowanie, 130 przerwano.
+        Kody wyjścia: 0 sukces, 1 błąd, 2 nie znaleziono czujnika (stop: nic nie działa), 3 czujnik niesparowany, brak danych
+        lub nieudane parowanie, 4 monitor już działa, 130 przerwano.
         """;
 
     public static async Task<int> RunAsync(string[] args, CancellationToken cancellationToken)
@@ -95,6 +104,10 @@ internal static class Cli
             case "scan": return await ScanAsync(options, cancellationToken);
             case "read": return await ReadAsync(options, cancellationToken);
             case "listen": return await ListenAsync(options, cancellationToken);
+            case "stop": return await StopAsync(options, cancellationToken);
+            case "version":
+                Console.WriteLine(AppInfo.Version);
+                return 0;
             default:
                 Console.WriteLine(Help);
                 return options.Command == "help" ? 0 : 1;
@@ -107,7 +120,7 @@ internal static class Cli
         var command = hasCommand ? args[0].ToLowerInvariant() : "help";
         int? seconds = null, minutes = null, linger = null;
         var timeout = 12;
-        string? credentials = null, config = null, output = null, id = null, name = null, mac = null, date = null;
+        string? credentials = null, config = null, output = null, id = null, name = null, mac = null, date = null, stopEvent = null;
         bool verbose = false, quiet = false, confirmBind = false, samples = false;
         for (var i = hasCommand ? 1 : 0; i < args.Length; i++)
         {
@@ -118,6 +131,7 @@ internal static class Cli
                 case "--confirm-bind": confirmBind = true; break;
                 case "--samples": samples = true; break;
                 case "--help" or "-h": command = "help"; break;
+                case "--version": command = "version"; break;
                 case "--seconds": seconds = Number(args, ++i, "--seconds", 300); break;
                 case "--minutes": minutes = Number(args, ++i, "--minutes", 1440); break;
                 case "--timeout": timeout = Number(args, ++i, "--timeout", 120); break;
@@ -129,10 +143,12 @@ internal static class Cli
                 case "--name": name = Value(args, ++i, "--name"); break;
                 case "--mac": mac = Value(args, ++i, "--mac"); break;
                 case "--date": date = Value(args, ++i, "--date"); break;
+                // Prywatny sygnał zatrzymania od usługi Windows (glebosaurus-service); nie dla ludzi, więc bez opisu w pomocy.
+                case "--stop-event": stopEvent = Value(args, ++i, "--stop-event"); break;
                 default: throw new ArgumentException($"Nieznany parametr {args[i]}. Użyj --help.");
             }
         }
-        return new(command, seconds, timeout, credentials, config, output, verbose, quiet, minutes, confirmBind, id, name, mac, linger, samples, date);
+        return new(command, seconds, timeout, credentials, config, output, verbose, quiet, minutes, confirmBind, id, name, mac, linger, samples, date, stopEvent);
     }
 
     private static string Value(string[] args, int index, string flag) =>
@@ -225,13 +241,22 @@ internal static class Cli
         logger.LogInformation("Dziennik: pliki dzienne, trzymane {Days} dni; log z poprzedniego dnia dla administratora: {Admin}.",
             loaded.Config.Logs.RetentionDays, loaded.Config.Mail is { AdminRecipients.Count: > 0 } ? "włączony" : "wyłączony");
 
+        // Dwa monitory na jednym koncie (np. deweloperski „run” obok usługi) walczyłyby o czujniki i wysyłały maile podwójnie.
+        using var instance = SingleInstance.TryAcquire(InstanceNames.MonitorMutex);
+        if (instance is null)
+        {
+            logger.LogWarning("Monitor Glebosaurus już działa na tym koncie (usługa albo inne „run”) – kończę. Zatrzymanie: glebosaurus stop.");
+            return ExitCodes.AlreadyRunning;
+        }
+
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        if (options.Minutes is { } minutes) limit.CancelAfter(TimeSpan.FromMinutes(minutes));
+        using var stopRequests = ListenForStopRequests(options.StopEvent, limit, logger);
+
         using var ble = new BleHost();
         await ble.EnsureAccessAsync();
         IMailGateway? mail = loaded.Config.Mail is { } m ? new GmailSender(m.GmailAddress, m.AppPassword) : null;
         if (mail is null) logger.LogWarning("Sekcja „mail” nie jest skonfigurowana – alerty i raporty będą tylko w dzienniku.");
-
-        using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        if (options.Minutes is { } minutes) limit.CancelAfter(TimeSpan.FromMinutes(minutes));
 
         var store = new SqliteMonitorStore(loaded.DatabasePath);
         await store.InitializeAsync(limit.Token);
@@ -240,6 +265,67 @@ internal static class Cli
         await using var panel = await AgentWebPanel.TryStartAsync(loaded, engine, store, loggers, logger, limit.Token);
         await engine.RunAsync(limit.Token);
         return 0;
+    }
+
+    /// <summary>
+    /// Windows: czyste zatrzymanie na prośbę z zewnątrz – wspólny sygnał (polecenie <c>stop</c>, skrypt instalacyjny) i
+    /// prywatny sygnał od usługi, która uruchomiła ten monitor. Na Linuksie tę rolę pełni SIGTERM (Program.cs).
+    /// </summary>
+    private static DisposableList ListenForStopRequests(string? privateEvent, CancellationTokenSource limit, ILogger logger)
+    {
+        var listeners = new DisposableList();
+        if (!OperatingSystem.IsWindows()) return listeners;
+        foreach (var name in new[] { InstanceNames.StopEvent, privateEvent })
+        {
+            if (string.IsNullOrWhiteSpace(name)) continue;
+            listeners.Add(StopSignal.Listen(name, () =>
+            {
+                logger.LogInformation("Prośba o zatrzymanie ({Signal}) – kończę pracę po bieżącym kroku.", name);
+                try { limit.Cancel(); } catch (ObjectDisposedException) { }
+            }));
+        }
+        return listeners;
+    }
+
+    private static async Task<int> StopAsync(CliOptions options, CancellationToken cancellationToken)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Console.Error.WriteLine("Polecenie stop działa na Windows; na Linuksie zatrzymuje systemd: systemctl stop glebosaurus.");
+            return ExitCodes.Error;
+        }
+        static bool Running() => SingleInstance.IsHeld(InstanceNames.MonitorMutex) || SingleInstance.IsHeld(InstanceNames.ServiceMutex);
+        if (!Running())
+        {
+            Console.WriteLine("Monitor Glebosaurus nie działa.");
+            return ExitCodes.NotFound;
+        }
+        if (!StopSignal.Signal(InstanceNames.StopEvent))
+        {
+            Console.Error.WriteLine("Monitor działa, ale nie nasłuchuje prośby o zatrzymanie (stara wersja?). Zatrzymaj go ręcznie (Ctrl+C w jego oknie).");
+            return ExitCodes.Error;
+        }
+        var seconds = options.Seconds ?? 240;
+        Console.WriteLine($"Poproszono o zatrzymanie; czekam na koniec bieżącego odczytu (najdłużej {seconds} s)...");
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(seconds);
+        while (Running())
+        {
+            if (DateTimeOffset.UtcNow >= deadline)
+            {
+                Console.Error.WriteLine("Monitor nie zakończył się w wyznaczonym czasie (sygnał zostaje – zakończy się po bieżącym kroku).");
+                return ExitCodes.Error;
+            }
+            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+        }
+        Console.WriteLine("Zatrzymano.");
+        return ExitCodes.Success;
+    }
+
+    private sealed class DisposableList : IDisposable
+    {
+        private readonly List<IDisposable> items = [];
+        public void Add(IDisposable item) => items.Add(item);
+        public void Dispose() { foreach (var item in items) item.Dispose(); }
     }
 
     private static async Task<int> StatusAsync(CliOptions options, CancellationToken cancellationToken)
