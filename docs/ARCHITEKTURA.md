@@ -217,6 +217,18 @@ sparowanych urządzeń BLE/audio (myszy, klawiatura, słuchawki); pomiar surowym
      (rodzicem nowej usługi jest Harmonogram – zapasowy start wprost nie był potrzebny); reguły Zapory panelu są per ścieżka
      programu (były dwie: `bin\Release\…` i `publish\win\…`). Paczka samodzielna win-x64: ok. 54 MB zip, 142 MB po rozpakowaniu
      (największy jest `Microsoft.Windows.SDK.NET.dll`, 25 MB – projekcja WinRT).
+   - **Instalacja z aplikacji z pakietu (2026-11-15, bestia5).** Pierwsza prawdziwa instalacja, uruchomiona z terminala
+     aplikacji Claude (pakiet MSIX `Claude_…`), trafiła w całości do `%LOCALAPPDATA%\Packages\Claude_…\LocalCache\Local\Glebosaurus`:
+     procesy aplikacji widziały ją pod zwykłą ścieżką, ale Harmonogram nie – zadanie kończyło się 0x80070002 (brak pliku), a
+     nawet `cmd.exe` z tym katalogiem roboczym 0x8007010B. `GetCurrentPackageFullName` w tych procesach nie zwraca pakietu, więc
+     skrypt wykrywa sam objaw: zapisuje plik próbny w katalogu nadrzędnym instalacji i szuka go w `Packages\*\LocalCache\Local\…`
+     – jeśli tam jest, przerywa z wyjaśnieniem (ok. 60 ms). `%LOCALAPPDATA%\Temp` nie jest przekierowywany (stąd udane próby w
+     katalogu tymczasowym). Prawdziwą instalację wykonało tymczasowe zadanie Harmonogramu (procesy z Harmonogramu działają poza
+     pakietem), z przejęciem danych z kopii pakietu; kopię potem usunięto.
+   - **Zatrzymanie przed podmianą dotyczy tylko własnej instalacji**: skrypt zatrzymuje usługę i monitor, których plik programu
+     leży w jego `app\` (po ścieżce procesu). Muteksy są wspólne dla sesji, więc wcześniej instalacja próbna w innym katalogu
+     zatrzymała prawdziwą usługę (2026-11-15, czysto; usługa uruchomiona ponownie po ok. 30 s), a każda instalacja zatrzymałaby
+     też deweloperskie `run`. Druga instalacja nie wystartuje obok działającej (jeden monitor na konto) – skrypt to zgłasza.
    - **Bezpieczeństwo aktualizacji:** HTTPS do GitHuba i skrót SHA-256 z tego samego wydania chronią przed uszkodzonym
      pobraniem, nie przed przejęciem konta GitHub (podpis wydań – ROADMAP, faza 4). Skrypt nie potrzebuje administratora i
      nie zmienia Zapory.
