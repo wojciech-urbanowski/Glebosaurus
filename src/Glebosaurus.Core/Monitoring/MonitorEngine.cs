@@ -174,8 +174,8 @@ public sealed class MonitorEngine(
     public async Task RunAsync(CancellationToken cancellationToken)
     {
         await store.InitializeAsync(cancellationToken);
-        logger.LogInformation("Monitor „{Monitor}” startuje: {Count} czujników, odczyt co {Interval} min, raporty: {Reports}.",
-            config.MonitorName, config.Sensors.Count, config.ReadIntervalMinutes,
+        logger.LogInformation("Monitor „{Monitor}” (Glebosaurus {Version}) startuje: {Count} czujników, odczyt co {Interval} min, raporty: {Reports}.",
+            config.MonitorName, AppInfo.Version, config.Sensors.Count, config.ReadIntervalMinutes,
             config.Reports.Times.Count == 0 ? "wyłączone" : string.Join(", ", config.Reports.Times));
         while (!cancellationToken.IsCancellationRequested)
         {

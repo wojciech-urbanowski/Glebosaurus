@@ -6,6 +6,7 @@
     <Project Path="src/Glebosaurus.Mail/Glebosaurus.Mail.csproj" />
     <Project Path="src/Glebosaurus.Web/Glebosaurus.Web.csproj" />
     <Project Path="src/Glebosaurus.Agent/Glebosaurus.Agent.csproj" />
+    <Project Path="src/Glebosaurus.Service/Glebosaurus.Service.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Glebosaurus.Tuya.Tests/Glebosaurus.Tuya.Tests.csproj" />

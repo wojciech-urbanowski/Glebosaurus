@@ -1,18 +1,17 @@
 using System.Globalization;
 using System.Text;
-using Glebosaurus.Core.Logging;
 using Microsoft.Extensions.Logging;
 
-namespace Glebosaurus.Agent.Logging;
+namespace Glebosaurus.Core.Logging;
 
 /// <summary>
-/// Dziennik w plikach dziennych (glebosaurus-RRRRMMDD.log) – monitor ma działać po cichu, bez okna konsoli,
-/// więc to jedyny ślad jego pracy na Windows. Pliki z dni starszych niż <paramref name="keepDays"/> są usuwane
+/// Dziennik w plikach dziennych (glebosaurus-RRRRMMDD.log, usługa: service-RRRRMMDD.log) – monitor i usługa działają po
+/// cichu, bez okna konsoli, więc to jedyny ślad ich pracy na Windows. Pliki z dni starszych niż <paramref name="keepDays"/> są usuwane
 /// przy pierwszym zapisie każdego dnia (czyli też zaraz po starcie agenta). Pełny dziennik z poprzedniego dnia
 /// trafia mailem do administratora (patrz <c>MonitorEngine</c>), stąd niezbędna jest wspólna znajomość nazw plików
 /// w <see cref="DailyLogFiles"/>.
 /// </summary>
-internal sealed class FileLoggerProvider(DailyLogFiles files, int keepDays) : ILoggerProvider
+public sealed class FileLoggerProvider(DailyLogFiles files, int keepDays) : ILoggerProvider
 {
     private readonly object gate = new();
     private DateOnly lastCleanup;

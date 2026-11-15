@@ -10,8 +10,10 @@ Dokumenty: [docs/ARCHITEKTURA.md](docs/ARCHITEKTURA.md) – projekt i fakty zmie
 
 Zrobione i sprawdzone na sprzęcie (Windows 11, prawdziwy czujnik): protokół Tuya BLE z lokalnym parowaniem bez konta Tuya,
 monitor (odczyty, SQLite, alerty, raport HTML, czyste zatrzymanie), polecenie `pair`. Gotowe w kodzie, **ale jeszcze
-niesprawdzone**: praca na Raspberry Pi. Wysyłka maili przez Gmail i ich wygląd na telefonie są sprawdzone (2026-11-13). Praca w tle na Windows (zadanie
-Harmonogramu) i chmura z interfejsem WWW to kolejne fazy – patrz [ROADMAP](docs/ROADMAP.md). Lokalny panel diagnostyczny w
+niesprawdzone**: praca na Raspberry Pi. Wysyłka maili przez Gmail i ich wygląd na telefonie są sprawdzone (2026-11-13). Praca w tle na Windows: od wersji 0.1.0
+(2026-11-15) usługa na koncie użytkownika (zadanie Harmonogramu przy zalogowaniu, bez okna), instalowana skryptem i sama
+aktualizująca się z wydań na GitHubie – patrz „Windows: instalacja jako usługa”. Chmura z interfejsem WWW to kolejne fazy –
+patrz [ROADMAP](docs/ROADMAP.md). Lokalny panel diagnostyczny w
 przeglądarce (HTTPS, sieć lokalna, hasło; pulpit z wykresem ostatnich 3 dób przy każdym czujniku, strona czujnika z pełną
 historią, odczyt czujników i raport mailowy na żądanie) działa od 2026-11-14 – patrz „Panel WWW” niżej.
 
@@ -22,7 +24,8 @@ historią, odczyt czujników i raport mailowy na żądanie) działa od 2026-11-1
 | `Glebosaurus.Data` | lokalny magazyn SQLite |
 | `Glebosaurus.Mail` | wysyłka przez Gmail (MailKit, hasło aplikacji) |
 | `Glebosaurus.Web` | panel diagnostyczny WWW wbudowany w `run` (Kestrel, HTTPS, hasło; pulpit z wykresami, strona czujnika, odczyt i raport na żądanie) |
-| `Glebosaurus.Agent` | CLI: `run`, `pair`, `status`, `report`, `mail-test`, `mail-preview`, `send-log`, `web-password`, `scan`, `read`, `listen` |
+| `Glebosaurus.Agent` | CLI: `run`, `stop`, `pair`, `status`, `report`, `mail-test`, `mail-preview`, `send-log`, `web-password`, `scan`, `read`, `listen` |
+| `Glebosaurus.Service` | usługa Windows bez okna (`glebosaurus-service.exe`): uruchamia i pilnuje monitora, sprawdza wydania i przekazuje aktualizację skryptowi |
 
 ## Budowanie i testy
 
@@ -33,6 +36,12 @@ dotnet test --solution Glebosaurus.slnx -c Release
 
 `global.json` włącza Microsoft Testing Platform (wymagane przez xunit.v3 na SDK 10+).
 
+Pliki wydania dla Windows (paczka samodzielna, skrypt instalacji, `SHA256SUMS`) buduje `./deploy/package-windows.ps1`
+(wynik w `publish/release`; `-Version 0.1.1 -OutputDir …` – paczka próbna z innym numerem). Wydanie na GitHubie: wersja w
+`Directory.Build.props`, potem tag `v<wersja>` – workflow [release.yml](.github/workflows/release.yml) uruchamia testy, buduje
+paczkę, próbuje ją zainstalować skryptem i publikuje wydanie; zainstalowane usługi znajdą je same w ciągu doby.
+[ci.yml](.github/workflows/ci.yml) buduje i testuje każdy push do `main` i każdy PR.
+
 ## Szybki start
 
 Robocze pliki (konfiguracja, klucze czujników, baza, dzienniki) trzymaj w katalogu `local/` – jest poza repozytorium.
@@ -41,6 +50,50 @@ Robocze pliki (konfiguracja, klucze czujników, baza, dzienniki) trzymaj w katal
 2. Skopiuj [examples/glebosaurus.config.json](examples/glebosaurus.config.json) do `local/glebosaurus.config.json` i wpisz
    czujnik z `tuyaFile` (polecenie `pair` podaje gotowy wpis). Sekcję `mail` dodaj, gdy chcesz maile.
 3. Uruchom `glebosaurus run --config local/glebosaurus.config.json`.
+
+## Windows: instalacja jako usługa
+
+Wydania (od 0.1.0) są na GitHubie: paczka samodzielna `Glebosaurus-<wersja>-win-x64.zip` (z .NET – nic więcej nie trzeba
+instalować), skrypt `install-windows.ps1` i `SHA256SUMS`. Instalacja działa na koncie użytkownika, bez administratora
+(Windows PowerShell 5.1 albo PowerShell 7):
+
+```powershell
+$s = "$env:TEMP\glebosaurus-install.ps1"
+Invoke-WebRequest https://github.com/wojciech-urbanowski/Glebosaurus/releases/latest/download/install-windows.ps1 -OutFile $s -UseBasicParsing
+powershell -NoProfile -ExecutionPolicy Bypass -File $s -ImportFrom D:\sciezka\do\local   # -ImportFrom tylko przy przejmowaniu danych
+```
+
+Skrypt:
+
+- pobiera najnowsze wydanie, sprawdza skrót SHA-256 i rozpakowuje program do `%LOCALAPPDATA%\Glebosaurus\app`;
+- z `-ImportFrom KATALOG` kopiuje do `%LOCALAPPDATA%\Glebosaurus\data` konfigurację, klucze czujników (`tuyaFile` i
+  `*.credentials.json`), bazę, dzienniki oraz hasło i certyfikat panelu WWW. Niczego nie nadpisuje, a monitor korzystający z tamtego
+  katalogu nie może wtedy działać (spójna kopia bazy). Bez konfiguracji zostawia w `data\` wzór `glebosaurus.config.example.json`
+  i usługi nie uruchamia;
+- rejestruje zadanie Harmonogramu „Glebosaurus”: przy zalogowaniu (i co godzinę, gdyby usługa nie działała) uruchamia
+  `app\glebosaurus-service.exe` – bez okna, także na baterii, bez limitu czasu pracy;
+- uruchamia usługę. Ta uruchamia monitor (`glebosaurus run` z konfiguracją z `data\`), podnosi go po awarii (po 1, 2, 5, potem co
+  15 min) i przy starcie oraz codziennie o 03:30 sprawdza wydania. Nowszą wersję instaluje ten sam skrypt z nowego wydania:
+  czyste zatrzymanie monitora (po bieżącym odczycie), podmiana `app\` (poprzednia wersja zostaje w `app.old\`), start nowej.
+  Nieudana aktualizacja nie zostawia monitora wyłączonego – wraca dotychczasowa wersja, a ta sama nowa wersja czeka dobę na
+  kolejną próbę.
+
+Ponowne uruchomienie skryptu aktualizuje usługę do najnowszego wydania albo naprawia instalację (rejestracja zadania, start).
+`-Version 0.1.0` instaluje konkretną wersję (także starszą), `-NoStart` nie uruchamia usługi od razu (wystartuje przy następnym
+zalogowaniu), `-Uninstall` odinstalowuje (dane zostają; z `-RemoveData` znikają też one). Ustawienia (repozytorium, nazwa
+zadania, pora sprawdzania, `autoUpdate`) skrypt zapamiętuje w `%LOCALAPPDATA%\Glebosaurus\install.json`.
+
+| Co | Gdzie / jak |
+|---|---|
+| Dziennik monitora | `data\logs\glebosaurus-RRRRMMDD.log` (ten sam, który idzie mailem do administratora) |
+| Dziennik usługi: starty, awarie, aktualizacje | `data\logs\service-RRRRMMDD.log`; ostatnia aktualizacja: `updates\install-last.log` |
+| Czyste zatrzymanie | `& "$env:LOCALAPPDATA\Glebosaurus\app\glebosaurus.exe" stop` – usługa wraca przy logowaniu, najpóźniej po godzinie (strażnik w zadaniu) albo od razu: `Start-ScheduledTask Glebosaurus` |
+| Wyłączenie na dłużej | `Disable-ScheduledTask Glebosaurus`, potem `stop`; powrót: `Enable-ScheduledTask Glebosaurus` |
+| Polecenia na danych usługi | `& "$env:LOCALAPPDATA\Glebosaurus\app\glebosaurus.exe" status --config "$env:LOCALAPPDATA\Glebosaurus\data\glebosaurus.config.json"` |
+
+Na jednym koncie działa naraz jeden monitor: `run` z konsoli obok usługi od razu się kończy (kod 4), a usługa ponawia start co
+5 min, dopóki działa inny monitor. Panel WWW: ścieżka programu (`app\glebosaurus.exe`) jest stała, więc Zapora Windows pyta tylko
+przy pierwszym starcie – zezwól w sieci prywatnej (albo jednorazowo reguła na port, patrz „Panel WWW”).
 
 ## Nowy czujnik: parowanie lokalne
 
@@ -84,6 +137,7 @@ Polecenia poniżej zakładają opublikowany `glebosaurus.exe`; z kodu źródłow
 
 ```powershell
 glebosaurus run --config local/glebosaurus.config.json        # praca ciągła; dziennik w logs/ obok pliku konfiguracji
+glebosaurus stop                                              # czysto zatrzymuje działający monitor i usługę (Windows)
 glebosaurus status --config local/glebosaurus.config.json     # ostatnie odczyty i alerty z bazy
 glebosaurus report --config local/glebosaurus.config.json --out raport.html
 glebosaurus mail-test --config local/glebosaurus.config.json  # wysyła PRAWDZIWĄ wiadomość próbną do odbiorców alertów
@@ -261,9 +315,6 @@ Plik konfiguracji i pliki kluczy skopiuj osobno, nie w paczce. Jako usługa: [de
 dostępu do Bluetooth: użytkownik powinien być w grupie `bluetooth`, a polityka D-Bus dla BlueZ musi mu na to pozwalać (uwagi w
 dokumentacji Shiny dla Linuxa). Na Linuxie dopasowanie po adresie MAC opiera się na identyfikatorze urządzenia z BlueZ
 (nieprzetestowane); zapasowo działa UUID Tuya z reklamy.
-
-Windows jako praca w tle: plan i zadania w [ROADMAP](docs/ROADMAP.md#faza-1b--domknięcie-lokalnego-monitora) (zadanie
-Harmonogramu przy logowaniu, bez okna; jeszcze niezrobione).
 
 ## Licencje
 

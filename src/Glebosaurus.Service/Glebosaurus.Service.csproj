@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Usługa Windows: nadzorca monitora uruchamiany przez zadanie Harmonogramu przy zalogowaniu, na koncie użytkownika.
+       Bez okna (WinExe). Przy starcie i raz na dobę sprawdza wydania na GitHubie (nowsze instaluje skrypt
+       install-windows.ps1), uruchamia „glebosaurus run” bez konsoli i podnosi go po awarii. Publikowana do jednego
+       katalogu razem z agentem (deploy/package-windows.ps1). -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <AssemblyName>glebosaurus-service</AssemblyName>
+    <RootNamespace>Glebosaurus.Service</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Glebosaurus.Core\Glebosaurus.Core.csproj" />
+  </ItemGroup>
+
+</Project>

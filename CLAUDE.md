@@ -13,6 +13,7 @@ dotnet build Glebosaurus.slnx -c Release
 dotnet test --solution Glebosaurus.slnx -c Release        # xunit.v3 na Microsoft Testing Platform (global.json)
 dotnet run --project src/Glebosaurus.Agent -f net10.0-windows10.0.19041.0 -- --help   # Windows; Linux: -f net10.0
 dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self-contained false -o publish/linux-arm64
+./deploy/package-windows.ps1                               # pliki wydania Windows (zip samodzielny, install-windows.ps1, SHA256SUMS) w publish/release
 ```
 
 ## Mapa
@@ -24,6 +25,12 @@ dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self
   Kolejność radia „nasłuch → odczyt znalezionego → nasłuch po resztę” to `ListenThenReadSensorReader` (Core, testy na atrapie);
   w agencie radio Shiny to tylko `ISensorRadio` (`ShinySensorRadio`: słuchaj / przeczytaj jeden).
 - `src/Glebosaurus.Data` (SQLite), `src/Glebosaurus.Mail` (Gmail/MailKit), `src/Glebosaurus.Agent` (CLI, Shiny.BluetoothLE).
+- `src/Glebosaurus.Service` – usługa Windows bez okna (`glebosaurus-service.exe`, zadanie Harmonogramu przy zalogowaniu):
+  `Supervisor` uruchamia `glebosaurus run` (CreateNoWindow), podnosi go po awarii, sprawdza wydania GitHuba przy starcie i
+  codziennie o 03:30 i przekazuje aktualizację skryptowi `deploy/install-windows.ps1` (ten sam instaluje od zera). Decyzje
+  w Core z testami: `Core/Updates` (wersje, opis wydania, `SHA256SUMS`, `UpdatePolicy`, harmonogram, `install.json`,
+  ślad próby) i `Core/Hosting` (muteksy jednej instancji, zdarzenie zatrzymania – nazwy wpisane też w skrypt, kody wyjścia,
+  `RestartBackoff`). Wydania: `deploy/package-windows.ps1` + `.github/workflows/release.yml` (tag `v*`); CI: `ci.yml`.
 - `src/Glebosaurus.Web` – lokalny panel diagnostyczny w procesie `run` (Kestrel, HTTPS z certyfikatem z podpisem własnym,
   tylko sieć lokalna, hasło; **pulpit** `/` z wykresem ostatnich 3 dób przy każdym czujniku, **strona czujnika** `/sensor?id=`
   ze wszystkimi szczegółami i przeglądalnym wykresem całej historii – SVG w `wwwroot/charts.js`, bez bibliotek, dane z
@@ -42,7 +49,10 @@ dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self
 - Czas przez `TimeProvider`, radio/baza/poczta przez interfejsy – dzięki temu silnik testuje się bez sprzętu.
 - Każda zmiana zachowania dostaje test; sprawdzenia na sprzęcie opisuje się w ARCHITEKTURA.md z datą.
 - Wersja (obecnie 0.1.0) jest w jednym miejscu: `Directory.Build.props`; widać ją w stopce każdego maila (`AppInfo.Version`).
-  Podbijaj ją tylko na prośbę użytkownika (przy wydaniu paczki).
+  Podbijaj ją tylko na prośbę użytkownika (przy wydaniu paczki). Wydanie = tag `v<wersja>` (musi zgadzać się z
+  `Directory.Build.props`) → Actions publikuje je, a zainstalowane usługi same się zaktualizują w ciągu doby.
+- Skrypty `.ps1` zapisuj w UTF-8 **z BOM** (Windows PowerShell 5.1) i nie wstawiaj „” do napisów w podwójnych cudzysłowach –
+  PowerShell traktuje je jak zwykły cudzysłów; tam poprzedzaj je odwrotnym apostrofem albo użyj napisu w pojedynczych cudzysłowach.
 
 ## Sprzęt – zasady pracy na żywo (kosztowne odkrycia)
 
@@ -71,6 +81,10 @@ dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self
   `mail-preview` (tylko pliki) – maile są projektowane pod wąski ekran telefonu, nie psuj tego (testy pilnują układu).
 - Nie drukuj i nie loguj kluczy z `*.credentials.json` ani hasła aplikacji Gmail; nie commituj `local/`. Sekretami są też
   `local/glebosaurus-web.password` (skrót hasła panelu) i `local/glebosaurus-web.pfx` (klucz certyfikatu panelu).
+- Tag `v*` wypchnięty na GitHuba publikuje wydanie, które zainstalowane usługi pobiorą same – tylko na prośbę użytkownika.
+  `install-windows.ps1` na prawdziwym `%LOCALAPPDATA%\Glebosaurus` (albo z `-ImportFrom local`) rejestruje zadanie i uruchamia
+  prawdziwy monitor z mailami – próby rób na katalogu tymczasowym z `-TaskName Glebosaurus-test` i udawanym API (`-ApiBase`).
+  Nie używaj `Stop-ScheduledTask` ani zabijania procesu na działającej usłudze – zatrzymuje się `glebosaurus stop`.
 - `run` z sekcją `web` słucha na wszystkich interfejsach – na Windows pierwsze uruchomienie może pokazać okno Zapory; reguły
   zapory i zaufanie do certyfikatu zmienia użytkownik, nie Claude. Panel do prób: program podglądu na loopbacku albo testy.
 

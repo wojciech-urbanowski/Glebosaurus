@@ -97,4 +97,19 @@ public class LogArchiveTests : IDisposable
     [Fact]
     public void RetentionOnMissingDirectoryDoesNothing() =>
         Assert.Equal(0, new DailyLogFiles(Path.Combine(directory, "nie-ma")).ApplyRetention(D(11, 13), 7));
+
+    [Fact]
+    public void ServiceLogsHaveTheirOwnNamesAndRetention()
+    {
+        var service = new DailyLogFiles(directory, DailyLogFiles.ServiceName);
+        Touch("glebosaurus-20261101.log");
+        Touch("service-20261101.log");
+        Touch("service-20261112.log");
+
+        Assert.Equal(Path.Combine(directory, "service-20261112.log"), service.PathFor(D(11, 12)));
+        Assert.Equal(1, service.ApplyRetention(D(11, 12), 7));
+        Assert.Equal(["glebosaurus-20261101.log", "service-20261112.log"], Names());
+        Assert.Equal(1, new DailyLogFiles(directory).ApplyRetention(D(11, 12), 7));
+        Assert.Equal(["service-20261112.log"], Names());
+    }
 }

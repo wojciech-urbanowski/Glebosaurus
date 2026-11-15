@@ -1,0 +1,40 @@
+# Budowanie i testy przy każdym pushu do main i każdym PR. Windows, bo agent ma też TFM z WinRT (net10.0-windows…).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          # SDK 11 buduje projekty net10.0; testy (net10.0) potrzebują środowiska .NET 10.
+          dotnet-version: |
+            10.0.x
+            11.0.x
+
+      - name: Budowanie
+        run: dotnet build Glebosaurus.slnx -c Release
+
+      - name: Testy
+        run: dotnet test --solution Glebosaurus.slnx -c Release --no-build
+
+      - name: Skrypty PowerShell się parsują (Windows PowerShell 5.1)
+        shell: powershell
+        run: |
+          $failed = $false
+          foreach ($file in Get-ChildItem deploy -Filter *.ps1) {
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref]$null, [ref]$errors)
+            foreach ($e in $errors) { Write-Host "::error file=deploy/$($file.Name),line=$($e.Extent.StartLineNumber)::$($e.Message)"; $failed = $true }
+          }
+          if ($failed) { exit 1 }
