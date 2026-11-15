@@ -63,6 +63,10 @@ Invoke-WebRequest https://github.com/wojciech-urbanowski/Glebosaurus/releases/la
 powershell -NoProfile -ExecutionPolicy Bypass -File $s -ImportFrom D:\sciezka\do\local   # -ImportFrom tylko przy przejmowaniu danych
 ```
 
+Uruchamiaj go w zwykłym oknie PowerShell (menu Start: Windows PowerShell albo Terminal), nie w terminalu wbudowanym w
+aplikację z pakietu Windows (np. w aplikacji Claude): Windows przekierowuje jej zapisy w `%LOCALAPPDATA%` do prywatnej kopii
+pakietu, której Harmonogram nie widzi – skrypt to wykrywa i przerywa.
+
 Skrypt:
 
 - pobiera najnowsze wydanie, sprawdza skrót SHA-256 i rozpakowuje program do `%LOCALAPPDATA%\Glebosaurus\app`;

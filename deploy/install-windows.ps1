@@ -119,7 +119,15 @@ function Test-Held([string]$Name) {
     finally { $mutex.Dispose() }
 }
 
-function Test-Running { return ((Test-Held $ServiceMutex) -or (Test-Held $MonitorMutex)) }
+# Usługa i monitor uruchomione z TEGO katalogu app\ (po ścieżce programu). Muteksy są wspólne dla całej sesji, więc same nie
+# wystarczą: instalacja próbna w innym katalogu zatrzymałaby prawdziwą usługę (zdarzyło się 2026-11-15), a każda instalacja
+# zatrzymywałaby też deweloperskie „run”, choć to nie blokuje żadnego pliku w app\.
+function Test-Running {
+    $prefix = $AppDir.TrimEnd('\') + '\'
+    $own = @(Get-Process -Name glebosaurus, glebosaurus-service -ErrorAction SilentlyContinue | Where-Object {
+            $_.Path -and $_.Path.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase) })
+    return ($own.Count -gt 0)
+}
 
 # Czyste zatrzymanie: sygnał „zatrzymaj się” i czekanie, aż monitor skończy bieżący odczyt. Nigdy nie zabija procesu –
 # zabicie w trakcie rozłączania czujnika potrafi zawiesić następny odczyt.
@@ -142,6 +150,31 @@ function Stop-Glebosaurus {
     }
     Write-Step 'monitor i usługa zatrzymane.'
     return $true
+}
+
+# Czy zapisy w $Directory trafiają do prywatnej kopii jakiejś aplikacji z pakietu (MSIX)? Tak jest, gdy skrypt działa w
+# terminalu wbudowanym w taką aplikację (sprawdzone 2026-11-15 na aplikacji Claude): Windows przekierowuje jej zapisy w
+# %LOCALAPPDATA% do %LOCALAPPDATA%\Packages\<pakiet>\LocalCache\Local, a Harmonogram tej kopii nie widzi – usługa nie
+# wystartowałaby przy logowaniu (0x80070002). Sprawdzamy objaw wprost: plik próbny i szukanie go w kopiach pakietów.
+function Get-RedirectingPackage([string]$Directory) {
+    if (-not $Directory -or -not (Test-Path -LiteralPath $Directory -PathType Container)) { return $null }
+    $local = [IO.Path]::GetFullPath($env:LOCALAPPDATA).TrimEnd('\')
+    $full = [IO.Path]::GetFullPath($Directory).TrimEnd('\')
+    if (-not ($full -eq $local -or $full.StartsWith($local + '\', [StringComparison]::OrdinalIgnoreCase))) { return $null }
+    $relative = $full.Substring($local.Length).TrimStart('\')
+    $packages = Join-Path $local 'Packages'
+    $probe = 'glebosaurus-proba-' + [guid]::NewGuid().ToString('N')
+    $path = Join-Path $full $probe
+    try {
+        [IO.File]::WriteAllText($path, '')
+        if (-not (Test-Path -LiteralPath $packages)) { return $null }
+        foreach ($package in [IO.Directory]::EnumerateDirectories($packages)) {
+            if ([IO.File]::Exists([IO.Path]::Combine($package, 'LocalCache', 'Local', $relative, $probe))) { return (Split-Path -Leaf $package) }
+        }
+        return $null
+    }
+    catch { return $null }
+    finally { try { [IO.File]::Delete($path) } catch { } }
 }
 
 function Invoke-Retry([scriptblock]$Action, [int]$Attempts = 10) {
@@ -283,7 +316,11 @@ function Register-GlebosaurusTask {
 }
 
 function Start-Glebosaurus {
-    if (Test-Held $ServiceMutex) { return }
+    if (Test-Running) { return }
+    if (Test-Held $ServiceMutex) {
+        Write-Warning 'Działa usługa Glebosaurus z innego katalogu instalacji – ta nie wystartuje obok niej (na koncie pracuje jeden monitor).'
+        return
+    }
     if (-not (Test-Path -LiteralPath $ServiceExe)) { Write-Warning "Brak $ServiceExe – nie ma czego uruchomić."; return }
     if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) { Start-ScheduledTask -TaskName $TaskName }
     for ($i = 0; $i -lt 40 -and -not (Test-Held $ServiceMutex); $i++) { Start-Sleep -Milliseconds 500 }
@@ -292,7 +329,7 @@ function Start-Glebosaurus {
         Start-Process -FilePath $ServiceExe -WorkingDirectory $DataDir
         for ($i = 0; $i -lt 40 -and -not (Test-Held $ServiceMutex); $i++) { Start-Sleep -Milliseconds 500 }
     }
-    if (Test-Held $ServiceMutex) { Write-Step 'usługa działa.' }
+    if (Test-Running) { Write-Step 'usługa działa.' }
     else { Write-Warning "Usługa nie wystartowała – zajrzyj do $(Join-Path $DataDir 'logs')." }
 }
 
@@ -464,11 +501,17 @@ if ($Unattended) {
     try { Start-Transcript -Path (Join-Path $UpdatesDir 'install-last.log') -Force | Out-Null } catch { }
     if ($Version) { $script:TargetVersion = ConvertTo-ReleaseVersion $Version }
     # Usługa, która uruchomiła skrypt, właśnie się kończy – jej pliki zwolnią się za chwilę.
-    for ($i = 0; $i -lt 60 -and (Test-Held $ServiceMutex); $i++) { Start-Sleep -Milliseconds 500 }
+    for ($i = 0; $i -lt 60 -and (Test-Running); $i++) { Start-Sleep -Milliseconds 500 }
 }
 
 $succeeded = $false
 try {
+    $package = Get-RedirectingPackage (Split-Path -Parent $InstallDir)
+    if ($package) {
+        throw ("Ten PowerShell działa wewnątrz aplikacji z pakietu Windows ($package), np. w terminalu wbudowanym w aplikację. " +
+            'Windows przekierowuje jej zapisy w %LOCALAPPDATA% do prywatnej kopii pakietu, której Harmonogram zadań nie widzi, ' +
+            'więc usługa nie wystartowałaby przy logowaniu. Uruchom skrypt w zwykłym oknie PowerShell (menu Start: Windows PowerShell albo Terminal).')
+    }
     if ($Uninstall) { Invoke-Uninstall } else { Invoke-Install }
     $succeeded = $true
 }
