@@ -53,6 +53,8 @@ dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self
   `Directory.Build.props`) → Actions publikuje je, a zainstalowane usługi same się zaktualizują w ciągu doby.
 - Skrypty `.ps1` zapisuj w UTF-8 **z BOM** (Windows PowerShell 5.1) i nie wstawiaj „” do napisów w podwójnych cudzysłowach –
   PowerShell traktuje je jak zwykły cudzysłów; tam poprzedzaj je odwrotnym apostrofem albo użyj napisu w pojedynczych cudzysłowach.
+  Konfigurację w skrypcie czytaj tylko przez `Read-ConfigJson` (komentarze `//`): komunikat wyjątku `ConvertFrom-Json` z
+  Windows PowerShell 5.1 zawiera **cały plik, razem z hasłem Gmaila** – nigdy go nie wypisuj ani nie loguj.
 
 ## Sprzęt – zasady pracy na żywo (kosztowne odkrycia)
 

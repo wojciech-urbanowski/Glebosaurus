@@ -187,6 +187,22 @@ function Assert-Hash([string]$SumsPath, [string]$File) {
     if ($expected -ne $actual) { throw "Skrót SHA-256 pliku $name się nie zgadza (oczekiwano $expected, jest $actual) – uszkodzone pobranie?" }
 }
 
+# Konfiguracja monitora może mieć komentarze // i /* */ oraz przecinki przed } i ] (czyta ją System.Text.Json), a
+# ConvertFrom-Json z Windows PowerShell 5.1 ich nie zna – więc najpierw je usuwamy (napisy w cudzysłowach zostają nietknięte).
+# Przy błędzie zwraca $null BEZ komunikatu wyjątku: ConvertFrom-Json wkleja do niego cały plik, razem z hasłem Gmaila.
+function Read-ConfigJson([string]$Path) {
+    try {
+        $text = Get-Content -LiteralPath $Path -Raw -Encoding UTF8
+        $strings = '("(?:\\.|[^"\\])*")'
+        $text = [regex]::Replace($text, $strings + '|//[^\r\n]*|/\*[\s\S]*?\*/',
+            [Text.RegularExpressions.MatchEvaluator] { param($m) if ($m.Groups[1].Success) { $m.Value } else { '' } })
+        $text = [regex]::Replace($text, $strings + '|,(\s*[}\]])',
+            [Text.RegularExpressions.MatchEvaluator] { param($m) if ($m.Groups[1].Success) { $m.Value } else { $m.Groups[2].Value } })
+        return ($text | ConvertFrom-Json)
+    }
+    catch { return $null }
+}
+
 function Save-Json($Value, [string]$Path) {
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $Path) | Out-Null
     Set-Content -LiteralPath $Path -Value ($Value | ConvertTo-Json) -Encoding UTF8
@@ -202,8 +218,8 @@ function Import-Data([string]$Source) {
     $files = New-Object System.Collections.Generic.List[string]
     $files.Add('glebosaurus.config.json')
     $database = 'glebosaurus.db'
-    try {
-        $config = Get-Content -LiteralPath $sourceConfig -Raw -Encoding UTF8 | ConvertFrom-Json
+    $config = Read-ConfigJson $sourceConfig
+    if ($config) {
         if ($config.PSObject.Properties['database'] -and $config.database) { $database = [string]$config.database }
         foreach ($sensor in @($config.sensors)) {
             if ($sensor -and $sensor.PSObject.Properties['tuyaFile'] -and $sensor.tuyaFile) {
@@ -212,7 +228,7 @@ function Import-Data([string]$Source) {
             }
         }
     }
-    catch { Write-Warning "Nie udało się odczytać $sourceConfig ($($_.Exception.Message)) – kopiuję pliki według nazw." }
+    else { Write-Warning "Nie udało się odczytać $sourceConfig jako JSON – kopiuję pliki według nazw (*.credentials.json, glebosaurus.db)." }
     if ([IO.Path]::IsPathRooted($database)) { Write-Warning "Baza ma ścieżkę bezwzględną ($database) – zostaje tam, gdzie jest." }
     else { foreach ($suffix in @('', '-wal', '-shm')) { $files.Add($database + $suffix) } }
     Get-ChildItem -LiteralPath $Source -Filter '*.credentials.json' -File | ForEach-Object { $files.Add($_.Name) }
@@ -290,15 +306,12 @@ function Remove-Leftovers {
 function Write-Summary($Installed) {
     if (-not $Installed) { return }
     $panel = $null
-    try {
-        $config = Get-Content -LiteralPath $ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
-        if ($config.PSObject.Properties['web'] -and $config.web) {
-            $port = 8470
-            if ($config.web.PSObject.Properties['port'] -and $config.web.port) { $port = [int]$config.web.port }
-            $panel = "https://$($env:COMPUTERNAME.ToLowerInvariant()):$port"
-        }
+    $config = Read-ConfigJson $ConfigPath
+    if ($config -and $config.PSObject.Properties['web'] -and $config.web) {
+        $port = 8470
+        if ($config.web.PSObject.Properties['port'] -and $config.web.port) { $port = [int]$config.web.port }
+        $panel = "https://$($env:COMPUTERNAME.ToLowerInvariant()):$port"
     }
-    catch { }
     Write-Host ''
     Write-Host "Glebosaurus $($Installed.ToString(3)) w $InstallDir"
     Write-Host "  program:      $AppDir"
