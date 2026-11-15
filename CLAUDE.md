@@ -116,6 +116,7 @@ Raspberry Pi, kalibracja wilgotności. Następne kroki: patrz [docs/ROADMAP.md](
 Usługa Windows (2026-11-15): wydanie **0.1.0** opublikowane przez Actions (repo publiczne), a na bestia5 zainstalowane z
 GitHuba skryptem z `-ImportFrom local -NoStart`: program w `%LOCALAPPDATA%\Glebosaurus\app`, **kopia** danych z `local/` w
 `…\Glebosaurus\data`, zadanie „Glebosaurus” przy zalogowaniu. Od tej chwili prawdziwym monitorem jest usługa; `local/` zostaje
-do prób, a `run` z niego nie wystartuje obok usługi (kod 4). Niesprawdzone na żywo: pierwszy start prawdziwej usługi (okno
-Zapory dla nowej ścieżki, maile), strażnik co godzinę, uśpienie i wybudzenie, wylogowanie w trakcie odczytu, aktualizacja z
-prawdziwego wydania (na udawanym API działa).
+do prób, a `run` z niego nie wystartuje obok usługi (kod 4). Sprawdzone na żywo: start z Harmonogramu (Zapora zatwierdzona
+dla stałej ścieżki `app\glebosaurus.exe`), o północy sama wysłała log administratora, a 2026-11-16 00:06 pierwsza
+samoaktualizacja z GitHuba 0.1.0 → 0.1.1 (ok. 15 s, bez nowego pytania Zapory). Niesprawdzone: strażnik co godzinę, uśpienie
+i wybudzenie, wylogowanie w trakcie odczytu, aktualizacja o 03:30 na prawdziwym wydaniu.
