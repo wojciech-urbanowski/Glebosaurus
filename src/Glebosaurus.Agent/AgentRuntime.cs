@@ -17,6 +17,12 @@ internal sealed record LoadedConfig(AgentConfig Config, string ConfigPath, strin
 
     /// <summary>Certyfikat HTTPS panelu WWW z kluczem prywatnym (PFX bez hasła – chroniony prawami pliku, jak klucze czujników).</summary>
     public string WebCertificatePath => Path.Combine(Path.GetDirectoryName(ConfigPath)!, "glebosaurus-web.pfx");
+
+    /// <summary>Tryb chmurowy: plik z tokenem agenta (tworzy go enroll); null bez sekcji „cloud”.</summary>
+    public string? CloudTokenPath => Config.Cloud is { } cloud ? AgentConfigLoader.ResolveRelative(ConfigPath, cloud.TokenFile) : null;
+
+    /// <summary>Tryb chmurowy: ostatnia dobra konfiguracja z chmury (z kluczami Tuya); null bez sekcji „cloud”.</summary>
+    public string? CloudConfigCachePath => Config.Cloud is { } cloud ? AgentConfigLoader.ResolveRelative(ConfigPath, cloud.ConfigCacheFile) : null;
 }
 
 internal static class AgentRuntime

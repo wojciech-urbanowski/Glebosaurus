@@ -1,0 +1,22 @@
+// Wzór konfiguracji agenta w trybie chmurowym (faza 2). Czujniki, harmonogramy raportów, progi, odbiorcy maili, klucze
+// Tuya i hasło Gmaila są w chmurze (Supabase) – w tym pliku tylko dostęp do chmury i ustawienia tego urządzenia.
+// Sekcji "sensors" i "mail" tu NIE ma (z nimi agent nie wystartuje). Rejestracja: glebosaurus enroll --code KOD.
+{
+  "cloud": {
+    // Adres projektu Supabase i jego klucz publikowalny (sb_publishable_…, ten sam dla wszystkich agentów).
+    // Nigdy nie wpisuj tu klucza tajnego (sb_secret_…) ani hasła bazy.
+    "url": "https://abcdefghijklmnopqrst.supabase.co",
+    "publishableKey": "sb_publishable_…"
+    // Opcjonalnie (domyślne obok tego pliku): "tokenFile": "glebosaurus-cloud.token",
+    //                                          "configCacheFile": "glebosaurus-cloud-config.bin"
+  },
+
+  // Lokalny bufor i kopia odczytów tego agenta (SQLite); ścieżka względna od katalogu tego pliku.
+  "database": "glebosaurus.db",
+  "retentionDays": 400,
+
+  // Dziennik agenta (pliki dzienne w logs/); wczorajszy trafia do chmury, a nadawca wysyła go administratorowi.
+  "logs": { "retentionDays": 7 }
+
+  // Panel WWW w trybie chmurowym – w przygotowaniu (faza 2.1.4).
+}

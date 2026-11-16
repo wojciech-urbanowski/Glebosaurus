@@ -98,6 +98,10 @@ public sealed class CloudSync(
     /// <summary>Czy nadawca jest między wysyłkami – tylko wtedy wolno oddać blokadę ważniejszemu kandydatowi.</summary>
     public Func<bool> NotifierSafePoint { get; set; } = () => true;
 
+    /// <summary>Po każdej udanej synchronizacji (nie przy zatrzymaniu) – np. odświeżenie konfiguracji i rozdział poleceń.
+    /// Błąd w nim trafia do dziennika i nie psuje synchronizacji.</summary>
+    public Func<CancellationToken, Task>? Synced { get; set; }
+
     public CloudSyncState State => state;
 
     /// <summary>Wersja konfiguracji w chmurze z ostatniej udanej synchronizacji (zmiana = trzeba pobrać <c>get_config</c>).</summary>
@@ -168,7 +172,16 @@ public sealed class CloudSync(
         var observations = hearing.Observations().Where(o => ids.Contains(o.Key)).ToDictionary();
         var plan = sensorPolicy.Plan(ids, observations.ToDictionary(o => o.Key, o => o.Value.ToHearing()))
             .Merge(notifierPolicy.Plan(NotifierSafePoint()));
-        return await SendAsync(plan, observations, cancellationToken);
+        var outcome = await SendAsync(plan, observations, cancellationToken);
+        if (outcome is SyncOutcome.Synced or SyncOutcome.Backlog && Synced is { } after)
+        {
+            try { await after(cancellationToken); }
+            catch (Exception e) when (e is not OperationCanceledException)
+            {
+                logger.LogError(e, "Obsługa po synchronizacji (konfiguracja, polecenia) zakończyła się błędem.");
+            }
+        }
+        return outcome;
     }
 
     /// <summary>

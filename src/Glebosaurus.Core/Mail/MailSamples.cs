@@ -72,6 +72,10 @@ public static class MailSamples
         return Mark(MailTemplates.AdminLog(log, day, to, $"{monitorName} (przykład)", now, zone));
     }
 
+    /// <summary>Przykładowy mail „agent milczy” (tryb chmurowy) – zmyślony agent, cisza od 47 minut.</summary>
+    public static MailMessage AgentSilent(IReadOnlyList<string> to, string monitorName, DateTimeOffset now, TimeZoneInfo zone) =>
+        Mark(MailTemplates.AgentSilent("telefon-salon", now.AddMinutes(-47), to, $"{monitorName} (przykład)", now, zone));
+
     /// <summary>
     /// Raport z 20 zmyślonymi czujnikami i pełną historią – do obejrzenia, jak wykresy zachowują się przy wielu czujnikach
     /// (szersze przedziały, żeby mail zmieścił się w limicie Gmaila). Tylko podgląd, nie wchodzi do <c>mail-test --samples</c>.

@@ -661,7 +661,7 @@ Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → S
       agentów na wykres, wspólne alerty). W nagłówku maili „Glebosaurus”, nie nazwa agenta (nadawcy się zmieniają).
     - **Log administratora** za wczoraj od 01:00 (agenci wysyłają dzienniki w pierwszym cyklu dnia), sprawdzany co godzinę
       – **osobny mail z dziennika każdego agenta** (`log|dzień|agent`, ten sam zatwierdzony szablon z nazwą agenta w
-      tytule) zamiast jednego wspólnego, żeby nie zmieniać wyglądu maila bez zgody użytkownika.
+      tytule) zamiast jednego wspólnego – **decyzja użytkownika 2026-11-16: ma przychodzić osobno od każdego agenta**.
     - **„Agent milczy”** (nowy krótki szablon `MailTemplates.AgentSilent`, te same klocki co reszta; jeszcze nieoglądany
       przez użytkownika): agent bez synchronizacji ponad 30 min → mail do administratora (albo odbiorców alertów), raz na
       epizod ciszy (`agent-silent|agent|ostatni kontakt co do minuty`).
@@ -675,9 +675,34 @@ Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → S
       żądanie skierowany przez chmurę do nadawcy – 2026-11-16 zielone. Prawdziwego maila w trybie chmurowym jeszcze nie
       wysłano.
 
-    Krok 2.1.3 jest skończony. Spina to wszystko agent (2.1.4): `enroll`, `run` w trybie chmurowym (konfiguracja,
-    synchronizacja, zbieracz i nadawca w jednym procesie, rozdział poleceń, zatrzymanie z oddaniem dzierżaw), `cloud
-    import`, `cloud backup`, migracja prawdziwego projektu.
+    Krok 2.1.3 jest skończony. Spina to wszystko agent (2.1.4, zasada 15).
+15. **Agent w trybie chmurowym** (krok 2.1.4, od 2026-11-16).
+    - **Konfiguracja:** sekcja `cloud` (`url`, `publishableKey`, opcjonalnie `tokenFile`, `configCacheFile`) zamiast
+      `sensors` i `mail` – z którąkolwiek naraz start kończy się błędem z wyjaśnieniem (czujniki i poczta byłyby po cichu
+      pomijane); adres musi być projektem Supabase, a klucz publikowalnym (klucz tajny jest odrzucany). W pliku zostaje
+      baza, retencja, dziennik i panel. Wzór: `examples/glebosaurus.cloud.config.json`.
+    - **Rejestracja** (`glebosaurus enroll [--code KOD]`, bez `--code` pyta bez pokazywania): kod od właściciela →
+      `enroll` → token w `glebosaurus-cloud.token` obok konfiguracji, chroniony jak kopia konfiguracji (`ProtectedFile`:
+      nagłówek, DPAPI / prawa 600, zapis atomowy; `AgentTokenStore`). Ponowna rejestracja zastępuje token. **2026-11-16
+      sprawdzone przez prawdziwe CLI na próbnym projekcie:** rejestracja z rolą nadawcy, ponowne użycie kodu odrzucone z
+      czytelnym komunikatem, token z pliku (DPAPI) działa w `get_config`.
+    - **Praca** (`glebosaurus run` z sekcją `cloud`): ten sam start co w trybie samodzielnym (jeden monitor na konto,
+      sygnały zatrzymania, BLE, SQLite), potem `CloudRuntime`: konfiguracja z chmury albo z kopii, a obok siebie pętle
+      synchronizacji, zbieracza (radio Shiny do odczytu i do nasłuchu) i nadawcy (`GmailSender` z hasłem z
+      `mail_credentials`, `HealthchecksHeartbeat`). Po każdej udanej synchronizacji (hak `CloudSync.Synced`) –
+      odświeżenie konfiguracji przy nowej wersji i rozdział poleceń: zbieracz, potem nadawca; nieobsługiwane (np. zdalne
+      `pair`) wygasają z ostrzeżeniem w dzienniku. Zatrzymanie: zbieracz i nadawca kończą bieżący krok, potem ostatnia
+      synchronizacja (najwyżej 30 s) wysyła ostatnie odczyty i oddaje dzierżawy i blokadę. Brak tokenu, token odrzucony
+      albo brak konfiguracji (ani chmury, ani kopii) – czytelny błąd i kod 1. Panel WWW w trybie chmurowym jeszcze nie
+      działa (ostrzeżenie w dzienniku). **Prawdziwy `run` niesprawdzony:** na bestia5 działa usługa, a drugi monitor na
+      tym samym koncie nie wystartuje (kod 4) – próba na żywo wymaga zatrzymania usługi przez użytkownika.
+    - **Testy** (w CI): sekcja `cloud` (bez czujników, odrzucenie poczty, czujników, złego adresu i klucza tajnego),
+      token (DPAPI na Windows, 600 na Linuksie, obcy plik odrzucony), rozdział poleceń po synchronizacji i pełny bieg
+      `CloudRuntime` na prawdziwych zegarach (dzierżawa słyszanego czujnika → odczyt → wysyłka → oddanie przy
+      zatrzymaniu; pięć przebiegów bez niestabilności).
+    - **Zostały:** `cloud migrate` (migracje na prawdziwym projekcie – tylko na prośbę użytkownika), `cloud import`
+      (czujniki, klucze, ustawienia, odbiorcy, hasło Gmaila i adres strażnika z trybu samodzielnego), `cloud backup`,
+      panel WWW w trybie chmurowym, przejście usługi na bestia5.
 
 ## Struktura repozytorium
 

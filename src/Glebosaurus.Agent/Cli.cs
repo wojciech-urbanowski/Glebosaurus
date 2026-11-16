@@ -18,7 +18,8 @@ namespace Glebosaurus.Agent;
 
 internal sealed record CliOptions(
     string Command, int? Seconds, int Timeout, string? Credentials, string? Config, string? Output, bool Verbose, bool Quiet,
-    int? Minutes, bool ConfirmBind, string? Id, string? Name, string? Mac, int? Linger, bool Samples, string? Date, string? StopEvent);
+    int? Minutes, bool ConfirmBind, string? Id, string? Name, string? Mac, int? Linger, bool Samples, string? Date, string? StopEvent,
+    string? Code = null);
 
 internal static class Cli
 {
@@ -44,12 +45,20 @@ internal static class Cli
               Z --samples wysyła też przykładowy alert i raport ze zmyślonymi danymi (oznaczone „[PRZYKŁAD]”) –
               do obejrzenia wyglądu maili na telefonie – oraz, gdy jest mail.adminRecipients, przykładowy log administratora.
           glebosaurus mail-preview [--out KATALOG]
-              Zapisuje przykładowe maile (wiadomość próbna, alert, raport, log administratora; HTML i tekst) w katalogu
+              Zapisuje przykładowe maile (wiadomość próbna, alert, raport, log administratora, „agent milczy” z trybu
+              chmurowego; HTML i tekst) w katalogu
               (domyślnie mail-preview/). Niczego nie wysyła i nie wymaga konfiguracji.
           glebosaurus send-log [--date RRRR-MM-DD] [--config PLIK]
               Wysyła PRAWDZIWY dziennik agenta z danego dnia (domyślnie wczorajszego) do administratora (mail.adminRecipients),
               z pełnym dziennikiem w załączniku. Zwykle robi to sam monitor w pierwszym przebiegu każdego dnia; to polecenie
               jest na żądanie i do sprawdzenia poczty (nie zmienia znacznika automatycznej wysyłki). Kod 2: brak dziennika z tego dnia.
+
+        Tryb chmurowy (wielu agentów, Supabase – sekcja "cloud" w konfiguracji zamiast "sensors" i "mail"):
+          glebosaurus enroll [--code KOD] [--config PLIK]
+              Rejestruje tego agenta w chmurze jednorazowym kodem od właściciela (bez --code pyta, nie pokazując go).
+              Token zapisuje obok konfiguracji (glebosaurus-cloud.token; Windows: DPAPI, Linux: plik tylko dla
+              właściciela). Potem „run” bierze czujniki, harmonogramy i odbiorców z chmury, czyta czujniki, na które ma
+              dzierżawę, a z rolą nadawcy wysyła maile (najwyżej raz, przez kolejkę w chmurze).
 
         Panel WWW (diagnostyka w przeglądarce: stan, historia, dziennik, odczyt czujników na żądanie):
           glebosaurus web-password [--config PLIK]
@@ -81,6 +90,7 @@ internal static class Cli
         --timeout N      limit odpowiedzi czujnika w sekundach (domyślnie 12)
         --linger N       listen: ile sekund ciszy po ostatniej ramce kończy nasłuch (domyślnie 20)
         --credentials    plik klucza lokalnego czujnika (JSON, tworzony przez pair)
+        --code KOD       enroll: jednorazowy kod rejestracji agenta
         --verbose        surowe dane reklam
         --version        sam numer wersji
 
@@ -94,6 +104,7 @@ internal static class Cli
         switch (options.Command)
         {
             case "run": return await RunMonitorAsync(options, cancellationToken);
+            case "enroll": return await CloudAgent.EnrollAsync(options, cancellationToken);
             case "status": return await StatusAsync(options, cancellationToken);
             case "report": return await ReportAsync(options, cancellationToken);
             case "mail-test": return await MailTestAsync(options, cancellationToken);
@@ -120,7 +131,7 @@ internal static class Cli
         var command = hasCommand ? args[0].ToLowerInvariant() : "help";
         int? seconds = null, minutes = null, linger = null;
         var timeout = 12;
-        string? credentials = null, config = null, output = null, id = null, name = null, mac = null, date = null, stopEvent = null;
+        string? credentials = null, config = null, output = null, id = null, name = null, mac = null, date = null, stopEvent = null, code = null;
         bool verbose = false, quiet = false, confirmBind = false, samples = false;
         for (var i = hasCommand ? 1 : 0; i < args.Length; i++)
         {
@@ -143,12 +154,13 @@ internal static class Cli
                 case "--name": name = Value(args, ++i, "--name"); break;
                 case "--mac": mac = Value(args, ++i, "--mac"); break;
                 case "--date": date = Value(args, ++i, "--date"); break;
+                case "--code": code = Value(args, ++i, "--code"); break;
                 // Prywatny sygnał zatrzymania od usługi Windows (glebosaurus-service); nie dla ludzi, więc bez opisu w pomocy.
                 case "--stop-event": stopEvent = Value(args, ++i, "--stop-event"); break;
                 default: throw new ArgumentException($"Nieznany parametr {args[i]}. Użyj --help.");
             }
         }
-        return new(command, seconds, timeout, credentials, config, output, verbose, quiet, minutes, confirmBind, id, name, mac, linger, samples, date, stopEvent);
+        return new(command, seconds, timeout, credentials, config, output, verbose, quiet, minutes, confirmBind, id, name, mac, linger, samples, date, stopEvent, code);
     }
 
     private static string Value(string[] args, int index, string flag) =>
@@ -202,7 +214,7 @@ internal static class Cli
     }
 
     /// <summary>Czyta hasło bez wyświetlania znaków; ze strumienia (np. w skrypcie) – zwykły wiersz.</summary>
-    private static async Task<string> ReadSecretAsync(string prompt, CancellationToken cancellationToken)
+    internal static async Task<string> ReadSecretAsync(string prompt, CancellationToken cancellationToken)
     {
         Console.Write(prompt);
         if (Console.IsInputRedirected) return Console.ReadLine() ?? "";
@@ -239,7 +251,8 @@ internal static class Cli
         logger.LogInformation("Konfiguracja: {Config}; baza: {Database}; dziennik: {Logs}; BLE: {Backend}.",
             loaded.ConfigPath, loaded.DatabasePath, loaded.LogDirectory, BleHost.Backend);
         logger.LogInformation("Dziennik: pliki dzienne, trzymane {Days} dni; log z poprzedniego dnia dla administratora: {Admin}.",
-            loaded.Config.Logs.RetentionDays, loaded.Config.Mail is { AdminRecipients.Count: > 0 } ? "włączony" : "wyłączony");
+            loaded.Config.Logs.RetentionDays,
+            loaded.Config.Cloud is not null ? "przez chmurę (nadawca)" : loaded.Config.Mail is { AdminRecipients.Count: > 0 } ? "włączony" : "wyłączony");
 
         // Dwa monitory na jednym koncie (np. deweloperski „run” obok usługi) walczyłyby o czujniki i wysyłały maile podwójnie.
         using var instance = SingleInstance.TryAcquire(InstanceNames.MonitorMutex);
@@ -255,11 +268,12 @@ internal static class Cli
 
         using var ble = new BleHost();
         await ble.EnsureAccessAsync();
-        IMailGateway? mail = loaded.Config.Mail is { } m ? new GmailSender(m.GmailAddress, m.AppPassword) : null;
-        if (mail is null) logger.LogWarning("Sekcja „mail” nie jest skonfigurowana – alerty i raporty będą tylko w dzienniku.");
-
         var store = new SqliteMonitorStore(loaded.DatabasePath);
         await store.InitializeAsync(limit.Token);
+        if (loaded.Config.Cloud is { } cloud) return await CloudAgent.RunAsync(loaded, cloud, ble, store, logger, limit.Token);
+
+        IMailGateway? mail = loaded.Config.Mail is { } m ? new GmailSender(m.GmailAddress, m.AppPassword) : null;
+        if (mail is null) logger.LogWarning("Sekcja „mail” nie jest skonfigurowana – alerty i raporty będą tylko w dzienniku.");
         var engine = new MonitorEngine(loaded.Config, store, new ListenThenReadSensorReader<SeenSensor>(new ShinySensorRadio(ble), TimeProvider.System, logger), mail, TimeProvider.System, logger, logs: loaded.LogFiles);
         // Panel zamyka się dopiero po czystym zatrzymaniu silnika (koniec bloku).
         await using var panel = await AgentWebPanel.TryStartAsync(loaded, engine, store, loggers, logger, limit.Token);
@@ -406,11 +420,12 @@ internal static class Cli
     {
         var directory = Path.GetFullPath(options.Output ?? "mail-preview");
         Directory.CreateDirectory(directory);
-        string[] names = ["probna", "alert", "raport", "log", "raport-20"];
+        string[] names = ["probna", "alert", "raport", "log", "raport-20", "agent-milczy"];
         var now = DateTimeOffset.UtcNow;
         var messages = MailSamples.Build(["ktos@example.com"], "Podgląd", now, TimeZoneInfo.Local)
             .Append(MailSamples.AdminLog(["admin@example.com"], "Podgląd", now, TimeZoneInfo.Local))
-            .Append(MailSamples.LargeReport(["ktos@example.com"], "Podgląd", now, TimeZoneInfo.Local)).ToList();
+            .Append(MailSamples.LargeReport(["ktos@example.com"], "Podgląd", now, TimeZoneInfo.Local))
+            .Append(MailSamples.AgentSilent(["admin@example.com"], "Podgląd", now, TimeZoneInfo.Local)).ToList();
         for (var i = 0; i < messages.Count; i++)
         {
             foreach (var attachment in messages[i].Attachments ?? [])

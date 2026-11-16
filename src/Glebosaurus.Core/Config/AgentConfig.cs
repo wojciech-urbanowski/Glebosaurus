@@ -36,6 +36,30 @@ public sealed class AgentConfig
 
     /// <summary>Panel diagnostyczny WWW (HTTPS, tylko sieć lokalna, hasło). Brak sekcji = panel wyłączony.</summary>
     public WebConfig? Web { get; set; }
+
+    /// <summary>
+    /// Tryb chmurowy (faza 2): czujniki, harmonogramy, odbiorcy i sekrety przychodzą z chmury, a w pliku zostają tylko
+    /// ustawienia urządzenia (baza, retencja, panel). Z sekcją <see cref="Mail"/> albo listą czujników naraz – błąd startu.
+    /// </summary>
+    public CloudAccessConfig? Cloud { get; set; }
+}
+
+/// <summary>Dostęp agenta do chmury Supabase. Token agenta leży w osobnym, chronionym pliku (tworzy go <c>enroll</c>).</summary>
+public sealed class CloudAccessConfig
+{
+    /// <summary>Adres projektu, np. https://abcdefghijklmnopqrst.supabase.co.</summary>
+    public string Url { get; set; } = "";
+
+    /// <summary>Klucz publikowalny projektu (sb_publishable_…) – ten sam dla wszystkich agentów; uprawnienia daje token.</summary>
+    public string PublishableKey { get; set; } = "";
+
+    /// <summary>Plik z tokenem agenta (DPAPI / prawa 600); ścieżka względna od katalogu konfiguracji.</summary>
+    public string TokenFile { get; set; } = "glebosaurus-cloud.token";
+
+    /// <summary>Ostatnia dobra konfiguracja z chmury (z kluczami Tuya, chroniona jak token); względna od katalogu konfiguracji.</summary>
+    public string ConfigCacheFile { get; set; } = "glebosaurus-cloud-config.bin";
+
+    public Uri ProjectUrl => new(Url.TrimEnd('/'));
 }
 
 /// <summary>

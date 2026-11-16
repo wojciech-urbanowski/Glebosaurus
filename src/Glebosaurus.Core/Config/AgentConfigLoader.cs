@@ -62,7 +62,8 @@ public static partial class AgentConfigLoader
         if (config.ReadIntervalMinutes < 0.5) throw new InvalidDataException("readIntervalMinutes: minimum 0,5.");
         if (config.ScanWindowSeconds is < 5 or > 120) throw new InvalidDataException("scanWindowSeconds: od 5 do 120.");
         if (config.RetentionDays < 1) throw new InvalidDataException("retentionDays: minimum 1.");
-        if (config.Sensors.Count == 0) throw new InvalidDataException("Konfiguracja nie zawiera żadnego czujnika (sensors).");
+        if (config.Cloud is { } cloud) ValidateCloud(config, cloud);
+        else if (config.Sensors.Count == 0) throw new InvalidDataException("Konfiguracja nie zawiera żadnego czujnika (sensors).");
         if (config.Alerts.ReminderHours <= 0) throw new InvalidDataException("alerts.reminderHours: musi być dodatnie.");
         if (config.Logs.RetentionDays is < 1 or > 365) throw new InvalidDataException("logs.retentionDays: od 1 do 365.");
 
@@ -117,6 +118,31 @@ public static partial class AgentConfigLoader
             web.ParseAllowedNetworks();
         }
     }
+
+    /// <summary>
+    /// Tryb chmurowy: w pliku tylko dostęp do chmury i ustawienia urządzenia. Poczta i czujniki z pliku byłyby po cichu
+    /// pomijane – lepiej zatrzymać start z wyjaśnieniem (do chmury przenosi je <c>cloud import</c>).
+    /// </summary>
+    private static void ValidateCloud(AgentConfig config, CloudAccessConfig cloud)
+    {
+        if (config.Mail is not null)
+            throw new InvalidDataException("Sekcja „cloud” i „mail” naraz: w trybie chmurowym poczta (konto, hasło, odbiorcy) jest w chmurze – usuń sekcję „mail” z pliku.");
+        if (config.Sensors.Count > 0)
+            throw new InvalidDataException("Sekcja „cloud” i lista „sensors” naraz: w trybie chmurowym czujniki są w chmurze – usuń „sensors” z pliku (przenosi je cloud import).");
+        if (!Uri.TryCreate(cloud.Url.Trim().TrimEnd('/'), UriKind.Absolute, out var url) || url.Scheme != Uri.UriSchemeHttps
+            || !SupabaseHost().IsMatch(url.Host) || url.AbsolutePath != "/")
+            throw new InvalidDataException("cloud.url: podaj adres projektu Supabase, np. https://abcdefghijklmnopqrst.supabase.co.");
+        if (!cloud.PublishableKey.StartsWith("sb_publishable_", StringComparison.Ordinal))
+            throw new InvalidDataException("cloud.publishableKey: podaj klucz publikowalny projektu (sb_publishable_…), nie klucz tajny.");
+        if (string.IsNullOrWhiteSpace(cloud.TokenFile) || string.IsNullOrWhiteSpace(cloud.ConfigCacheFile))
+            throw new InvalidDataException("cloud.tokenFile i cloud.configCacheFile nie mogą być puste.");
+    }
+
+    public static string ResolveRelative(string configPath, string file) =>
+        Path.GetFullPath(Path.IsPathRooted(file) ? file : Path.Combine(Path.GetDirectoryName(Path.GetFullPath(configPath))!, file));
+
+    [GeneratedRegex("^[a-z0-9]{20}\\.supabase\\.co$")]
+    private static partial Regex SupabaseHost();
 
     /// <summary>Obcina spacje, odrzuca coś, co nie jest zwykłym adresem e-mail, i usuwa powtórzenia (wielkość liter nie ma znaczenia).</summary>
     private static List<string> NormalizeRecipients(List<string> recipients, string setting)

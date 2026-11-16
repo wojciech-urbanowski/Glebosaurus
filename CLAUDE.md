@@ -13,6 +13,7 @@ dotnet build Glebosaurus.slnx -c Release
 dotnet test --solution Glebosaurus.slnx -c Release        # xunit.v3 na Microsoft Testing Platform (global.json)
 $env:GLEBOSAURUS_CLOUD_TESTS='1'; dotnet test --project tests/Glebosaurus.Cloud.Tests -c Release   # SQL na PRÓBNYM Supabase (czyści go)
 dotnet run --project src/Glebosaurus.Agent -f net10.0-windows10.0.19041.0 -- --help   # Windows; Linux: -f net10.0
+# Tryb chmurowy: sekcja "cloud" w konfiguracji (wzór examples/glebosaurus.cloud.config.json), potem enroll --code KOD i run
 dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self-contained false -o publish/linux-arm64
 ./deploy/package-windows.ps1                               # pliki wydania Windows (zip samodzielny, install-windows.ps1, SHA256SUMS) w publish/release
 ```
@@ -105,7 +106,9 @@ dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self
   `local/glebosaurus-web.password` (skrót hasła panelu), `local/glebosaurus-web.pfx` (klucz certyfikatu panelu) i
   `local/cloud-admin.json` (klucz tajny Supabase, hasło bazy, adres sygnału healthchecks.io) oraz
   `local/cloud-admin.test.json` (to samo dla próbnego projektu) – skrypty czytają je bez wypisywania wartości; adresów
-  projektów Supabase też nie wpisuj do repozytorium, bo jest publiczne.
+  projektów Supabase też nie wpisuj do repozytorium, bo jest publiczne. W trybie chmurowym sekretami są też
+  `glebosaurus-cloud.token` (token agenta) i `glebosaurus-cloud-config.bin` (kopia konfiguracji z kluczami Tuya) obok
+  konfiguracji agenta, a także jednorazowe kody rejestracji.
 - Migracje i testy SQL tylko na próbnym projekcie `glebosaurus-test` (`local/cloud-admin.test.json`). Prawdziwy projekt
   (`local/cloud-admin.json`) zmienia się wyłącznie na prośbę użytkownika – także migracja „gotowa i sprawdzona”.
 - **Claude działa z pakietu MSIX**: moje polecenia piszące do `%LOCALAPPDATA%` (poza `Temp`) trafiają do
@@ -146,8 +149,11 @@ projekcie `glebosaurus-test` (decyzja 2026-11-16, bez Dockera; założony i spra
 2026-11-16 i zielone na próbnym projekcie; prawdziwy projekt jest jeszcze bez schematu. Core (2.1.3): kawałki (a) – protokół,
 klient HTTP, księga dzierżaw i zasady przydziału, (b) – bufor odczytów i pętla synchronizacji, (c) – konfiguracja z
 chmury z chronioną kopią, (d) – zbieracz (pełny nasłuch w radiu Shiny niesprawdzony na sprzęcie) – i (e) – nadawca –
-zrobione 2026-11-16, krok 2.1.3 skończony. Nowy mail „agent milczy” jeszcze nieoglądany przez użytkownika (dodać do
-`mail-preview`); prawdziwego maila w trybie chmurowym jeszcze nie było. Dalej agent (2.1.4).
+zrobione 2026-11-16, krok 2.1.3 skończony; log administratora – osobny mail od każdego agenta (decyzja użytkownika).
+Agent (2.1.4, ARCHITEKTURA.md, zasada 15): sekcja `cloud`, `enroll` (sprawdzony przez CLI na próbnym projekcie),
+`CloudRuntime` i `run` w trybie chmurowym (tylko w testach – prawdziwy `run` na bestia5 wymaga zatrzymania usługi, na
+prośbę użytkownika), „agent milczy” w `mail-preview`. Zostały `cloud migrate`/`import`/`backup`, panel w trybie chmurowym
+i przejście usługi; prawdziwego maila w trybie chmurowym jeszcze nie było.
 
 Usługa Windows (2026-11-15): wydanie **0.1.0** opublikowane przez Actions (repo publiczne), a na bestia5 zainstalowane z
 GitHuba skryptem z `-ImportFrom local -NoStart`: program w `%LOCALAPPDATA%\Glebosaurus\app`, **kopia** danych z `local/` w
