@@ -73,18 +73,87 @@ internal sealed class FakeCloudApi(ManualTimeProvider clock) : ICloudApi
     }
     public Task<LeaseResult> ClaimAsync(string resource, CancellationToken cancellationToken) => throw new NotSupportedException();
     public Task<bool> ReleaseAsync(string resource, long epoch, CancellationToken cancellationToken) => throw new NotSupportedException();
-    public Task<MailClaimResult> MailClaimAsync(string key, long epoch, CancellationToken cancellationToken) => throw new NotSupportedException();
-    public Task<bool> MailSentAsync(string key, string? messageId, CancellationToken cancellationToken) => throw new NotSupportedException();
-    public Task<bool> MailAbandonAsync(string key, CancellationToken cancellationToken) => throw new NotSupportedException();
-    public Task<MailCredentials> MailCredentialsAsync(long epoch, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    // ---- Strona nadawcy: kolejka maili, hasło, odczyty, alerty, logi (epoka blokady jak w bazie) ----
+
+    public long NotifierEpoch { get; set; } = 5;
+    public Dictionary<string, (bool Sent, string? MessageId)> Outbox { get; } = [];
+    public MailCredentials Credentials { get; set; } = new("nadawca@gmail.com", "haslo-aplikacji", null);
+    public int CredentialCalls { get; private set; }
+    public List<StoredReading> CloudReadings { get; } = [];
+    public List<CloudAlert> Alerts { get; } = [];
+    public List<AgentLog> AgentLogs { get; } = [];
+
+    private void RequireNotifier(long epoch, string function)
+    {
+        if (epoch != NotifierEpoch) throw new CloudApiException(CloudErrorKind.NotNotifier, $"{function}: to może tylko obecny nadawca", "42501");
+    }
+
+    public Task<MailClaimResult> MailClaimAsync(string key, long epoch, CancellationToken cancellationToken)
+    {
+        if (epoch != NotifierEpoch) return Task.FromResult(new MailClaimResult(false, "not_holder"));
+        if (Outbox.TryGetValue(key, out var known))
+            return Task.FromResult(new MailClaimResult(false, "already_claimed", known.Sent ? clock.GetUtcNow() : null));
+        Outbox[key] = (false, null);
+        return Task.FromResult(new MailClaimResult(true, "ok"));
+    }
+
+    public Task<bool> MailSentAsync(string key, string? messageId, CancellationToken cancellationToken)
+    {
+        if (!Outbox.TryGetValue(key, out var known) || known.Sent) return Task.FromResult(false);
+        Outbox[key] = (true, messageId);
+        return Task.FromResult(true);
+    }
+
+    public Task<bool> MailAbandonAsync(string key, CancellationToken cancellationToken) =>
+        Task.FromResult(Outbox.TryGetValue(key, out var known) && !known.Sent && Outbox.Remove(key));
+
+    public Task<MailCredentials> MailCredentialsAsync(long epoch, CancellationToken cancellationToken)
+    {
+        CredentialCalls++;
+        RequireNotifier(epoch, "mail_credentials");
+        return Task.FromResult(Credentials);
+    }
+
     public Task<IReadOnlyList<StoredReading>> ReadingsRangeAsync(IReadOnlyCollection<string> sensors, DateTimeOffset from, DateTimeOffset to,
-        CancellationToken cancellationToken) => throw new NotSupportedException();
-    public Task<IReadOnlyList<CloudAlert>> AlertListAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
-    public Task<AlertOpenResult> AlertOpenAsync(long epoch, string sensor, AlertKind kind, string detail, CancellationToken cancellationToken) =>
-        throw new NotSupportedException();
-    public Task<bool> AlertResolveAsync(long epoch, long alertId, CancellationToken cancellationToken) => throw new NotSupportedException();
-    public Task<int> AlertNotifiedAsync(long epoch, IReadOnlyCollection<long> alertIds, CancellationToken cancellationToken) =>
-        throw new NotSupportedException();
+        CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<StoredReading>>([.. CloudReadings.Where(r => sensors.Contains(r.SensorId) && r.At >= from && r.At <= to).OrderBy(r => r.At)]);
+
+    public Task<IReadOnlyList<CloudAlert>> AlertListAsync(CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<CloudAlert>>([.. Alerts.Where(a => a.ResolvedAt is null)]);
+
+    public Task<AlertOpenResult> AlertOpenAsync(long epoch, string sensor, AlertKind kind, string detail, CancellationToken cancellationToken)
+    {
+        RequireNotifier(epoch, "alert_open");
+        if (Alerts.FirstOrDefault(a => a.Sensor == sensor && a.Kind == kind && a.ResolvedAt is null) is { } open)
+            return Task.FromResult(new AlertOpenResult(false, open));
+        var alert = new CloudAlert(Alerts.Count + 1, sensor, kind, detail, clock.GetUtcNow(), null, null);
+        Alerts.Add(alert);
+        return Task.FromResult(new AlertOpenResult(true, alert));
+    }
+
+    public Task<bool> AlertResolveAsync(long epoch, long alertId, CancellationToken cancellationToken)
+    {
+        RequireNotifier(epoch, "alert_resolve");
+        var index = Alerts.FindIndex(a => a.Id == alertId && a.ResolvedAt is null);
+        if (index < 0) return Task.FromResult(false);
+        Alerts[index] = Alerts[index] with { ResolvedAt = clock.GetUtcNow() };
+        return Task.FromResult(true);
+    }
+
+    public Task<int> AlertNotifiedAsync(long epoch, IReadOnlyCollection<long> alertIds, CancellationToken cancellationToken)
+    {
+        RequireNotifier(epoch, "alert_notified");
+        var count = 0;
+        for (var i = 0; i < Alerts.Count; i++)
+            if (alertIds.Contains(Alerts[i].Id) && Alerts[i].ResolvedAt is null)
+            {
+                Alerts[i] = Alerts[i] with { LastNotifiedAt = clock.GetUtcNow() };
+                count++;
+            }
+        return Task.FromResult(count);
+    }
+
     public Task<CommandCreateResult> CommandCreateAsync(string kind, string? sensor, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
     public List<(long Id, JsonObject? Result)> Done { get; } = [];
@@ -106,7 +175,11 @@ internal sealed class FakeCloudApi(ManualTimeProvider clock) : ICloudApi
         Logs.Add((day, gzipContent));
         return Task.FromResult(new LogPutResult(day, gzipContent.Length));
     }
-    public Task<IReadOnlyList<AgentLog>> LogGetAsync(long epoch, DateOnly day, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task<IReadOnlyList<AgentLog>> LogGetAsync(long epoch, DateOnly day, CancellationToken cancellationToken)
+    {
+        RequireNotifier(epoch, "log_get");
+        return Task.FromResult<IReadOnlyList<AgentLog>>([.. AgentLogs.Where(l => l.Day == day)]);
+    }
 }
 
 /// <summary>Sam nasłuch reklam sterowany z testu.</summary>

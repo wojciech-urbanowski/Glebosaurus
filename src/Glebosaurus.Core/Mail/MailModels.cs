@@ -8,7 +8,12 @@ public sealed record MailAttachment(string FileName, byte[] Content, string Cont
 
 /// <summary>Gotowa wiadomość: tekst i HTML jako alternatywy tej samej treści, opcjonalnie z załącznikami.</summary>
 public sealed record MailMessage(
-    IReadOnlyList<string> To, string Subject, string TextBody, string HtmlBody, IReadOnlyList<MailAttachment>? Attachments = null);
+    IReadOnlyList<string> To, string Subject, string TextBody, string HtmlBody, IReadOnlyList<MailAttachment>? Attachments = null)
+{
+    /// <summary>Stały identyfikator wiadomości (bez nawiasów &lt;&gt;) – w trybie chmurowym wyliczany z klucza kolejki maili,
+    /// więc ewentualny drugi egzemplarz ma ten sam Message-ID (Gmail go scala). null = nada go biblioteka poczty.</summary>
+    public string? MessageId { get; init; }
+}
 
 public interface IMailGateway
 {
@@ -17,7 +22,13 @@ public interface IMailGateway
 }
 
 /// <summary>Błąd połączenia lub uwierzytelnienia SMTP; ponowna próba ma sens dopiero później.</summary>
-public sealed class MailTransportException(string message, Exception innerException) : Exception(message, innerException);
+/// <param name="maybeDelivered">false – serwer na pewno nie dostał treści (błąd połączenia albo logowania), więc mail można
+/// wysłać jeszcze raz bez ryzyka duplikatu; true – przerwa w trakcie wysyłania treści, wynik niepewny.</param>
+public sealed class MailTransportException(string message, Exception innerException, bool maybeDelivered = false)
+    : Exception(message, innerException)
+{
+    public bool MaybeDelivered { get; } = maybeDelivered;
+}
 
 /// <param name="IsReminder">true = przypomnienie o alercie, o którym już wysłano wiadomość.</param>
 public sealed record AlertNotice(SensorConfig Sensor, AlertRecord Alert, StoredReading? Latest, bool IsReminder);

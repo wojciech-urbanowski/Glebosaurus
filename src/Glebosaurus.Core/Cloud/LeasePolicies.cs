@@ -198,6 +198,7 @@ public sealed class NotifierLockPolicy(TimeProvider clock, LeaseLedger ledger, N
     private AgentIdentity? me;
     private NotifierView? notifier;
     private IReadOnlyList<AgentView> agents = [];
+    private DateTimeOffset? serverTime;
     private DateTimeOffset? freeSince;
     private DateTimeOffset? betterAliveSince;
     private DateTimeOffset cooldownUntil = DateTimeOffset.MinValue;
@@ -210,8 +211,16 @@ public sealed class NotifierLockPolicy(TimeProvider clock, LeaseLedger ledger, N
             me = response.Agent;
             notifier = response.Notifier;
             agents = response.Agents;
+            serverTime = response.ServerTime;
             pendingRelease = null;
         }
+    }
+
+    /// <summary>Agenci z ostatniej synchronizacji z czasem bazy, do którego liczy się ich <c>lastSeenSecondsAgo</c>
+    /// (nadawca wysyła z tego alert „agent milczy”); null przed pierwszą synchronizacją.</summary>
+    public (IReadOnlyList<AgentView> Agents, DateTimeOffset ServerTime)? AgentsSnapshot
+    {
+        get { lock (gate) return serverTime is { } at ? (agents, at) : null; }
     }
 
     /// <summary>Czy wolno teraz zacząć wysyłkę maila: blokada jest i zostało jej co najmniej <see cref="NotifierLockOptions.MinimumForMail"/>.</summary>

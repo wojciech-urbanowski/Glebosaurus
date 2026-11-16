@@ -186,6 +186,27 @@ public class MailTemplatesTests
     }
 
     [Fact]
+    public void AgentSilentMail_IsNarrowShortAndEscaped()
+    {
+        var message = MailTemplates.AgentSilent("android<b>", Now.AddMinutes(-47), ["admin@example.com"], "Glebosaurus", Now, TimeZoneInfo.Utc);
+
+        Assert.Equal("Agent android<b> milczy", message.Subject);
+        Assert.True(message.Subject.Length <= 50);
+        foreach (var line in message.TextBody.Split('\n'))
+            Assert.True(line.TrimEnd('\r').Length <= 40, $"Za długi wiersz ({line.Length} znaków): {line}");
+        Assert.DoesNotContain("android<b>", message.HtmlBody);
+        Assert.Contains("android&lt;b&gt;", message.HtmlBody);
+    }
+
+    [Fact]
+    public void GmailMessage_KeepsGivenMessageId()
+    {
+        var message = MailTemplates.Test(To, "Salon", Now, TimeZoneInfo.Utc) with { MessageId = "abc123@glebosaurus" };
+
+        Assert.Equal("abc123@glebosaurus", GmailSender.BuildMessage("nadawca@gmail.com", "Glebosaurus", message).MessageId);
+    }
+
+    [Fact]
     public void SubjectsAreShortEnoughForALockScreenNotification()
     {
         var subjects = new[]

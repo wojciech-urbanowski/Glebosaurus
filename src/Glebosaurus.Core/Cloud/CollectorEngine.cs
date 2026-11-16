@@ -333,7 +333,8 @@ public sealed class CollectorEngine(
     {
         try
         {
-            await api.CommandDoneAsync(commandId, result, cancellationToken);
+            if (!await api.CommandDoneAsync(commandId, result, cancellationToken))
+                logger.LogWarning("Chmura nie przyjęła wyniku polecenia {Id} (wygasło albo nie było skierowane do tego agenta).", commandId);
         }
         catch (CloudApiException e) when (e.Kind is CloudErrorKind.Unavailable)
         {

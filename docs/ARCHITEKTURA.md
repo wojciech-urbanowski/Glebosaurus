@@ -233,7 +233,7 @@ Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → S
    dzierżaw → w odpowiedzi przydziały z epoką i czasem ważności, wersja konfiguracji i polecenia (czytaj teraz, oddaj,
    paruj, wyślij log). Odczyty idempotentne po `(sensor_id, at)` – ten sam klucz co lokalnie; lokalny SQLite zostaje
    buforem i pełną kopią odczytów danego agenta, więc przerwa sieci kończy się dosłaniem bez strat. Dzienne logi agentów
-   trafiają spakowane do tabeli w bazie (7 dni; nie do Storage – zasada 13), a nadawca wysyła z nich jeden log administratora z załącznikami wszystkich
+   trafiają spakowane do tabeli w bazie (7 dni; nie do Storage – zasada 13), a nadawca wysyła z nich log administratora – osobny mail z dziennika każdego agenta (zasada 14, kawałek e) – zamiast jednego z załącznikami wszystkich
    agentów. Protokół jest wersjonowany (`v1`), żeby stare agenty nie psuły nowych danych.
 4. **Uwierzytelnianie.** Agent: jednorazowy kod rejestracji (z panelu albo SQL; na Androidzie kod QR) → `enroll` →
    własny token, w bazie tylko jego skrót, odwoływalny w każdej chwili; lokalnie DPAPI (Windows), Android Keystore albo
@@ -639,6 +639,45 @@ Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → S
     - **Testy:** zbieracz na atrapie radia, chmury i ręcznym czasie (13, w CI) oraz próbny projekt: słyszenie →
       dzierżawa → odczyt → wysyłka, a potem `read_now` od innego agenta skierowane przez chmurę do właściciela dzierżawy,
       wykonane mimo odstępu i zgłoszone – 2026-11-16 zielone.
+
+    Kawałek e (2026-11-16):
+    - **Nadawca** (`NotifierEngine`): cykl co 30 s, ale pracuje tylko z blokadą ważną co najmniej minutę i z hasłem Gmaila
+      pobranym (`mail_credentials`) na tę epokę – trzymanym wyłącznie w pamięci, zapominanym bez blokady i odświeżanym co
+      godzinę. W trakcie cyklu `Busy` – wtedy blokady nie wolno oddać (`CloudSync.NotifierSafePoint`).
+    - **Każdy mail przez kolejkę:** rezerwacja kluczy z epoką (`mail_claim`) → SMTP → `mail_sent`. Pewna porażka SMTP
+      (połączenie, logowanie – `MailTransportException.MaybeDelivered = false`, rozróżnia to teraz `GmailSender`) oddaje
+      rezerwację (`mail_abandon`) i jest ponawiana po 5 min; niepewna (przerwa w trakcie wysyłania treści) zostawia
+      rezerwację – mail może przepaść, ale nie pójdzie drugi raz. Błąd w trakcie rezerwacji oddaje już zarezerwowane klucze.
+      Message-ID wyliczany z klucza (SHA-256), więc ewentualny drugi egzemplarz Gmail i tak scali. Klucze załatwione
+      (wysłane, zarezerwowane przez kogoś, niepewne) nadawca pamięta, żeby nie pytać co cykl.
+    - **Alerty** z odczytów wszystkich agentów (`readings_range`; okno co najmniej 12 h, dłuższe przy dłuższym
+      `silentAfterHours`; pełne odświeżenie co godzinę, pomiędzy – tylko nowe z zakładką 30 min) przez ten sam
+      `AlertEvaluator` co w trybie samodzielnym; otwieranie i zamykanie we wspólnym stanie (`alert_open`/`alert_resolve`).
+      Mail: każdy alert ma własny klucz `alert|czujnik|rodzaj|początek|n` (n = 0 pierwszy mail, potem pełne okresy
+      przypomnień od otwarcia), rezerwowany osobno, a jeden mail obejmuje te, które ten nadawca zarezerwował; załatwione są
+      odnotowywane w chmurze (`alert_notified`), także te wysłane wcześniej przez innego nadawcę.
+    - **Raporty** o stałych porach (`report|HH:mm|data`, ten sam harmonogram i nadrabianie) i na żądanie (polecenie
+      `report_now` → `report-request|id`, wynik do `command_done`) – ze stanu wszystkich czujników (75 h odczytów wszystkich
+      agentów na wykres, wspólne alerty). W nagłówku maili „Glebosaurus”, nie nazwa agenta (nadawcy się zmieniają).
+    - **Log administratora** za wczoraj od 01:00 (agenci wysyłają dzienniki w pierwszym cyklu dnia), sprawdzany co godzinę
+      – **osobny mail z dziennika każdego agenta** (`log|dzień|agent`, ten sam zatwierdzony szablon z nazwą agenta w
+      tytule) zamiast jednego wspólnego, żeby nie zmieniać wyglądu maila bez zgody użytkownika.
+    - **„Agent milczy”** (nowy krótki szablon `MailTemplates.AgentSilent`, te same klocki co reszta; jeszcze nieoglądany
+      przez użytkownika): agent bez synchronizacji ponad 30 min → mail do administratora (albo odbiorców alertów), raz na
+      epizod ciszy (`agent-silent|agent|ostatni kontakt co do minuty`).
+    - **Strażnik:** sygnał do healthchecks.io co 5 min (`HealthchecksHeartbeat` w `Glebosaurus.Cloud`) tylko, gdy
+      działa wszystko – blokada, synchronizacja udana w ostatnich 3 min i SMTP (bez porażki od ostatniego udanego maila);
+      adres sygnału tylko z `mail_credentials`, nigdy w dzienniku.
+    - **Testy:** nadawca na atrapie chmury, poczty i ręcznym czasie (13, w CI: bez blokady i bez roli nic; alert raz i
+      przypomnienie po dobie; raport raz mimo drugiego nadawcy; pewna i niepewna porażka SMTP; utrata blokady na serwerze;
+      raport na żądanie; logi od 01:00 po jednym na agenta; agent milczy raz; strażnik; brak hasła) oraz próbny projekt:
+      alert z odczytów innego agenta wysłany raz (Message-ID zgodny z kolejką), drugi raz nic po „restarcie”, raport na
+      żądanie skierowany przez chmurę do nadawcy – 2026-11-16 zielone. Prawdziwego maila w trybie chmurowym jeszcze nie
+      wysłano.
+
+    Krok 2.1.3 jest skończony. Spina to wszystko agent (2.1.4): `enroll`, `run` w trybie chmurowym (konfiguracja,
+    synchronizacja, zbieracz i nadawca w jednym procesie, rozdział poleceń, zatrzymanie z oddaniem dzierżaw), `cloud
+    import`, `cloud backup`, migracja prawdziwego projektu.
 
 ## Struktura repozytorium
 

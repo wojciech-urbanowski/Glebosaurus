@@ -20,15 +20,17 @@ public sealed class GmailSender(string senderEmail, string appPassword, string s
     {
         var mime = BuildMessage(senderEmail, senderName, message);
         using var client = new SmtpClient { Timeout = 60_000 };
+        var sending = false;   // do połączenia i logowania serwer na pewno nie dostał treści
         try
         {
             await client.ConnectAsync(Host, Port, SecureSocketOptions.SslOnConnect, cancellationToken);
             await client.AuthenticateAsync(senderEmail, appPassword, cancellationToken);
+            sending = true;
             await client.SendAsync(mime, cancellationToken);
         }
         catch (Exception e) when (IsTransportFailure(e))
         {
-            throw new MailTransportException($"Błąd wysyłki przez {Host}: {e.Message}", e);
+            throw new MailTransportException($"Błąd wysyłki przez {Host}: {e.Message}", e, maybeDelivered: sending);
         }
         finally
         {
@@ -44,6 +46,7 @@ public sealed class GmailSender(string senderEmail, string appPassword, string s
         mime.From.Add(new MailboxAddress(senderName, senderEmail));
         foreach (var address in message.To) mime.To.Add(MailboxAddress.Parse(address));
         mime.Subject = message.Subject;
+        if (message.MessageId is { } messageId) mime.MessageId = messageId;
         var body = new BodyBuilder { TextBody = message.TextBody, HtmlBody = message.HtmlBody };
         foreach (var attachment in message.Attachments ?? [])
             body.Attachments.Add(attachment.FileName, attachment.Content, MimeKit.ContentType.Parse(attachment.ContentType));
