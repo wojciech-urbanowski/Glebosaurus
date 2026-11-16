@@ -316,9 +316,19 @@ odbiorcy, klucze Tuya i hasło Gmaila są w chmurze, agenci dzielą się czujnik
 połączeń naraz), a maile wysyła jeden agent z blokadą nadawcy – każdy najwyżej raz. Projekt: [ARCHITEKTURA](docs/ARCHITEKTURA.md),
 zasady 1–4 i 13–15; stan: [ROADMAP](docs/ROADMAP.md), faza 2.1.
 
-Plik konfiguracji agenta ma wtedy sekcję `cloud` zamiast `sensors` i `mail` (wzór:
-[examples/glebosaurus.cloud.config.json](examples/glebosaurus.cloud.config.json)). Rejestracja jednorazowym kodem od
-właściciela, potem zwykła praca:
+Przejście z trybu samodzielnego – właściciel, z plikiem administratora projektu (`local/cloud-admin.json`, z hasłem bazy;
+każde polecenie bez `--confirm` tylko pokazuje plan):
+
+```powershell
+glebosaurus cloud migrate --admin local/cloud-admin.json --confirm                 # schemat bazy w chmurze
+glebosaurus cloud import --admin local/cloud-admin.json --config local/glebosaurus.config.json --confirm
+glebosaurus cloud agent --admin local/cloud-admin.json --name bestia5 --sender-priority 2 --confirm   # wypisze kod
+```
+
+`cloud import` przenosi ustawienia, odbiorców, czujniki z kluczami Tuya, hasło Gmaila i adres sygnału healthchecks.io
+(sekretów nie wypisuje; nic w chmurze nie usuwa, powtórzony – nadpisuje). Historii odczytów nie przenosi: wysyła ją sam agent
+w trybie chmurowym ze swojej bazy. Na urządzeniu agenta plik konfiguracji ma sekcję `cloud` zamiast `sensors` i `mail` (wzór:
+[examples/glebosaurus.cloud.config.json](examples/glebosaurus.cloud.config.json)), potem rejestracja kodem i zwykła praca:
 
 ```powershell
 glebosaurus enroll --config glebosaurus.config.json     # bez --code pyta o kod, nie pokazując go
@@ -328,8 +338,8 @@ glebosaurus run --config glebosaurus.config.json
 Token agenta (`glebosaurus-cloud.token`) i ostatnia dobra kopia konfiguracji z chmury (`glebosaurus-cloud-config.bin`, z
 kluczami Tuya) leżą obok konfiguracji, chronione DPAPI (Windows) albo prawami 600 (Linux) – to sekrety, nie kopiuj ich na
 inne urządzenia. Bez sieci agent startuje z kopii i czyta czujniki do końca dzierżaw; odczyty czekają w lokalnej bazie i
-trafiają do chmury po powrocie sieci. Jeszcze nie ma: przeniesienia konfiguracji z trybu samodzielnego (`cloud import`),
-kopii zapasowej chmury i panelu WWW w trybie chmurowym.
+trafiają do chmury po powrocie sieci. Jeszcze nie ma: kopii zapasowej chmury (`cloud backup`) i panelu WWW w trybie
+chmurowym.
 
 ## Raspberry Pi (linux-arm64) – niesprawdzone
 

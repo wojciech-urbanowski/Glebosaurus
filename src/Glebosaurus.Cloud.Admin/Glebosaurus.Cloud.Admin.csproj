@@ -11,6 +11,12 @@
 
   <ItemGroup>
     <PackageReference Include="Npgsql" Version="10.0.3" />
+    <ProjectReference Include="..\Glebosaurus.Core\Glebosaurus.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Glebosaurus.Tests" />
+    <InternalsVisibleTo Include="Glebosaurus.Cloud.Tests" />
   </ItemGroup>
 
   <ItemGroup>

@@ -700,9 +700,27 @@ Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → S
       token (DPAPI na Windows, 600 na Linuksie, obcy plik odrzucony), rozdział poleceń po synchronizacji i pełny bieg
       `CloudRuntime` na prawdziwych zegarach (dzierżawa słyszanego czujnika → odczyt → wysyłka → oddanie przy
       zatrzymaniu; pięć przebiegów bez niestabilności).
-    - **Zostały:** `cloud migrate` (migracje na prawdziwym projekcie – tylko na prośbę użytkownika), `cloud import`
-      (czujniki, klucze, ustawienia, odbiorcy, hasło Gmaila i adres strażnika z trybu samodzielnego), `cloud backup`,
-      panel WWW w trybie chmurowym, przejście usługi na bestia5.
+    - **Narzędzia właściciela** (`glebosaurus cloud …`, 2026-11-16; połączenie z bazą hasłem z pliku administratora –
+      `--admin PLIK`, zawsze jawnie, bez domyślnej ścieżki; każde polecenie wypisuje id projektu, a bez `--confirm` tylko
+      pokazuje plan):
+      - `cloud migrate` – stan migracji (zastosowane, czekające, zmienione, nieznane – `MigrationRunner.StatusAsync`, bez
+        zmian w bazie); z `--confirm` stosuje czekające; zmieniona albo nieznana migracja – stop z kodem 1;
+      - `cloud import --config PLIK [--time-zone STREFA]` (`CloudImporter`) – z konfiguracji trybu samodzielnego: ustawienia
+        (strefa raportów – IANA tego komputera przez `TimeZones.ToIana`, pory raportów, odstępy, przypomnienia, retencja
+        logów przycięta do 30 dni), poczta (nadawca, odbiorcy, hasło aplikacji) i czujniki (MAC ujednolicony, progi, dane
+        Tuya do Vault) plus adres sygnału z pliku administratora. Plan pokazuje nowe, nadpisywane i tylko-chmurowe czujniki
+        oraz to, że sekrety zostaną ustawione, nigdy ich wartości; problemy (identyfikator, którego chmura nie przyjmie,
+        brak MAC, nieznana strefa, plik trybu chmurowego) blokują zapis. Zapis jedną transakcją; powtórzony – nadpisuje,
+        nic nie usuwa. Historii odczytów nie przenosi – wysyła ją agent ze swojej bazy (zasada 14, kawałek b), więc kolejność:
+        najpierw import, potem agent w trybie chmurowym (inaczej odczyty nieznanych jeszcze czujników zostałyby odrzucone na
+        stałe);
+      - `cloud agent [--name NAZWA [--sender-priority N] --confirm]` (`CloudAgents`) – lista agentów albo nowy agent
+        (zbieracz albo kandydat na nadawcę 1–9) z jednorazowym kodem rejestracji (24 h) do `enroll`.
+      Sprawdzone 2026-11-16 na próbnym projekcie: biblioteka (import zmyślonej konfiguracji → agent z kodem widzi czujniki z
+      kluczami, ustawienia, odbiorców, a z blokadą hasło i adres strażnika; powtórka bez dubli) i prawdziwe CLI (plan,
+      `--confirm`, brak `--admin`, agent z kodem). **Na prawdziwym projekcie jeszcze niczego nie uruchomiono** – to decyzja
+      użytkownika.
+    - **Zostały:** `cloud backup`, panel WWW w trybie chmurowym, prawdziwy `run` i przejście usługi na bestia5.
 
 ## Struktura repozytorium
 

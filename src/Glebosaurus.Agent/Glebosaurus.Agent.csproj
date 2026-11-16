@@ -24,6 +24,7 @@
     <ProjectReference Include="..\Glebosaurus.Mail\Glebosaurus.Mail.csproj" />
     <ProjectReference Include="..\Glebosaurus.Web\Glebosaurus.Web.csproj" />
     <ProjectReference Include="..\Glebosaurus.Cloud\Glebosaurus.Cloud.csproj" />
+    <ProjectReference Include="..\Glebosaurus.Cloud.Admin\Glebosaurus.Cloud.Admin.csproj" />
   </ItemGroup>
 
 </Project>

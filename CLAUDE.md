@@ -14,6 +14,7 @@ dotnet test --solution Glebosaurus.slnx -c Release        # xunit.v3 na Microsof
 $env:GLEBOSAURUS_CLOUD_TESTS='1'; dotnet test --project tests/Glebosaurus.Cloud.Tests -c Release   # SQL na PRÓBNYM Supabase (czyści go)
 dotnet run --project src/Glebosaurus.Agent -f net10.0-windows10.0.19041.0 -- --help   # Windows; Linux: -f net10.0
 # Tryb chmurowy: sekcja "cloud" w konfiguracji (wzór examples/glebosaurus.cloud.config.json), potem enroll --code KOD i run
+# Właściciel: cloud migrate|import|agent --admin local/cloud-admin.test.json (bez --confirm tylko plan; prawdziwy projekt – tylko na prośbę)
 dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self-contained false -o publish/linux-arm64
 ./deploy/package-windows.ps1                               # pliki wydania Windows (zip samodzielny, install-windows.ps1, SHA256SUMS) w publish/release
 ```
@@ -110,7 +111,9 @@ dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self
   `glebosaurus-cloud.token` (token agenta) i `glebosaurus-cloud-config.bin` (kopia konfiguracji z kluczami Tuya) obok
   konfiguracji agenta, a także jednorazowe kody rejestracji.
 - Migracje i testy SQL tylko na próbnym projekcie `glebosaurus-test` (`local/cloud-admin.test.json`). Prawdziwy projekt
-  (`local/cloud-admin.json`) zmienia się wyłącznie na prośbę użytkownika – także migracja „gotowa i sprawdzona”.
+  (`local/cloud-admin.json`) zmienia się wyłącznie na prośbę użytkownika – także migracja „gotowa i sprawdzona”, `cloud
+  import` i `cloud agent --confirm`. Do prób importu nie używaj prawdziwej konfiguracji (`local/glebosaurus.config.json` ma
+  prawdziwe hasło Gmaila i klucze Tuya) – zmyślona konfiguracja w scratchpadzie.
 - **Claude działa z pakietu MSIX**: moje polecenia piszące do `%LOCALAPPDATA%` (poza `Temp`) trafiają do
   `%LOCALAPPDATA%\Packages\Claude_…\LocalCache\Local`, której Harmonogram nie widzi – `install-windows.ps1` przerwie wtedy z
   wyjaśnieniem. Prawdziwą usługę instaluje/aktualizuje użytkownik w zwykłym oknie PowerShell albo tymczasowe zadanie
@@ -152,8 +155,9 @@ chmury z chronioną kopią, (d) – zbieracz (pełny nasłuch w radiu Shiny nies
 zrobione 2026-11-16, krok 2.1.3 skończony; log administratora – osobny mail od każdego agenta (decyzja użytkownika).
 Agent (2.1.4, ARCHITEKTURA.md, zasada 15): sekcja `cloud`, `enroll` (sprawdzony przez CLI na próbnym projekcie),
 `CloudRuntime` i `run` w trybie chmurowym (tylko w testach – prawdziwy `run` na bestia5 wymaga zatrzymania usługi, na
-prośbę użytkownika), „agent milczy” w `mail-preview`. Zostały `cloud migrate`/`import`/`backup`, panel w trybie chmurowym
-i przejście usługi; prawdziwego maila w trybie chmurowym jeszcze nie było.
+prośbę użytkownika), „agent milczy” w `mail-preview`, `cloud migrate`/`import`/`agent` (sprawdzone na próbnym projekcie,
+także przez CLI). Zostały `cloud backup`, panel w trybie chmurowym i przejście usługi; prawdziwy projekt nadal bez schematu
+i prawdziwego maila w trybie chmurowym jeszcze nie było.
 
 Usługa Windows (2026-11-15): wydanie **0.1.0** opublikowane przez Actions (repo publiczne), a na bestia5 zainstalowane z
 GitHuba skryptem z `-ImportFrom local -NoStart`: program w `%LOCALAPPDATA%\Glebosaurus\app`, **kopia** danych z `local/` w

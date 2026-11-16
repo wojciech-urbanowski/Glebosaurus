@@ -131,6 +131,19 @@ public static class TimeZones
         return TimeZoneInfo.Local;
     }
 
+    /// <summary>Nazwa IANA strefy (do chmury): na Linuksie i Androidzie to już jej id; na Windows zamiana przez ICU albo
+    /// zapasowa mapa; null – nie da się ustalić.</summary>
+    public static string? ToIana(TimeZoneInfo zone)
+    {
+        if (zone.HasIanaId) return zone.Id;
+        try
+        {
+            if (TimeZoneInfo.TryConvertWindowsIdToIanaId(zone.Id, out var iana)) return iana;
+        }
+        catch (Exception e) when (e is InvalidTimeZoneException or ArgumentException or PlatformNotSupportedException) { }
+        return WindowsIds.FirstOrDefault(p => p.Value == zone.Id && p.Key.Contains('/')).Key;
+    }
+
     private static TimeZoneInfo? TryFind(string id)
     {
         try { return TimeZoneInfo.FindSystemTimeZoneById(id); }

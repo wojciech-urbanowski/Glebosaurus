@@ -19,7 +19,7 @@ namespace Glebosaurus.Agent;
 internal sealed record CliOptions(
     string Command, int? Seconds, int Timeout, string? Credentials, string? Config, string? Output, bool Verbose, bool Quiet,
     int? Minutes, bool ConfirmBind, string? Id, string? Name, string? Mac, int? Linger, bool Samples, string? Date, string? StopEvent,
-    string? Code = null);
+    string? Code = null, string? Subcommand = null, string? Admin = null, bool Confirm = false, int? SenderPriority = null, string? TimeZone = null);
 
 internal static class Cli
 {
@@ -59,6 +59,17 @@ internal static class Cli
               Token zapisuje obok konfiguracji (glebosaurus-cloud.token; Windows: DPAPI, Linux: plik tylko dla
               właściciela). Potem „run” bierze czujniki, harmonogramy i odbiorców z chmury, czyta czujniki, na które ma
               dzierżawę, a z rolą nadawcy wysyła maile (najwyżej raz, przez kolejkę w chmurze).
+
+        Właściciel chmury (plik administratora z hasłem bazy, np. local/cloud-admin.json; bez --confirm tylko pokazują plan):
+          glebosaurus cloud migrate --admin PLIK [--confirm]
+              Pokazuje zastosowane i czekające migracje schematu; z --confirm stosuje czekające.
+          glebosaurus cloud import --admin PLIK [--config PLIK] [--time-zone STREFA] [--confirm]
+              Przenosi do chmury konfigurację trybu samodzielnego: ustawienia, odbiorców, czujniki z kluczami Tuya, hasło
+              Gmaila i adres sygnału healthchecks.io (z pliku administratora). Sekretów nie wypisuje; nic nie usuwa.
+              Strefa raportów: --time-zone (IANA, np. Europe/Warsaw), domyślnie strefa tego komputera.
+          glebosaurus cloud agent --admin PLIK [--name NAZWA [--sender-priority N] --confirm]
+              Bez --name: lista agentów. Z --name i --confirm: tworzy agenta (z --sender-priority 1–9 – kandydat na
+              nadawcę, 1 najważniejszy; bez – tylko zbiera) i wypisuje jednorazowy kod rejestracji (24 h) do enroll.
 
         Panel WWW (diagnostyka w przeglądarce: stan, historia, dziennik, odczyt czujników na żądanie):
           glebosaurus web-password [--config PLIK]
@@ -105,6 +116,7 @@ internal static class Cli
         {
             case "run": return await RunMonitorAsync(options, cancellationToken);
             case "enroll": return await CloudAgent.EnrollAsync(options, cancellationToken);
+            case "cloud": return await CloudAdminCommands.RunAsync(options, cancellationToken);
             case "status": return await StatusAsync(options, cancellationToken);
             case "report": return await ReportAsync(options, cancellationToken);
             case "mail-test": return await MailTestAsync(options, cancellationToken);
@@ -129,11 +141,15 @@ internal static class Cli
     {
         var hasCommand = args.Length > 0 && !args[0].StartsWith('-');
         var command = hasCommand ? args[0].ToLowerInvariant() : "help";
+        // „cloud migrate|import|agent” – polecenie z podpoleceniem.
+        var subcommand = command == "cloud" && args.Length > 1 && !args[1].StartsWith('-') ? args[1].ToLowerInvariant() : null;
         int? seconds = null, minutes = null, linger = null;
         var timeout = 12;
         string? credentials = null, config = null, output = null, id = null, name = null, mac = null, date = null, stopEvent = null, code = null;
-        bool verbose = false, quiet = false, confirmBind = false, samples = false;
-        for (var i = hasCommand ? 1 : 0; i < args.Length; i++)
+        string? admin = null, timeZone = null;
+        int? senderPriority = null;
+        bool verbose = false, quiet = false, confirmBind = false, samples = false, confirm = false;
+        for (var i = (hasCommand ? 1 : 0) + (subcommand is null ? 0 : 1); i < args.Length; i++)
         {
             switch (args[i])
             {
@@ -155,12 +171,17 @@ internal static class Cli
                 case "--mac": mac = Value(args, ++i, "--mac"); break;
                 case "--date": date = Value(args, ++i, "--date"); break;
                 case "--code": code = Value(args, ++i, "--code"); break;
+                case "--admin": admin = Value(args, ++i, "--admin"); break;
+                case "--confirm": confirm = true; break;
+                case "--sender-priority": senderPriority = Number(args, ++i, "--sender-priority", 9); break;
+                case "--time-zone": timeZone = Value(args, ++i, "--time-zone"); break;
                 // Prywatny sygnał zatrzymania od usługi Windows (glebosaurus-service); nie dla ludzi, więc bez opisu w pomocy.
                 case "--stop-event": stopEvent = Value(args, ++i, "--stop-event"); break;
                 default: throw new ArgumentException($"Nieznany parametr {args[i]}. Użyj --help.");
             }
         }
-        return new(command, seconds, timeout, credentials, config, output, verbose, quiet, minutes, confirmBind, id, name, mac, linger, samples, date, stopEvent, code);
+        return new(command, seconds, timeout, credentials, config, output, verbose, quiet, minutes, confirmBind, id, name, mac, linger, samples, date, stopEvent, code,
+            subcommand, admin, confirm, senderPriority, timeZone);
     }
 
     private static string Value(string[] args, int index, string flag) =>

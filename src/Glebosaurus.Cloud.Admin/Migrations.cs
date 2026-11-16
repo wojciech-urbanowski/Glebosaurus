@@ -36,9 +36,41 @@ public sealed record Migration(string Version, string Name, string Sql)
 /// na siebie). Zastosowane migracje są w <c>glebosaurus.schema_migrations</c> z sumą kontrolną; zmieniona treść już
 /// zastosowanej migracji zatrzymuje wszystko – zmiany schematu idą zawsze nową migracją.
 /// </summary>
+/// <summary>Stan migracji w bazie względem wbudowanych w program.</summary>
+/// <param name="Changed">Zastosowane, ale o innej treści niż w programie – stop, zmiany schematu idą nową migracją.</param>
+/// <param name="Unknown">Zastosowane w bazie, a nieznane programowi (nowsza wersja programu je zastosowała).</param>
+public sealed record MigrationStatus(IReadOnlyList<Migration> Applied, IReadOnlyList<Migration> Pending, IReadOnlyList<string> Changed,
+    IReadOnlyList<string> Unknown)
+{
+    public bool UpToDate => Pending.Count == 0 && Changed.Count == 0 && Unknown.Count == 0;
+}
+
 public static class MigrationRunner
 {
     private const long AdvisoryLockKey = 0x676C6562_6F736175; // „glebosau”
+
+    /// <summary>Co zastosowano, co czeka – bez żadnej zmiany w bazie (także gdy schematu jeszcze nie ma).</summary>
+    public static async Task<MigrationStatus> StatusAsync(NpgsqlDataSource dataSource, IReadOnlyList<Migration> migrations,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        var applied = new Dictionary<string, string>(StringComparer.Ordinal);
+        await using (var exists = new NpgsqlCommand("select to_regclass('glebosaurus.schema_migrations') is not null", connection))
+        {
+            if ((bool)(await exists.ExecuteScalarAsync(cancellationToken))!)
+            {
+                await using var command = new NpgsqlCommand("select version, checksum from glebosaurus.schema_migrations", connection);
+                await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+                while (await reader.ReadAsync(cancellationToken)) applied[reader.GetString(0)] = reader.GetString(1);
+            }
+        }
+        var known = migrations.Select(m => m.Version).ToHashSet(StringComparer.Ordinal);
+        return new(
+            [.. migrations.Where(m => applied.TryGetValue(m.Version, out var checksum) && checksum == m.Checksum)],
+            [.. migrations.Where(m => !applied.ContainsKey(m.Version))],
+            [.. migrations.Where(m => applied.TryGetValue(m.Version, out var checksum) && checksum != m.Checksum).Select(m => m.Version)],
+            [.. applied.Keys.Where(v => !known.Contains(v)).Order(StringComparer.Ordinal)]);
+    }
 
     public static async Task<IReadOnlyList<Migration>> ApplyAsync(NpgsqlDataSource dataSource, IReadOnlyList<Migration> migrations,
         Action<string>? log, CancellationToken cancellationToken)
