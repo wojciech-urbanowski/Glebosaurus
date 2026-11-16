@@ -156,7 +156,7 @@ Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → S
  ┌──────┴───────────────────────────────────────────────────────────┐
  │ SUPABASE (darmowy plan, region UE) – funkcje SQL, RLS            │
  │ konfiguracja, odczyty, dzierżawy, blokada nadawcy, kolejka maili │
- │ Vault: klucze Tuya, hasło Gmaila · Storage: dzienne logi agentów │
+ │ Vault: klucze Tuya, hasło Gmaila · dzienne logi agentów (gzip)   │
  └──────┬───────────────────────────────────────────────────────────┘
         │ HTTPS, Supabase Auth – tylko konto właściciela                (faza 3)
  ┌──────┴──────────────────────────┐
@@ -233,7 +233,7 @@ Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → S
    dzierżaw → w odpowiedzi przydziały z epoką i czasem ważności, wersja konfiguracji i polecenia (czytaj teraz, oddaj,
    paruj, wyślij log). Odczyty idempotentne po `(sensor_id, at)` – ten sam klucz co lokalnie; lokalny SQLite zostaje
    buforem i pełną kopią odczytów danego agenta, więc przerwa sieci kończy się dosłaniem bez strat. Dzienne logi agentów
-   trafiają do Supabase Storage (7 dni), a nadawca wysyła z nich jeden log administratora z załącznikami wszystkich
+   trafiają spakowane do tabeli w bazie (7 dni; nie do Storage – zasada 13), a nadawca wysyła z nich jeden log administratora z załącznikami wszystkich
    agentów. Protokół jest wersjonowany (`v1`), żeby stare agenty nie psuły nowych danych.
 4. **Uwierzytelnianie.** Agent: jednorazowy kod rejestracji (z panelu albo SQL; na Androidzie kod QR) → `enroll` →
    własny token, w bazie tylko jego skrót, odwoływalny w każdej chwili; lokalnie DPAPI (Windows), Android Keystore albo
@@ -374,10 +374,10 @@ Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → S
    powtarza maila); nieudana wysyłka ma własny odstęp ponowień (5 min), więc nie opóźnia alertów. Świadome ograniczenie:
    tylko „wczoraj” – jeśli agent wczoraj nie działał albo dzień starszy nie został wysłany, nie jest dosyłany wstecz.
 10. **Chmura i UI.** **Supabase, darmowy plan** (decyzja użytkownika 2026-11-16: „celem jest darmowość”): Postgres z
-    funkcjami SQL (operacje atomowe), Vault i Storage; bez Edge Functions i bez własnego serwera; region Central EU
+    funkcjami SQL (operacje atomowe) i Vault (Storage nieużywany – zasada 13); bez Edge Functions i bez własnego serwera; region Central EU
     (Frankfurt). Rozważone wcześniej (2026-11-15): własny serwer ASP.NET Core na VPS (ok. 4–7 €/mies.) i Azure (ok.
     15–30 USD/mies.) – odrzucone ze względu na koszt. Limity darmowego planu (supabase.com/pricing, sprawdzone
-    2026-11-16; poza wymienionymi niżej: Storage 1 GB – logi agentów z 7 dni mieszczą się z zapasem; logi API i bazy
+    2026-11-16; poza wymienionymi niżej: Storage 1 GB – nieużywany, logi agentów są w bazie (zasada 13); logi API i bazy
     trzymane tylko 1 dzień):
     - baza 500 MB, po przekroczeniu tylko do odczytu – odczyty to ok. 0,4 mln wierszy rocznie, szacunkowo 50–80 MB, więc
       starczy na kilka lat, potem uśrednianie starych odczytów (ROADMAP, faza 4); słyszenia bez historii (zasada 2); rozmiar
@@ -490,21 +490,42 @@ Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → S
     - na tym telefonie nie instalować Smart Life (dodatkowy klient walczący o połączenia).
     Wydania: APK z Actions podpisany jednym kluczem (sekret repozytorium; jego utrata = instalacja od nowa); Android i tak
     wymaga stuknięcia „Zainstaluj”, więc aktualizacja to powiadomienie o nowej wersji (albo Obtainium).
-13. **Schemat chmury** (krok 2.1.2, 2026-11-16; `supabase/migrations/20261116200000_core.sql`). Realizacja zasad 1–4:
+13. **Schemat chmury** (krok 2.1.2, 2026-11-16; `supabase/migrations/20261116200000_core.sql` – rdzeń,
+    `20261116220000_alerts_commands_logs.sql` – alerty, polecenia, logi). Realizacja zasad 1–4:
     - **Schemat `glebosaurus`** (Data API go nie wystawia, RLS na każdej tabeli bez żadnych zasad): `agents` (skrót
       tokenu, `can_send_mail`, `sender_priority`, sygnał życia), `enrollment_codes`, `settings` (jeden wiersz; czas lokalny
       raportów – `time_zone`, domyślnie Europe/Warsaw; `config_version` rośnie przy każdej zmianie ustawień i czujników),
       `sensors` (progi jak `SensorConfig`; dane Tuya w Vault jako `glebosaurus:sensor:<id>`), `readings` (klucz
       `(sensor_id, at)`, temperatura w dziesiątych częściach – jak w SQLite, plus agent, który odczytał), `sightings`,
-      `leases` (wiersz zostaje po oddaniu, więc epoka tylko rośnie), `mail_outbox`, `environment` (znacznik bazy próbnej)
+      `leases` (wiersz zostaje po oddaniu, więc epoka tylko rośnie), `mail_outbox`, `alerts` (jeden otwarty na czujnik i
+      rodzaj, jak w SQLite; początek epizodu liczy baza), `commands`, `agent_logs`, `environment` (znacznik bazy próbnej)
       i `schema_migrations`.
-    - **API agentów** – funkcje `public.*` `security definer` z pustym `search_path`, wykonywalne tylko przez `anon`:
+    - **API agentów** – 18 funkcji `public.*` `security definer` z pustym `search_path`, wykonywalnych tylko przez `anon`:
       `enroll`, `get_config`, `agent_sync`, `lease_claim`, `lease_release`, `mail_claim`, `mail_sent`, `mail_abandon`,
-      `mail_credentials`, `readings_range`. Nieznany albo unieważniony token → SQLSTATE 28000 (Data API: 403); błędne dane
-      → 22023 (400). Czasy z agenta są względne (`heardSecondsAgo`), bo jego zegar może się rozjechać z bazą; odczyty mają
+      `mail_credentials`, `readings_range`, `alert_list`, `alert_open`, `alert_resolve`, `alert_notified`,
+      `command_create`, `command_done`, `log_put`, `log_get`. Nieznany albo unieważniony token → SQLSTATE 28000 (Data API:
+      403); czynność zastrzeżona dla obecnego nadawcy bez blokady z aktualną epoką → 42501; błędne dane → 22023 (400). Czasy z agenta są względne (`heardSecondsAgo`), bo jego zegar może się rozjechać z bazą; odczyty mają
       własny czas, a baza odrzuca te z przyszłości (ponad 10 min), sprzed 2020 i spoza zakresów – z powodem w odpowiedzi,
       żeby agent ich nie ponawiał. `agent_sync` najpierw oddaje, potem bierze dzierżawy w stałej kolejności (bez
-      zakleszczeń) i zwraca dla każdego czujnika właściciela oraz najlepsze słyszenie innego agenta z ostatnich 15 min.
+      zakleszczeń) i zwraca dla każdego czujnika właściciela oraz najlepsze słyszenie innego agenta z ostatnich 15 min,
+      a także polecenia skierowane teraz do agenta.
+    - **Alerty:** czytać może każdy agent (lokalny panel), otwierać, zamykać i oznaczać jako wysłane – tylko obecny nadawca
+      (blokada z epoką). Otwarcie już otwartego zwraca istniejący alert, więc restart nadawcy nie tworzy drugiego epizodu,
+      a nowy nadawca po przejęciu widzi ten sam stan (także `lastNotifiedAt` do przypomnień). Cisza agenta nie potrzebuje
+      tabeli: klucz `agent-silent|<agent>|<od>` wyliczony z `lastSeenSecondsAgo` dubluje tylko kolejka maili.
+    - **Polecenia** (`read_now`, `report_now`, `release`, `pair`, `send_log`): bez wskazanego agenta trafiają tam, gdzie
+      jest władza – odczyt i oddanie do właściciela dzierżawy czujnika (po przejęciu – do nowego), raport do obecnego
+      nadawcy; `pair` i `send_log` zawsze do wskazanego agenta. Wracają w każdej synchronizacji, dopóki agent nie zgłosi
+      wyniku (`command_done`) albo nie wygasną (10 min; parowanie 15 min, log 1 godz.). To samo polecenie najwyżej raz na
+      minutę i nigdy dwa czekające naraz (blokada doradcza na czas tworzenia). Agent (lokalny panel) może zlecić tylko
+      `read_now` i `report_now`; resztę właściciel (`glebosaurus.admin_command`, w fazie 3 panel). Raport na żądanie ma
+      klucz maila `report-request|<id polecenia>`.
+    - **Dzienne logi agentów:** tabela zamiast Supabase Storage (decyzja przy implementacji 2026-11-16 – Storage wymaga
+      zalogowanego użytkownika albo klucza tajnego, a tak log idzie tą samą drogą co reszta). Agent pakuje log gzipem
+      (`log_put`, base64, najwyżej 4 MB po spakowaniu – sprawdzone przez Data API 2026-11-16: 3,9 MB w 1,3 s; ponowne
+      wysłanie dnia zastępuje log), a czyta go tylko obecny nadawca (`log_get` – logi wszystkich agentów z danego dnia do
+      jednego maila administratora). Retencja `settings.log_retention_days` (7 dni, w dniu strefy `time_zone`). Logi
+      liczą się do 500 MB bazy: zwykle setki KB dziennie, najgorzej 3 agentów × 8 dni × 4 MB ≈ 100 MB.
     - **Administracja** (`glebosaurus.admin_*`: agent i kod rejestracji, unieważnienie, czujnik, dane Tuya, sekrety poczty,
       ustawienia) – tylko przez połączenie z bazą hasłem bazy (`Glebosaurus.Cloud.Admin`, pooler sesji), nigdy przez Data
       API. Klucz tajny `sb_secret_…` nie jest więc dziś do niczego potrzebny – do rozstrzygnięcia przy `cloud import`
@@ -518,16 +539,16 @@ Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → S
       odciskiem SHA-256 zapisanym w kodzie, a połączenie jest zawsze `VerifyFull` – bez cichego przejścia na samo
       szyfrowanie, bo idzie nim hasło bazy. Sprawdzone 2026-11-16 na obu projektach (tylko `select 1` na prawdziwym), a
       kontrolnie z obcym CA połączenie zostaje odrzucone. Test bez sieci przypomni o nowym certyfikacie pół roku przed końcem.
-    - **Testy** (`tests/Glebosaurus.Cloud.Tests`, 41 przypadków, z czego 6 bez sieci – także w CI; reszta uruchamiana
+    - **Testy** (`tests/Glebosaurus.Cloud.Tests`, 53 przypadki, z czego 6 bez sieci – także w CI; reszta uruchamiana
       świadomie – `GLEBOSAURUS_CLOUD_TESTS=1` i
       `local/cloud-admin.test.json`): każdy przebieg czyści próbną bazę i stosuje migracje od zera; przypadki z ROADMAP
       (dwóch agentów, uśpienie z dzierżawą, utrata sieci, restart w trakcie wysyłki), równoczesne prośby o jedną dzierżawę
-      (dokładnie jeden zwycięzca), rejestracja i unieważnienie, uprawnienia `anon` (dokładnie lista funkcji API, nic w
-      `glebosaurus`, RLS wszędzie) i prawdziwa droga przez Data API z kluczem publikowalnym. **2026-11-16: wszystkie zielone
-      na `glebosaurus-test`, także drugi przebieg na istniejącym schemacie i przebieg z `VerifyFull`.**
-    - **Jeszcze nie ma** (dalsza część 2.1.2): wspólny stan alertów, polecenia (odczyt i raport na żądanie, oddanie,
-      parowanie, wysłanie logu) i dzienne logi agentów. Storage (zasada 3) wymaga zalogowanego użytkownika albo klucza
-      tajnego, więc logi pójdą raczej do tabeli przez funkcję API (gzip, 7 dni) – do decyzji przy implementacji.
+      (dokładnie jeden zwycięzca), rejestracja i unieważnienie, alerty po przejęciu nadawcy, droga poleceń za dzierżawą,
+      logi (gzip, tylko dla nadawcy, retencja), uprawnienia `anon` (dokładnie lista funkcji API, nic w `glebosaurus`, RLS
+      wszędzie) i prawdziwa droga przez Data API z kluczem publikowalnym. **2026-11-16: wszystkie zielone na
+      `glebosaurus-test`, także drugi przebieg na istniejącym schemacie i przebieg z `VerifyFull`.**
+    - Krok 2.1.2 jest skończony; prawdziwy projekt dostanie schemat poleceniem migracji agenta (2.1.4) – na prośbę
+      użytkownika.
 
 ## Struktura repozytorium
 

@@ -129,9 +129,9 @@ Raspberry Pi, kalibracja wilgotności. Następne kroki: patrz [docs/ROADMAP.md](
 Faza 2 (plan z 2026-11-16 w ROADMAP): konta gotowe – projekt Supabase (darmowy, Frankfurt) i sprawdzenie healthchecks.io
 założył użytkownik, połączenie sprawdzone z bestia5 (ARCHITEKTURA.md, zasady 2 i 10); dane dostępowe w
 `local/cloud-admin.json`. Konto Gmail nadawcy zostaje (jest już osobne). Funkcje SQL testujemy na drugim, próbnym
-projekcie `glebosaurus-test` (decyzja 2026-11-16, bez Dockera; założony i sprawdzony tego dnia). Rdzeń schematu i funkcji
-SQL (2.1.2) zrobiony 2026-11-16 i zielony na próbnym projekcie; prawdziwy projekt jest jeszcze bez schematu. Zostały: wspólny
-stan alertów, polecenia, dzienne logi agentów; potem Core (2.1.3) i agent (2.1.4).
+projekcie `glebosaurus-test` (decyzja 2026-11-16, bez Dockera; założony i sprawdzony tego dnia). Schemat i funkcje SQL
+(2.1.2: dzierżawy, blokada nadawcy, kolejka maili, alerty, polecenia, logi agentów w tabeli zamiast Storage) zrobione
+2026-11-16 i zielone na próbnym projekcie; prawdziwy projekt jest jeszcze bez schematu. Dalej Core (2.1.3) i agent (2.1.4).
 
 Usługa Windows (2026-11-15): wydanie **0.1.0** opublikowane przez Actions (repo publiczne), a na bestia5 zainstalowane z
 GitHuba skryptem z `-ImportFrom local -NoStart`: program w `%LOCALAPPDATA%\Glebosaurus\app`, **kopia** danych z `local/` w

@@ -11,7 +11,8 @@ public sealed class SecurityTests(CloudDatabase db)
 {
     private static readonly string[] ApiFunctions =
     [
-        "agent_sync", "enroll", "get_config", "lease_claim", "lease_release", "mail_abandon", "mail_claim", "mail_credentials",
+        "agent_sync", "alert_list", "alert_notified", "alert_open", "alert_resolve", "command_create", "command_done", "enroll",
+        "get_config", "lease_claim", "lease_release", "log_get", "log_put", "mail_abandon", "mail_claim", "mail_credentials",
         "mail_sent", "readings_range"
     ];
 
@@ -27,7 +28,7 @@ public sealed class SecurityTests(CloudDatabase db)
                and p.prorettype not in ('trigger'::regtype, 'event_trigger'::regtype)
             """, null);
 
-        Assert.Equal(ApiFunctions, names.EnumerateArray().Select(n => n.GetString()!).ToArray());
+        Assert.Equal(ApiFunctions, names.EnumerateArray().Select(n => n.GetString()!).Order(StringComparer.Ordinal).ToArray());
     }
 
     [Fact]
