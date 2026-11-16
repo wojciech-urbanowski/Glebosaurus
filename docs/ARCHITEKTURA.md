@@ -578,6 +578,25 @@ Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → S
       przykładowym JSON-ie funkcji SQL (w CI) i klient przez prawdziwe Data API próbnego projektu (ścieżka zbieracza,
       ścieżka nadawcy, rodzaje błędów) – 2026-11-16 zielone.
 
+    Kawałek b (2026-11-16):
+    - **Bufor odczytów** (`IReadingOutbox`, w agencie `SqliteMonitorStore`): kolumna `sync_state` (0 – do wysłania,
+      1 – przyjęty, 2 – odrzucony) z indeksem częściowym na niewysłanych. Zmiana zgodna wstecz: kolumna dodawana, gdy jej
+      brak, `user_version` zostaje 1 – wersja 0.1.x po ewentualnym powrocie (samoaktualizacja) dalej otwiera bazę, a jej
+      zapisy są „do wysłania”. Istniejące odczyty też są „do wysłania”, więc historia agenta trafi do chmury tą samą drogą
+      (paczkami, bez osobnego importu historii).
+    - **Pętla synchronizacji** (`CloudSync`): co 60 s jedno `agent_sync` – sygnał życia, słyszenia (czasy względne, tylko
+      czujniki z konfiguracji), do 500 najstarszych niewysłanych odczytów, oddania i prośby z obu zasad; odpowiedź
+      uaktualnia księgę (ważność od chwili wysłania), zasady, stan wysłania (odrzucone z powodem – bez ponowień) i
+      polecenia (każde oddawane silnikom raz, po id), a także wersję konfiguracji i różnicę zegarów (ostrzeżenie powyżej
+      2 min). Zaległy bufor idzie paczkami co 2 s; po porażce odstępy 30 s, 1, 2, 5 min (błąd programu albo protokołu –
+      10 min), a przebudzenie (nowy odczyt) nie skraca ponowień; unieważniony token kończy synchronizację (dzierżawy
+      wygasną same). Utrata odpowiedzi (baza zapisała, agent nie wie) kończy się ponownym wysłaniem bez dubli. Przy
+      zatrzymaniu: ostatnia paczka i oddanie wszystkich dzierżaw. Stan (`CloudSyncState`) dla panelu i statusu.
+    - **Testy:** pętla na atrapie chmury i ręcznym czasie (paczki, odrzucone, przerwa sieci i odstępy, utracona odpowiedź,
+      ważność od wysłania, wygaśnięcie bez sieci, unieważnienie, polecenia, zatrzymanie), baza z wersji 0.1.1 (w CI) i
+      przerwa sieci na próbnym projekcie z prawdziwym SQLite – po powrocie w chmurze jest dokładnie to, co w buforze,
+      a zatrzymanie oddaje czujnik od razu (2026-11-16 zielone).
+
 ## Struktura repozytorium
 
 ```

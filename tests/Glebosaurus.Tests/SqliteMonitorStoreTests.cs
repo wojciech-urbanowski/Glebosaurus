@@ -129,6 +129,70 @@ public class SqliteMonitorStoreTests
     }
 
     [Fact]
+    public async Task Outbox_GivesUnsentOldestFirst_AndForgetsAcceptedAndRejected()
+    {
+        using var db = new TempStore();
+        var first = Fixtures.Reading("s1", Fixtures.T0);
+        var second = Fixtures.Reading("s2", Fixtures.T0.AddMinutes(1));
+        var third = Fixtures.Reading("s1", Fixtures.T0.AddMinutes(2));
+        foreach (var reading in new[] { third, first, second }) await db.Store.AddReadingAsync(reading, Ct);
+
+        Assert.Equal([first, second], await db.Store.GetUnsentAsync(2, Ct));
+        await db.Store.MarkSentAsync([first], [second], Ct);
+
+        Assert.Equal([third], await db.Store.GetUnsentAsync(10, Ct));
+        Assert.Equal(1, await db.Store.CountUnsentAsync(Ct));
+        Assert.Equal(3, (await db.Store.GetRecentAsync("s1", 10, Ct)).Count + (await db.Store.GetRecentAsync("s2", 10, Ct)).Count);
+    }
+
+    [Fact]
+    public async Task DatabaseOfVersion011_GetsSyncState_StaysOpenableByOldVersion()
+    {
+        var path = Fixtures.TempDatabase();
+        try
+        {
+            // Baza i zapis dokładnie jak w wersji 0.1.1 (bez sync_state).
+            await ExecuteAsync(path, """
+                CREATE TABLE readings (sensor_id TEXT NOT NULL, at INTEGER NOT NULL, moisture INTEGER NULL, temp_tenths INTEGER NULL,
+                    battery INTEGER NULL, battery_state INTEGER NULL, PRIMARY KEY (sensor_id, at)) WITHOUT ROWID;
+                CREATE TABLE alerts (id INTEGER PRIMARY KEY AUTOINCREMENT, sensor_id TEXT NOT NULL, kind TEXT NOT NULL, detail TEXT NOT NULL,
+                    opened_at INTEGER NOT NULL, last_notified_at INTEGER NULL, resolved_at INTEGER NULL);
+                CREATE TABLE report_runs (key TEXT PRIMARY KEY, sent_at INTEGER NOT NULL);
+                INSERT INTO readings (sensor_id, at, moisture, temp_tenths, battery, battery_state) VALUES ('s1', 1000, 40, 215, 80, 2);
+                PRAGMA user_version = 1;
+                """);
+
+            var store = new SqliteMonitorStore(path);
+            await store.InitializeAsync(Ct);
+            await store.InitializeAsync(Ct);   // ponowne otwarcie nie dodaje kolumny drugi raz
+
+            Assert.Equal("s1", Assert.Single(await store.GetUnsentAsync(10, Ct)).SensorId);   // historia też pójdzie do chmury
+            Assert.Equal(1L, await ScalarAsync(path, "PRAGMA user_version;"));                 // 0.1.x dalej ją otworzy
+            await ExecuteAsync(path, "INSERT INTO readings (sensor_id, at, moisture, temp_tenths, battery, battery_state) VALUES ('s1', 2000, 41, NULL, NULL, NULL);");
+            Assert.Equal(2, await store.CountUnsentAsync(Ct));                                 // zapis starej wersji = do wysłania
+        }
+        finally { Fixtures.DeleteDatabase(path); }
+    }
+
+    private static async Task ExecuteAsync(string path, string sql)
+    {
+        await using var connection = new SqliteConnection($"Data Source={path};Pooling=False");
+        await connection.OpenAsync(Ct);
+        await using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        await command.ExecuteNonQueryAsync(Ct);
+    }
+
+    private static async Task<object?> ScalarAsync(string path, string sql)
+    {
+        await using var connection = new SqliteConnection($"Data Source={path};Pooling=False");
+        await connection.OpenAsync(Ct);
+        await using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        return await command.ExecuteScalarAsync(Ct);
+    }
+
+    [Fact]
     public async Task DatabaseFromNewerVersionIsRejectedAndReopeningKeepsData()
     {
         using var db = new TempStore();

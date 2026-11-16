@@ -18,6 +18,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Glebosaurus.Cloud.Admin\Glebosaurus.Cloud.Admin.csproj" />
     <ProjectReference Include="..\..\src\Glebosaurus.Cloud\Glebosaurus.Cloud.csproj" />
+    <ProjectReference Include="..\..\src\Glebosaurus.Data\Glebosaurus.Data.csproj" />
     <Using Include="Xunit" />
   </ItemGroup>
 

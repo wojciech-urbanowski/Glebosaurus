@@ -1,4 +1,5 @@
 using System.Globalization;
+using Glebosaurus.Core.Cloud;
 using Glebosaurus.Core.Domain;
 using Glebosaurus.Core.Monitoring;
 using Microsoft.Data.Sqlite;
@@ -7,11 +8,15 @@ namespace Glebosaurus.Data;
 
 /// <summary>
 /// Magazyn w pliku SQLite z trybem WAL. Czasy zapisane jako unix-milisekundy UTC, temperatura jako dziesiąte części
-/// stopnia (liczby całkowite zamiast zmiennoprzecinkowych). Każda operacja otwiera krótkie połączenie.
+/// stopnia (liczby całkowite zamiast zmiennoprzecinkowych). Każda operacja otwiera krótkie połączenie. W trybie chmurowym
+/// jest też buforem odczytów do wysłania (<see cref="IReadingOutbox"/>, kolumna <c>sync_state</c>).
 /// </summary>
-public sealed class SqliteMonitorStore(string databasePath) : IMonitorStore
+public sealed class SqliteMonitorStore(string databasePath) : IMonitorStore, IReadingOutbox
 {
     private const int SchemaVersion = 1;
+
+    // Stan wysłania odczytu do chmury (kolumna sync_state): 0 – do wysłania, 1 – przyjęty, 2 – odrzucony (bez ponowień).
+    private const int Accepted = 1, Rejected = 2;
 
     private string ConnectionString => new SqliteConnectionStringBuilder
     {
@@ -30,8 +35,28 @@ public sealed class SqliteMonitorStore(string databasePath) : IMonitorStore
         var version = Convert.ToInt32(await ScalarAsync(connection, "PRAGMA user_version;", cancellationToken), CultureInfo.InvariantCulture);
         if (version > SchemaVersion)
             throw new InvalidOperationException($"Baza {databasePath} pochodzi z nowszej wersji programu (schemat {version}).");
-        if (version == SchemaVersion) return;
+        if (version < SchemaVersion) await CreateSchemaAsync(connection, cancellationToken);
+        await EnsureSyncStateAsync(connection, cancellationToken);
+    }
 
+    /// <summary>
+    /// Stan wysłania do chmury (faza 2.1.3): kolumna dodawana, gdy jej brak – zmiana zgodna wstecz, więc <c>user_version</c>
+    /// zostaje 1 i wersja 0.1.x po ewentualnym powrocie dalej otwiera bazę (jej INSERT wymienia kolumny, więc nowe odczyty
+    /// dostają domyślne „do wysłania”). Istniejące odczyty też są „do wysłania” – historia trafi do chmury tą samą drogą.
+    /// </summary>
+    private static async Task EnsureSyncStateAsync(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        var present = Convert.ToInt64(await ScalarAsync(connection,
+            "SELECT COUNT(*) FROM pragma_table_info('readings') WHERE name = 'sync_state';", cancellationToken), CultureInfo.InvariantCulture);
+        if (present > 0) return;
+        await ExecuteAsync(connection, """
+            ALTER TABLE readings ADD COLUMN sync_state INTEGER NOT NULL DEFAULT 0;
+            CREATE INDEX IF NOT EXISTS ix_readings_unsent ON readings (at) WHERE sync_state = 0;
+            """, cancellationToken);
+    }
+
+    private static async Task CreateSchemaAsync(SqliteConnection connection, CancellationToken cancellationToken)
+    {
         await ExecuteAsync(connection, """
             PRAGMA journal_mode = WAL;
             CREATE TABLE IF NOT EXISTS readings (
@@ -165,6 +190,40 @@ public sealed class SqliteMonitorStore(string databasePath) : IMonitorStore
         await using var connection = await OpenAsync(cancellationToken);
         await ExecuteAsync(connection, "INSERT OR REPLACE INTO report_runs (key, sent_at) VALUES ($k, $at);", cancellationToken,
             ("$k", key), ("$at", at.ToUnixTimeMilliseconds()));
+    }
+
+    public async Task<IReadOnlyList<StoredReading>> GetUnsentAsync(int limit, CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = Command(connection, """
+            SELECT sensor_id, at, moisture, temp_tenths, battery, battery_state FROM readings
+             WHERE sync_state = 0 ORDER BY at, sensor_id LIMIT $n;
+            """, ("$n", limit));
+        var result = new List<StoredReading>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+            result.Add(new(reader.GetString(0), DateTimeOffset.FromUnixTimeMilliseconds(reader.GetInt64(1)),
+                Nullable(reader, 2), reader.IsDBNull(3) ? null : reader.GetInt32(3) / 10m, Nullable(reader, 4), Nullable(reader, 5)));
+        return result;
+    }
+
+    public async Task<int> CountUnsentAsync(CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        return Convert.ToInt32(await ScalarAsync(connection, "SELECT COUNT(*) FROM readings WHERE sync_state = 0;", cancellationToken),
+            CultureInfo.InvariantCulture);
+    }
+
+    public async Task MarkSentAsync(IReadOnlyCollection<StoredReading> accepted, IReadOnlyCollection<StoredReading> rejected,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
+        foreach (var (readings, state) in new[] { (accepted, Accepted), (rejected, Rejected) })
+            foreach (var reading in readings)
+                await ExecuteAsync(connection, "UPDATE readings SET sync_state = $state WHERE sensor_id = $s AND at = $at;", cancellationToken,
+                    transaction, ("$state", state), ("$s", reading.SensorId), ("$at", reading.At.ToUnixTimeMilliseconds()));
+        await transaction.CommitAsync(cancellationToken);
     }
 
     public async Task PurgeAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)
