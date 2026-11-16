@@ -49,8 +49,7 @@ public sealed class CloudDatabase : IAsyncLifetime
         if (File.Exists(productionFile) && CloudAdminSettings.Load(productionFile).ProjectRef == Settings.ProjectRef)
             throw new InvalidOperationException($"local/{TestFileName} wskazuje prawdziwy projekt (to samo id co w {ProductionFileName}) – testy odmawiają.");
 
-        var certificate = Path.Combine(RepositoryRoot, "supabase", "prod-ca-2021.crt");
-        DataSource = Settings.CreateDataSource(File.Exists(certificate) ? certificate : null, "glebosaurus-tests");
+        DataSource = Settings.CreateDataSource("glebosaurus-tests");
 
         await GuardAndResetAsync();
         await MigrationRunner.ApplyAsync(DataSource, Migration.Embedded(), null, CancellationToken.None);

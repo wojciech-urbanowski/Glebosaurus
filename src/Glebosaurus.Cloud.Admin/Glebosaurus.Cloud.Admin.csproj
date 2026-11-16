@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="..\..\supabase\migrations\*.sql" LogicalName="Glebosaurus.Migrations.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="..\..\supabase\prod-ca-2021.crt" LogicalName="Glebosaurus.Supabase.prod-ca-2021.crt" />
   </ItemGroup>
 
 </Project>

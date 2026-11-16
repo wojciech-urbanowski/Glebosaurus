@@ -51,27 +51,27 @@ public sealed partial class CloudAdminSettings
     }
 
     /// <summary>
-    /// Źródło połączeń z bazą jako <c>postgres</c> przez pooler sesji. Z certyfikatem głównym Supabase (pobranym z panelu
-    /// projektu) sprawdza tożsamość serwera; bez niego tylko szyfruje – serwer ma certyfikat od własnego CA Supabase,
-    /// którego systemowy magazyn nie zna (sprawdzone 2026-11-16).
+    /// Źródło połączeń z bazą jako <c>postgres</c> przez pooler sesji, zawsze z pełnym sprawdzeniem serwera (VerifyFull)
+    /// względem certyfikatu głównego Supabase wbudowanego w bibliotekę – serwer ma certyfikat od własnego CA Supabase,
+    /// którego systemowy magazyn nie zna, a hasła bazy nie wolno wysłać serwerowi, którego tożsamości nie sprawdzono.
     /// </summary>
-    public NpgsqlDataSource CreateDataSource(string? rootCertificatePath = null, string applicationName = "glebosaurus-admin")
+    public NpgsqlDataSource CreateDataSource(string applicationName = "glebosaurus-admin")
     {
-        var builder = new NpgsqlConnectionStringBuilder
+        var builder = new NpgsqlDataSourceBuilder(new NpgsqlConnectionStringBuilder
         {
             Host = DatabaseHost,
             Port = 5432,
             Username = "postgres." + ProjectRef,
             Password = DatabasePassword,
             Database = "postgres",
-            SslMode = rootCertificatePath is null ? SslMode.Require : SslMode.VerifyFull,
-            RootCertificate = rootCertificatePath,
+            SslMode = SslMode.VerifyFull,
             Timeout = 15,
             CommandTimeout = 60,
             ApplicationName = applicationName,
             MaxPoolSize = 4
-        };
-        return NpgsqlDataSource.Create(builder);
+        }.ConnectionString);
+        builder.UseRootCertificate(SupabaseRootCertificate.Load());
+        return builder.Build();
     }
 
     [GeneratedRegex("^([a-z0-9]{20})\\.supabase\\.co$")]

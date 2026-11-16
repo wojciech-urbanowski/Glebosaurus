@@ -512,15 +512,19 @@ Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → S
       zmieniać), wbudowane w bibliotekę z `supabase/migrations/`.
     - **Czas:** wszystko liczy `glebosaurus.clock()` = `now()`; tylko w bazie ze znacznikiem próbnej testy przesuwają zegar
       ustawieniem `glebosaurus.test_now` we własnej transakcji (Data API nie daje klientom ustawiać takich zmiennych).
-    - **Połączenie z bazą:** serwer ma certyfikat od własnego CA Supabase, którego Windows nie zna (`VerifyFull` odrzucony,
-      2026-11-16). Z plikiem `supabase/prod-ca-2021.crt` (certyfikat główny z panelu projektu, publiczny) połączenie
-      sprawdza tożsamość serwera; bez niego tylko szyfruje.
-    - **Testy** (`tests/Glebosaurus.Cloud.Tests`, 36 przypadków; uruchamiane świadomie – `GLEBOSAURUS_CLOUD_TESTS=1` i
+    - **Połączenie z bazą:** serwer ma certyfikat od własnego CA Supabase, którego Windows nie zna (z systemowym magazynem
+      `VerifyFull` odrzucony, 2026-11-16). Certyfikat główny „Supabase Root 2021 CA” (publiczny, ważny do 2031-04-26)
+      pobrał użytkownik z panelu projektu do `supabase/prod-ca-2021.crt`; jest wbudowany w `Glebosaurus.Cloud.Admin` z
+      odciskiem SHA-256 zapisanym w kodzie, a połączenie jest zawsze `VerifyFull` – bez cichego przejścia na samo
+      szyfrowanie, bo idzie nim hasło bazy. Sprawdzone 2026-11-16 na obu projektach (tylko `select 1` na prawdziwym), a
+      kontrolnie z obcym CA połączenie zostaje odrzucone. Test bez sieci przypomni o nowym certyfikacie pół roku przed końcem.
+    - **Testy** (`tests/Glebosaurus.Cloud.Tests`, 41 przypadków, z czego 6 bez sieci – także w CI; reszta uruchamiana
+      świadomie – `GLEBOSAURUS_CLOUD_TESTS=1` i
       `local/cloud-admin.test.json`): każdy przebieg czyści próbną bazę i stosuje migracje od zera; przypadki z ROADMAP
       (dwóch agentów, uśpienie z dzierżawą, utrata sieci, restart w trakcie wysyłki), równoczesne prośby o jedną dzierżawę
       (dokładnie jeden zwycięzca), rejestracja i unieważnienie, uprawnienia `anon` (dokładnie lista funkcji API, nic w
       `glebosaurus`, RLS wszędzie) i prawdziwa droga przez Data API z kluczem publikowalnym. **2026-11-16: wszystkie zielone
-      na `glebosaurus-test`, także drugi przebieg na istniejącym schemacie.**
+      na `glebosaurus-test`, także drugi przebieg na istniejącym schemacie i przebieg z `VerifyFull`.**
     - **Jeszcze nie ma** (dalsza część 2.1.2): wspólny stan alertów, polecenia (odczyt i raport na żądanie, oddanie,
       parowanie, wysłanie logu) i dzienne logi agentów. Storage (zasada 3) wymaga zalogowanego użytkownika albo klucza
       tajnego, więc logi pójdą raczej do tabeli przez funkcję API (gzip, 7 dni) – do decyzji przy implementacji.
@@ -535,8 +539,9 @@ src/Glebosaurus.Mail      GmailSender (MailKit)
 src/Glebosaurus.Web       lokalny panel diagnostyczny (Kestrel, HTTPS, hasło; pulpit z wykresami, strona czujnika, odczyt i raport na żądanie; strony w wwwroot/ wbudowane w bibliotekę)
 src/Glebosaurus.Agent     CLI/monitor: run, stop, pair, status, report, mail-test, mail-preview, send-log, web-password, scan, read, listen (Shiny; net10.0 + net10.0-windows10.0.19041.0)
 src/Glebosaurus.Service   usługa Windows bez okna (glebosaurus-service.exe): nadzór monitora, sprawdzanie wydań, przekazanie aktualizacji skryptowi
-src/Glebosaurus.Cloud.Admin  narzędzia właściciela chmury: połączenie z bazą Supabase (Npgsql, pooler sesji), migracje
+src/Glebosaurus.Cloud.Admin  narzędzia właściciela chmury: połączenie z bazą Supabase (Npgsql, pooler sesji, VerifyFull), migracje
 supabase/migrations/      schemat i funkcje SQL chmury (zasada 13), wbudowane w Glebosaurus.Cloud.Admin
+supabase/prod-ca-2021.crt certyfikat główny Supabase (publiczny, do 2031-04-26), wbudowany w Glebosaurus.Cloud.Admin
 tests/                    testy jednostkowe: protokół i sesja na atrapie czujnika; alerty, raporty, magazyn, silnik na atrapach;
                           Glebosaurus.Cloud.Tests – funkcje SQL na próbnym projekcie Supabase (na żądanie)
 examples/                 wzór konfiguracji            deploy/    install-windows.ps1, package-windows.ps1, wzór unitu systemd
@@ -563,5 +568,7 @@ także wysyłanie.
   lokalnie – każdy wymaga resetu, który usuwa go ze Smart Life).
 - Do kroku 2.1 klucze czujników istnieją tylko w plikach lokalnych.
 - Chmura (faza 2): konto Supabase jest kluczem do wszystkich sekretów; limity darmowego planu (500 MB, uśpienie po 7
-  dniach, brak kopii zapasowych – zasada 10); bez Supabase nie wychodzi żaden mail (zgłasza to strażnik).
+  dniach, brak kopii zapasowych – zasada 10); bez Supabase nie wychodzi żaden mail (zgłasza to strażnik). Certyfikat główny
+  Supabase wygasa 2031-04-26 (albo Supabase zmieni CA wcześniej) – połączenia właściciela z bazą przestaną wtedy działać,
+  dopóki nie wbudujemy nowego (test przypomina pół roku wcześniej).
 - Android (faza 2.2): MIUI/HyperOS zabija aplikacje w tle, ograniczenia skanu BLE, akumulator telefonu stale na ładowarce.

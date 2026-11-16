@@ -42,7 +42,8 @@ dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self
 - `supabase/migrations/` – schemat i funkcje SQL chmury (ARCHITEKTURA.md, zasada 13): tabele w prywatnym schemacie
   `glebosaurus` z RLS, agenci wołają tylko funkcje `public.*` (rola `anon`), administracja (`glebosaurus.admin_*`) tylko
   przez połączenie z bazą. Zastosowanej migracji nie zmieniaj – zmiana schematu to nowa migracja (suma kontrolna).
-  `src/Glebosaurus.Cloud.Admin` – połączenie z bazą (Npgsql, pooler sesji) i `MigrationRunner` z migracjami wbudowanymi.
+  `src/Glebosaurus.Cloud.Admin` – połączenie z bazą (Npgsql, pooler sesji, zawsze `VerifyFull` z wbudowanym certyfikatem
+  głównym Supabase `supabase/prod-ca-2021.crt`, ważnym do 2031-04-26) i `MigrationRunner` z migracjami wbudowanymi.
 - `tests/` – protokół i sesja na atrapie czujnika; alerty, raporty, magazyn i silnik na atrapach z ręcznie sterowanym czasem;
   `Glebosaurus.Cloud.Tests` – funkcje SQL na próbnym projekcie (zegar przesuwany `glebosaurus.test_now`, tylko w bazie ze
   znacznikiem próbnej).
