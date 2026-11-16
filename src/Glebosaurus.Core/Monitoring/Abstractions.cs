@@ -44,6 +44,18 @@ public interface ISensorReader
     IAsyncEnumerable<SensorReadOutcome> ReadAsync(IReadOnlyList<SensorConfig> sensors, TimeSpan scanWindow, CancellationToken cancellationToken);
 }
 
+/// <param name="Rssi">Średnia z ważnych próbek (dBm); null – czujnik był słyszany, ale platforma nie podała mocy.</param>
+public sealed record HeardSensor(string SensorId, int? Rssi, int Packets);
+
+/// <summary>
+/// Sam nasłuch reklam (bez łączenia) – do przydziału czujników w trybie chmurowym: kto i jak dobrze słyszy który czujnik.
+/// </summary>
+public interface ISensorListener
+{
+    /// <summary>Słucha przez całe okno i zwraca wszystkie słyszane czujniki z <paramref name="sensors"/>.</summary>
+    Task<IReadOnlyList<HeardSensor>> HearAsync(IReadOnlyList<SensorConfig> sensors, TimeSpan window, CancellationToken cancellationToken);
+}
+
 /// <summary>Archiwum dziennika agenta, z którego silnik bierze log z poprzedniego dnia dla administratora.</summary>
 public interface ILogArchive
 {

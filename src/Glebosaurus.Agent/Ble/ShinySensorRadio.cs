@@ -9,8 +9,23 @@ namespace Glebosaurus.Agent.Ble;
 /// Radio Shiny dla silnika monitora: nasłuch reklam BLE do pierwszego gotowego czujnika i odczyt jednego czujnika.
 /// Kolejność „nasłuch → odczyt → nasłuch” układa <see cref="ListenThenReadSensorReader{TFound}"/> (Core, z testami).
 /// </summary>
-internal sealed class ShinySensorRadio(BleHost ble) : ISensorRadio<SeenSensor>
+internal sealed class ShinySensorRadio(BleHost ble) : ISensorRadio<SeenSensor>, ISensorListener
 {
+    /// <summary>
+    /// Nasłuch przez całe okno, bez łączenia – kto i jak dobrze słyszy który czujnik (przydział w trybie chmurowym). Średnia
+    /// z ważnych próbek RSSI; czujnik słyszany tylko z −127 („brak wartości”) wraca bez mocy. Niesprawdzone na sprzęcie
+    /// (2026-11-16) – ten sam skaner co <c>scan</c>, tylko bez wcześniejszego końca.
+    /// </summary>
+    public async Task<IReadOnlyList<HeardSensor>> HearAsync(IReadOnlyList<SensorConfig> sensors, TimeSpan window, CancellationToken cancellationToken)
+    {
+        var seen = await BleScanner.ScanAsync(ble, window, stopWhen: null, cancellationToken);
+        var heard = new List<HeardSensor>();
+        foreach (var sensor in sensors)
+            if (seen.FirstOrDefault(device => device.Matches(sensor.Tuya)) is { } device)
+                heard.Add(new(sensor.Id, device.Signal.Average, device.Packets));
+        return heard;
+    }
+
     private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan ResponseTimeout = TimeSpan.FromSeconds(12);
 

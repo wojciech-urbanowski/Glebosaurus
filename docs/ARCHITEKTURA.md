@@ -619,6 +619,27 @@ Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → S
       atrapie chmury (w CI) oraz próbny projekt: `get_config` → `AgentConfig` (czujnik bez kluczy pominięty z ostrzeżeniem)
       i start bez sieci z kopii chronionej DPAPI – 2026-11-16 zielone.
 
+    Kawałek d (2026-11-16):
+    - **Zbieracz** (`CollectorEngine`): cykl co 30 s – czyta tylko czujniki z dzierżawą, i to tylko gdy jej ważność
+      starcza na 2 min odczytu, okno nasłuchu i 20 s na każdy czujnik wcześniej w tej samej kolejce (długa kolejka bez sieci
+      nie zacznie połączenia na wygasającej dzierżawie); odstęp odczytów i wykładnicze wstrzymanie po porażkach jak w trybie
+      samodzielnym; odczyty (z zaległymi rekordami czujnika) do lokalnego bufora i budzenie synchronizacji. Alertów nie
+      liczy – to robi nadawca z odczytów wszystkich agentów.
+    - **Słyszenia** (`SensorHearingTracker`, źródło dla `CloudSync`): co 3 min 30 s nasłuchu wszystkich czujników z
+      konfiguracji (`ISensorListener`; w agencie `ShinySensorRadio.HearAsync` – ten sam skaner co `scan`, bez wcześniejszego
+      końca – **niesprawdzone na sprzęcie**), plus moc sygnału z każdego odczytu; sygnał wygładzony średnią wykładniczą
+      (waga 0,5), porażki z rzędu liczone do reguły oddawania.
+    - **Polecenia:** `read_now` – do kolejki najbliższego cyklu z pominięciem odstępu (bez ważnej dzierżawy albo dla
+      nieznanego czujnika – wynik „nie”), `release` – oddanie od razu (synchronizacja budzona), `send_log` – dziennik dnia
+      (z parametru `day` albo dzisiejszy); wynik każdego do `command_done`, a nieudane zgłoszenie jest ponawiane w kolejnym
+      cyklu. `report_now` (nadawca) i `pair` (agent – wymaga człowieka przy czujniku) zbieracz zostawia innym.
+    - **Dziennik do chmury:** w pierwszym cyklu nowego dnia (strefa raportów) dziennik z poprzedniego dnia, gzip, najwyżej
+      5 mln znaków (obcięty od początku); bez sieci ponowienie po 5 min; brak dziennika – bez pytania co cykl.
+    - **Zasady przydziału są teraz bezpieczne wątkowo** (planuje wątek synchronizacji, oddaje zbieracz).
+    - **Testy:** zbieracz na atrapie radia, chmury i ręcznym czasie (13, w CI) oraz próbny projekt: słyszenie →
+      dzierżawa → odczyt → wysyłka, a potem `read_now` od innego agenta skierowane przez chmurę do właściciela dzierżawy,
+      wykonane mimo odstępu i zgłoszone – 2026-11-16 zielone.
+
 ## Struktura repozytorium
 
 ```

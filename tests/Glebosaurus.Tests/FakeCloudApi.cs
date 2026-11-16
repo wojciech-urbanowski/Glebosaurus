@@ -1,6 +1,8 @@
 using System.Text.Json.Nodes;
 using Glebosaurus.Core.Cloud;
+using Glebosaurus.Core.Config;
 using Glebosaurus.Core.Domain;
+using Glebosaurus.Core.Monitoring;
 
 namespace Glebosaurus.Tests;
 
@@ -85,9 +87,39 @@ internal sealed class FakeCloudApi(ManualTimeProvider clock) : ICloudApi
         throw new NotSupportedException();
     public Task<CommandCreateResult> CommandCreateAsync(string kind, string? sensor, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
-    public Task<bool> CommandDoneAsync(long commandId, JsonObject? result, CancellationToken cancellationToken) => throw new NotSupportedException();
-    public Task<LogPutResult> LogPutAsync(DateOnly day, byte[] gzipContent, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public List<(long Id, JsonObject? Result)> Done { get; } = [];
+    public Queue<CloudApiException> DoneFailures { get; } = new();
+
+    public Task<bool> CommandDoneAsync(long commandId, JsonObject? result, CancellationToken cancellationToken)
+    {
+        if (DoneFailures.TryDequeue(out var failure)) throw failure;
+        Done.Add((commandId, result));
+        return Task.FromResult(true);
+    }
+
+    public List<(DateOnly Day, byte[] Gzip)> Logs { get; } = [];
+    public Queue<CloudApiException> LogFailures { get; } = new();
+
+    public Task<LogPutResult> LogPutAsync(DateOnly day, byte[] gzipContent, CancellationToken cancellationToken)
+    {
+        if (LogFailures.TryDequeue(out var failure)) throw failure;
+        Logs.Add((day, gzipContent));
+        return Task.FromResult(new LogPutResult(day, gzipContent.Length));
+    }
     public Task<IReadOnlyList<AgentLog>> LogGetAsync(long epoch, DateOnly day, CancellationToken cancellationToken) => throw new NotSupportedException();
+}
+
+/// <summary>Sam nasłuch reklam sterowany z testu.</summary>
+internal sealed class FakeListener : ISensorListener
+{
+    public Func<IReadOnlyList<SensorConfig>, IReadOnlyList<HeardSensor>> Script { get; set; } = _ => [];
+    public List<string[]> Calls { get; } = [];
+
+    public Task<IReadOnlyList<HeardSensor>> HearAsync(IReadOnlyList<SensorConfig> sensors, TimeSpan window, CancellationToken cancellationToken)
+    {
+        Calls.Add(sensors.Select(s => s.Id).ToArray());
+        return Task.FromResult(Script(sensors));
+    }
 }
 
 /// <summary>Nasłuch radia sterowany z testu.</summary>

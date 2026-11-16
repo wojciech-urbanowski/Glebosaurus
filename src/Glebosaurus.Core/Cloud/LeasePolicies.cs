@@ -52,6 +52,7 @@ public sealed record SensorLeaseOptions
 public sealed class SensorLeasePolicy(TimeProvider clock, LeaseLedger ledger, SensorLeaseOptions? options = null)
 {
     private readonly SensorLeaseOptions settings = options ?? new();
+    private readonly Lock gate = new();   // Plan i Observe – wątek synchronizacji, Release – zbieracz (polecenie „oddaj”)
     private readonly Dictionary<string, DateTimeOffset> freeSince = new(StringComparer.Ordinal);
     private readonly Dictionary<string, DateTimeOffset> betterSince = new(StringComparer.Ordinal);
     private readonly Dictionary<string, DateTimeOffset> cooldownUntil = new(StringComparer.Ordinal);
@@ -62,16 +63,26 @@ public sealed class SensorLeasePolicy(TimeProvider clock, LeaseLedger ledger, Se
     /// <summary>Stan z ostatniej udanej synchronizacji (po <see cref="LeaseLedger.Apply"/>): kto trzyma czujniki, kto je słyszy.</summary>
     public void Observe(SyncResponse response)
     {
-        me = response.Agent.Name;
-        view = response.Sensors.ToDictionary(s => s.Sensor, StringComparer.Ordinal);
-        pendingReleases.Clear();
+        lock (gate)
+        {
+            me = response.Agent.Name;
+            view = response.Sensors.ToDictionary(s => s.Sensor, StringComparer.Ordinal);
+            pendingReleases.Clear();
+        }
     }
 
-    /// <summary>Czy wolno zacząć odczyt: dzierżawa ważna jeszcze co najmniej <see cref="SensorLeaseOptions.MinimumForRead"/>.</summary>
-    public bool CanRead(string sensorId) => ledger.Holds(CloudProtocol.SensorResource(sensorId), settings.MinimumForRead);
+    /// <summary>Czy wolno zacząć odczyt: dzierżawa ważna jeszcze co najmniej <see cref="SensorLeaseOptions.MinimumForRead"/>
+    /// (plus <paramref name="extra"/> – np. nasłuch i odczyty czujników przed nim w tej samej kolejce).</summary>
+    public bool CanRead(string sensorId, TimeSpan extra = default) =>
+        ledger.Holds(CloudProtocol.SensorResource(sensorId), settings.MinimumForRead + extra);
 
     /// <summary>Oddanie na żądanie (polecenie <c>release</c>, zatrzymanie agenta) – od razu przestaje czytać ten czujnik.</summary>
     public void Release(string sensorId, TimeSpan? cooldown = null)
+    {
+        lock (gate) ReleaseCore(sensorId, cooldown);
+    }
+
+    private void ReleaseCore(string sensorId, TimeSpan? cooldown)
     {
         var resource = CloudProtocol.SensorResource(sensorId);
         if (ledger.Epoch(resource) is { } epoch) pendingReleases[resource] = new(resource, epoch);
@@ -84,15 +95,20 @@ public sealed class SensorLeasePolicy(TimeProvider clock, LeaseLedger ledger, Se
     /// <summary>Planowe zatrzymanie: oddaje wszystkie czujniki (po zakończeniu trwającego odczytu) – inni przejmą je w sekundy.</summary>
     public LeasePlan ReleaseAll()
     {
-        foreach (var lease in ledger.Known().Where(l => CloudProtocol.TryParseSensorResource(l.Resource, out _)))
+        lock (gate)
         {
-            CloudProtocol.TryParseSensorResource(lease.Resource, out var sensorId);
-            Release(sensorId);
+            foreach (var lease in ledger.Known())
+                if (CloudProtocol.TryParseSensorResource(lease.Resource, out var sensorId)) ReleaseCore(sensorId, null);
+            return new([], [.. pendingReleases.Values]);
         }
-        return new([], [.. pendingReleases.Values]);
     }
 
     public LeasePlan Plan(IEnumerable<string> sensorIds, IReadOnlyDictionary<string, SensorHearing> hearing)
+    {
+        lock (gate) return PlanCore(sensorIds, hearing);
+    }
+
+    private LeasePlan PlanCore(IEnumerable<string> sensorIds, IReadOnlyDictionary<string, SensorHearing> hearing)
     {
         var now = clock.GetUtcNow();
         var claims = new List<string>();
@@ -106,7 +122,7 @@ public sealed class SensorLeasePolicy(TimeProvider clock, LeaseLedger ledger, Se
             {
                 if (heard is { } h && h.ConsecutiveFailures >= settings.FailuresBeforeRelease)
                 {
-                    Release(sensorId, settings.CooldownAfterFailures);
+                    ReleaseCore(sensorId, settings.CooldownAfterFailures);
                     continue;
                 }
                 if (heard?.Rssi is { } mine && seen?.BestOther is { } other && other.Rssi >= mine + settings.BetterByDb)
@@ -114,7 +130,7 @@ public sealed class SensorLeasePolicy(TimeProvider clock, LeaseLedger ledger, Se
                     betterSince.TryAdd(sensorId, now);
                     if (now - betterSince[sensorId] >= settings.BetterFor)
                     {
-                        Release(sensorId, settings.CooldownAfterHandover);
+                        ReleaseCore(sensorId, settings.CooldownAfterHandover);
                         continue;
                     }
                 }
@@ -178,6 +194,7 @@ public sealed record NotifierLockOptions
 public sealed class NotifierLockPolicy(TimeProvider clock, LeaseLedger ledger, NotifierLockOptions? options = null)
 {
     private readonly NotifierLockOptions settings = options ?? new();
+    private readonly Lock gate = new();
     private AgentIdentity? me;
     private NotifierView? notifier;
     private IReadOnlyList<AgentView> agents = [];
@@ -188,10 +205,13 @@ public sealed class NotifierLockPolicy(TimeProvider clock, LeaseLedger ledger, N
 
     public void Observe(SyncResponse response)
     {
-        me = response.Agent;
-        notifier = response.Notifier;
-        agents = response.Agents;
-        pendingRelease = null;
+        lock (gate)
+        {
+            me = response.Agent;
+            notifier = response.Notifier;
+            agents = response.Agents;
+            pendingRelease = null;
+        }
     }
 
     /// <summary>Czy wolno teraz zacząć wysyłkę maila: blokada jest i zostało jej co najmniej <see cref="NotifierLockOptions.MinimumForMail"/>.</summary>
@@ -202,6 +222,11 @@ public sealed class NotifierLockPolicy(TimeProvider clock, LeaseLedger ledger, N
 
     /// <param name="safePoint">true między cyklami wysyłki – tylko wtedy blokadę wolno oddać ważniejszemu kandydatowi.</param>
     public LeasePlan Plan(bool safePoint = true)
+    {
+        lock (gate) return PlanCore(safePoint);
+    }
+
+    private LeasePlan PlanCore(bool safePoint)
     {
         if (me is null) return Pending();   // przed pierwszą synchronizacją agent nie zna swojej roli
         var now = clock.GetUtcNow();
@@ -246,8 +271,11 @@ public sealed class NotifierLockPolicy(TimeProvider clock, LeaseLedger ledger, N
     /// <summary>Planowe zatrzymanie: oddaje blokadę (po zakończeniu trwającej wysyłki).</summary>
     public LeasePlan ReleaseForShutdown()
     {
-        if (ledger.Epoch(CloudProtocol.NotifierResource) is not null) Give(clock.GetUtcNow(), cooldown: false);
-        return Pending();
+        lock (gate)
+        {
+            if (ledger.Epoch(CloudProtocol.NotifierResource) is not null) Give(clock.GetUtcNow(), cooldown: false);
+            return Pending();
+        }
     }
 
     private void Give(DateTimeOffset now, bool cooldown = true)

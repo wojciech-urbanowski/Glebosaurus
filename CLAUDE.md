@@ -49,7 +49,9 @@ dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self
   (pętla `agent_sync`, bufor `IReadingOutbox` = kolumna `sync_state` w SQLite – dodawana zgodnie wstecz, `user_version`
   zostaje 1, żeby 0.1.x po powrocie dalej otwierała bazę; nie podnoś jej bez potrzeby), `CloudConfigSource`
   (`get_config` → `AgentConfig` przez `CloudConfigMapper`; ostatnia dobra kopia z kluczami Tuya w `CloudConfigCache`,
-  chroniona DPAPI / plikiem 600 – to sekret, nie wypisuj jej). Klient HTTP:
+  chroniona DPAPI / plikiem 600 – to sekret, nie wypisuj jej), `CollectorEngine` (odczyt tylko z dzierżawą z zapasem,
+  nasłuch wszystkich czujników co 3 min przez `ISensorListener`, polecenia `read_now`/`release`/`send_log`, dziennik dnia
+  poprzedniego do chmury). Klient HTTP:
   `src/Glebosaurus.Cloud` (`SupabaseCloudApi`, sam HttpClient – także dla Androida). Zmiana funkcji SQL = zmiana typów
   protokołu i testów `CloudProtocolTests`/`CloudApiClientTests`. `MonitorEngine` (tryb samodzielny) zostaje bez zmian.
 - `tests/` – protokół i sesja na atrapie czujnika; alerty, raporty, magazyn i silnik na atrapach z ręcznie sterowanym czasem;
@@ -140,8 +142,9 @@ założył użytkownik, połączenie sprawdzone z bestia5 (ARCHITEKTURA.md, zasa
 projekcie `glebosaurus-test` (decyzja 2026-11-16, bez Dockera; założony i sprawdzony tego dnia). Schemat i funkcje SQL
 (2.1.2: dzierżawy, blokada nadawcy, kolejka maili, alerty, polecenia, logi agentów w tabeli zamiast Storage) zrobione
 2026-11-16 i zielone na próbnym projekcie; prawdziwy projekt jest jeszcze bez schematu. Core (2.1.3): kawałki (a) – protokół,
-klient HTTP, księga dzierżaw i zasady przydziału, (b) – bufor odczytów i pętla synchronizacji – i (c) – konfiguracja z
-chmury z chronioną kopią – zrobione 2026-11-16; dalej (d) zbieracz, (e) nadawca; potem agent (2.1.4).
+klient HTTP, księga dzierżaw i zasady przydziału, (b) – bufor odczytów i pętla synchronizacji, (c) – konfiguracja z
+chmury z chronioną kopią – i (d) – zbieracz (pełny nasłuch w radiu Shiny niesprawdzony na sprzęcie) – zrobione
+2026-11-16; dalej (e) nadawca; potem agent (2.1.4).
 
 Usługa Windows (2026-11-15): wydanie **0.1.0** opublikowane przez Actions (repo publiczne), a na bestia5 zainstalowane z
 GitHuba skryptem z `-ImportFrom local -NoStart`: program w `%LOCALAPPDATA%\Glebosaurus\app`, **kopia** danych z `local/` w
