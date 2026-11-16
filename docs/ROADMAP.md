@@ -1,8 +1,9 @@
 # Glebosaurus – plan dalszych prac
 
 Stan na 2026-11-13: fazy 0 i 1 (spike sprzętowy oraz lokalny monitor) są zrobione i sprawdzone na żywo na Windows.
-Poniżej propozycja kolejnych faz. To plan do akceptacji i korygowania, nie zobowiązanie; szczegóły faz 2–3 trzeba
-doprecyzować tuż przed ich startem (zwłaszcza wybór chmury). Opisy projektowe: [ARCHITEKTURA.md](ARCHITEKTURA.md).
+Poniżej propozycja kolejnych faz. To plan do akceptacji i korygowania, nie zobowiązanie. **Faza 2 (chmura, wielu agentów,
+Android) jest uzgodniona z użytkownikiem 2026-11-16** – decyzje i kolejność kroków niżej; szczegóły fazy 3 trzeba
+doprecyzować tuż przed jej startem. Opisy projektowe: [ARCHITEKTURA.md](ARCHITEKTURA.md).
 
 Wielkości: **S** – dzień lub mniej, **M** – kilka dni, **L** – tydzień lub więcej (przy pracy w wolnych chwilach).
 
@@ -11,11 +12,11 @@ Wielkości: **S** – dzień lub mniej, **M** – kilka dni, **L** – tydzień 
 | Faza | Cel | Wielkość | Zależy od |
 |---|---|---|---|
 | 0, 1 | Spike sprzętowy, lokalny monitor (SQLite, alerty, raporty, parowanie) | ✔ zrobione | – |
-| **1b** | Domknięcie lokalnego monitora: prawdziwy mail, Raspberry Pi, praca w tle na Windows, baterie, kalibracja | M | 1 |
-| **2a** | Chmura: wybór dostawcy, model danych, rejestracja monitorów, synchronizacja odczytów | L | 1b (częściowo) |
-| **2b** | Zaszyfrowana konfiguracja w chmurze (klucz tylko na urządzeniach i w przeglądarce) | L | 2a |
-| **2c** | Wiele monitorów naraz: dzierżawy czujników, „claimy” alertów i raportów | L | 2a, 2b |
-| **3** | Interfejs webowy: pulpit, historia, alerty, raporty, konfiguracja, parowanie zdalne | L | 2a (3a), 2b (3c) |
+| **1b** | Domknięcie lokalnego monitora: prawdziwy mail, praca w tle na Windows, baterie, kalibracja (Raspberry Pi – przeniesione do 2.3) | M | 1 |
+| **2.1** | Chmura Supabase (darmowa) i pierwszy agent – bestia5: konfiguracja i sekrety w chmurze, odczyty, dzierżawy czujników, blokada nadawcy, kolejka maili | L | 1b (częściowo) |
+| **2.2** | Agent na Androida (Xiaomi Mi 11 Lite 5G) – tylko zbieranie | L | 2.1 |
+| **2.3** | Agent na Raspberry Pi 24/7 – główny nadawca maili | M | 2.1 |
+| **3** | Interfejs webowy: pulpit, historia, alerty, raporty, konfiguracja, parowanie zdalne | L | 2.1 |
 | **4** | Wdrożenie i utwardzanie: aktualizacje, monitoring monitorów, bezpieczeństwo, CI, runbook | M | 2, 3 |
 | **5** | Rozszerzenia (opcjonalne): mądrzejsze podlewanie, inne kanały, inne czujniki, zasięg | – | 1b |
 
@@ -35,87 +36,99 @@ Cel: monitor pracuje w tle na obu systemach, bez nadzoru, i wysyła prawdziwe ma
 | # | Zadanie | Wielkość |
 |---|---|---|
 | 1 | **Prawdziwy mail.** Konto Gmail z hasłem aplikacji, `mail-test`, alert i raport na prawdziwej skrzynce (też w telefonie); sprawdzić wygląd HTML w Gmailu, dzienny limit wysyłki Gmaila (zweryfikować aktualną wartość) i zachowanie przy błędzie logowania. *Zrobione 2026-11-13: szablony przepisane pod wąski ekran, konfigurowalni odbiorcy alertów i raportów, `mail-preview` i `mail-test --samples`, konto nadawcy w `local/`. Pierwsza prawdziwa wysyłka (`mail-test --samples`, 3 maile) udana, SMTP przyjął wszystkie. Układ i kolorystykę na telefonie w Gmailu zatwierdził użytkownik. 2026-11-14 `run` wysłał pierwszy prawdziwy mail o alercie (słaba bateria), SMTP przyjął. Zostaje: limit dzienny, zachowanie przy błędnym haśle, prawdziwy raport z `run`.* | S |
-| 2 | **Raspberry Pi.** `scan`, `read`, `run` na Pi 64-bit z BlueZ (od 2026-11-14 potrzebny ASP.NET Core Runtime 10 – panel WWW – albo paczka samodzielna): dopasowanie po MAC z identyfikatora BlueZ (dziś nieprzetestowane, jest zapasowe dopasowanie po UUID Tuya), uprawnienia D-Bus i grupa `bluetooth`, stabilność połączeń (Wi-Fi/BLE na jednym układzie), unit systemd z `Restart`. Ustalić minimalny wspierany sprzęt. Jeśli Shiny na Linuxie zawiedzie: zapasowo SimpleSharpBLE (licencja BUSL-1.1, tylko użytek niekomercyjny) albo bezpośrednio Linux.Bluetooth za interfejsem `IGattLink`. | M |
+| 2 | **Raspberry Pi** – *przeniesione do fazy 2.3 (decyzja użytkownika 2026-11-16: kolejność bestia5 → Android → Pi; Pi pracuje 24/7 i będzie głównym nadawcą maili); zakres poniżej bez zmian.* `scan`, `read`, `run` na Pi 64-bit z BlueZ (od 2026-11-14 potrzebny ASP.NET Core Runtime 10 – panel WWW – albo paczka samodzielna): dopasowanie po MAC z identyfikatora BlueZ (dziś nieprzetestowane, jest zapasowe dopasowanie po UUID Tuya), uprawnienia D-Bus i grupa `bluetooth`, stabilność połączeń (Wi-Fi/BLE na jednym układzie), unit systemd z `Restart`. Ustalić minimalny wspierany sprzęt. Jeśli Shiny na Linuxie zawiedzie: zapasowo SimpleSharpBLE (licencja BUSL-1.1, tylko użytek niekomercyjny) albo bezpośrednio Linux.Bluetooth za interfejsem `IGattLink`. | M |
 | 3 | **Windows w tle.** Zadanie Harmonogramu uruchamiane przy logowaniu, bez okna konsoli (launcher albo podsystem okienkowy), skrypt `deploy/install-windows.ps1` (rejestracja i wyrejestrowanie), zachowanie po uśpieniu/wybudzeniu i po utracie adaptera BLE. Sprawdzić, czy WinRT BLE faktycznie nie działa w usłudze (sesja 0) – jeśli działa, usługa jest prostsza. *Zrobione 2026-11-15 (ARCHITEKTURA.md, zasada 7): usługa `glebosaurus-service` (bez okna) z zadania Harmonogramu przy zalogowaniu, na koncie użytkownika, ze strażnikiem co godzinę; `install-windows.ps1` instaluje, przejmuje dane (`-ImportFrom`), aktualizuje i odinstalowuje; usługa sama aktualizuje się z wydań GitHuba przy starcie i codziennie o 03:30 (przez ten sam skrypt); jedna instancja monitora i czyste zatrzymanie (`stop`). Sprawdzone na żywo na katalogu próbnym z udawanym wydaniem. Zostaje: uśpienie/wybudzenie, utrata adaptera BLE, wylogowanie w trakcie odczytu, 7 dni pracy; sesja 0 – niepotrzebna po decyzji o koncie użytkownika.* | M |
 | 4 | **Baterie i interwał.** Kilka dni pracy co 15 min na 2–3 czujnikach, wykres wskazania baterii w czasie, wybór domyślnego interwału (15/30/60 min). Rozważyć interwał adaptacyjny: częściej blisko progu podlania, rzadziej gdy gleba jest wilgotna i nocą. | S + czas |
 | 5 | **Kalibracja wilgotności.** Pomiary: powietrze, woda, mokra i sucha ziemia doniczkowa; kalibracja per czujnik (punkty „sucho”/„mokro” albo offset i skala) w konfiguracji; sensowne progi domyślne i opis w README. Tani czujnik nie podaje procentów porównywalnych między glebami. | M |
-| 6 | **Parowanie pozostałych czujników** (ok. 10; większość widać już w skanie jako sparowane ze Smart Life – każdy trzeba zresetować, co usuwa go z aplikacji, i sparować po jednym w oknie 20 s) i procedura kopii zapasowej kluczy (do czasu fazy 2b to jedyne miejsce, gdzie one są). | S |
+| 6 | **Parowanie pozostałych czujników** (ok. 10; większość widać już w skanie jako sparowane ze Smart Life – każdy trzeba zresetować, co usuwa go z aplikacji, i sparować po jednym w oknie 20 s) i procedura kopii zapasowej kluczy (do kroku 2.1 pliki `*.credentials.json` to jedyne miejsce, gdzie one są; potem Supabase Vault). | S |
 | 7 | **Operacje.** `status --json`, skrypt aktualizacji paczki na Pi (jak `aktualizuj-rpi.sh` w LibrusNotifier), przeładowanie konfiguracji bez restartu (opcjonalnie). *Zrobione 2026-11-13: codzienny log techniczny do administratora (`mail.adminRecipients`, załącznik z dziennikiem z poprzedniego dnia) z retencją dzienników (7 dni) i polecenie `send-log`; wersja Glebosaurusa w stopce maili. Zrobione 2026-11-14: nasłuch BLE na przemian z odczytem (czujnik poza zasięgiem nie opóźnia pozostałych) i okno skanu domyślnie 60 s (ARCHITEKTURA.md, zasada 8); także lokalny panel diagnostyczny WWW, podgląd stanu i odczyt czujników na żądanie, bez zmian konfiguracji (HTTPS z certyfikatem z podpisem własnym, tylko sieć lokalna, hasło przez `web-password`; patrz ARCHITEKTURA.md, zasada 11); 2026-11-14 sprawdzony na żywo z `run` na Windows (logowanie w przeglądarce); zostaje wejście z telefonu w sieci domowej i Pi.* | S |
 | 7a | **Panel WWW – dalsze etapy (opcjonalnie).** Etap 2 – akcje: *zrobione 2026-11-14: „odczytaj teraz” dla czujnika i dla wszystkich (kolejka silnika, budzenie pętli, najwyżej raz na minutę na czujnik, nagłówek akcji przeciw CSRF; ARCHITEKTURA.md, zasada 11); tego samego dnia „wyślij raport teraz” z potwierdzeniem (prawdziwy mail do odbiorców raportów, kolejka silnika, najwyżej raz na minutę; harmonogram bez zmian).* Zrobione 2026-11-14: wykres wilgotności i temperatury (SVG, dwie osie) – na pulpicie ostatnie 3 doby przy każdym czujniku, a na nowej stronie czujnika pełna historia do przeglądania (zakresy, przesuwanie, powiększanie, pasek przeglądu) razem ze wszystkimi szczegółami czujnika (ARCHITEKTURA.md, zasada 11). Zostaje: „wyślij log teraz”, przeładowanie konfiguracji między cyklami, sprawdzenie wykresów na prawdziwym monitorze i na telefonie. Etap 3 – edycja konfiguracji bez sekretów: **odłożony decyzją użytkownika (2026-11-14)**, pełny edytor przewiduje faza 3c. | S–M |
 | 7b | **Wykres w raporcie mailowym** (życzenie użytkownika z 2026-11-14). Ostatnie 3 doby przy każdym czujniku w raporcie. Gmail nie pokazuje SVG w treści (caniemail, 09.2026: obrazek SVG zamienia na PNG i potrzebuje adresu w internecie albo załącznika; `data:` nie działa), a grafiki rastrowej użytkownik nie chce – propozycja: wykres z samego HTML (tabela ok. 36 kolumn po 2 godz. w szerokości 480 px, słupki wilgotności w kolorach progów, temperatura jako znacznik w tej samej kolumnie na własnej skali; Gmail obsługuje wysokości bloków, pozycjonowania nie). Dane z `ReadingSeriesBuilder` (Core). Najpierw `mail-preview`, potem akceptacja układu na telefonie – wygląd maili jest zatwierdzony i zmienia się tylko za zgodą. *Prototyp 2026-11-14 (`MailChart`, ARCHITEKTURA.md, zasada o mailach): kolumny po 2 godz., w każdej niebieska kreska średniej wilgotności i pod nią blady pasek temperatury od najniższej do najwyższej (dwie skale), różowe tło poniżej progu, budżet 90 KB (2 godz. do ok. 9 czujników, przy 20 – 8 godz.), linijka `▁…█` w wersji tekstowej; widać go w `mail-preview` (`raport.html`, `raport-20.html`). 2026-11-14 o 18:50 `mail-test --samples` wysłał pierwszą wersję (kreski po 3 godz.); użytkownik obejrzał ją na telefonie („wygląda OK”) i poprosił o 2 godz. i temperaturę jako stonowany zakres – zrobione tego samego dnia. Tego samego dnia historia podpięta w `SnapshotBuilder` – wykres mają wszystkie raporty z monitora. Zostaje: obejrzenie poprawionej wersji na telefonie (pierwszy prawdziwy raport z wykresem) i ewentualnie decyzja co do wielu czujników (szersze kolumny / kilka maili).* | S–M |
 | 8 | **Higiena repozytorium.** Decyzja o licencji, `git init` i zdalne repozytorium, skan sekretów przed pierwszym pushem, CI (build + testy na push, publikacja paczek jako artefaktów), analizatory/formatowanie. *Zrobione 2026-11-15: repozytorium na GitHubie (publiczne od wydania 0.1.0 – decyzja użytkownika; historia sprawdzona: bez kluczy i haseł), CI na push/PR (`ci.yml`), wydania z tagu `v*` (`release.yml`: testy, paczka win-x64, próba instalacji skryptem). Zostaje: licencja (bez niej kod jest publiczny, ale „wszelkie prawa zastrzeżone”), paczka linux-arm64 w wydaniu, analizatory.* | S |
 
-**Kryterium ukończenia:** 7 dni ciągłej pracy na Windows i na Pi bez ingerencji i bez zawieszeń; co najmniej jeden prawdziwy
-alert i jeden raport w skrzynce; udokumentowana prognoza życia baterii; wszystkie czujniki sparowane, klucze zarchiwizowane.
+**Kryterium ukończenia:** 7 dni ciągłej pracy na Windows bez ingerencji i bez zawieszeń (Pi – w 2.3); co najmniej jeden
+prawdziwy alert i jeden raport w skrzynce; udokumentowana prognoza życia baterii; wszystkie czujniki sparowane, klucze
+zarchiwizowane.
 
-**Ryzyka:** Shiny/BlueZ na Pi (zadanie 2 – największe), BLE w tle na Windows (3), zużycie baterii czujników (4).
+**Ryzyka:** Shiny/BlueZ na Pi (zadanie 2, teraz 2.3 – największe), BLE w tle na Windows (3), zużycie baterii czujników (4).
 
 ---
 
-## Faza 2 – chmura i wiele monitorów
+## Faza 2 – chmura i wiele agentów
 
-Zasada nadrzędna z architektury: **chmura nie zna sekretów** (klucze Tuya, hasło Gmaila, nazwy czujników). Dlatego mail i
-reguły alertów zostają na monitorach, a chmura jest „głupim” magazynem z uwierzytelnianiem i atomowymi operacjami.
+Propozycja Claude z 2026-11-15, decyzje użytkownika 2026-11-16. Zastępuje wcześniejszy plan 2a–2c (chmura bez sekretów,
+zaszyfrowana koperta konfiguracji, maile z „claimami” na monitorach). Projekt: ARCHITEKTURA.md, zasady 1–4, 10 i 12.
 
-### 2a – dostawca, model danych, synchronizacja odczytów
+**Decyzje (2026-11-16):**
+- **Supabase, darmowy plan** – „celem jest darmowość”. Tylko Postgres z funkcjami SQL (operacje atomowe), Vault i
+  Storage; bez Edge Functions i bez własnego serwera; region UE.
+- **Konfiguracja i wszystkie sekrety w Supabase:** czujniki (nazwy, MAC, progi), harmonogramy, odbiorcy, role agentów,
+  a w Vault klucze Tuya i hasło aplikacji Gmail. Na urządzeniu zostaje adres chmury, token agenta i ustawienia lokalnego
+  panelu. Zaszyfrowana koperta (dawne 2b) odpada razem z problemem odzyskiwania hasła.
+- **Wielu agentów zbiera, maile wysyła agent z blokadą „nadaję teraz”.** Kandydatów na nadawcę może być wielu (rola i
+  priorytet w tabeli agentów), ale w danej chwili wysyła tylko jeden. Android nie wysyła maili.
+- **Dzierżawa czujnika 30 min** – po nagłym zniknięciu agenta jego czujniki przejmuje inny po ok. 32 min.
+- **Kolejność:** 2.1 – bestia5 rozmawia z Supabase, 2.2 – agent na Androida, 2.3 – Raspberry Pi 24/7 (główny nadawca).
+- **Tryb samodzielny zostaje** (bez sekcji `cloud`, plik konfiguracji i własna poczta – jak dziś).
 
-1. **Decyzja o dostawcy** (patrz „Decyzje”). Przed wyborem sprawdzić aktualne limity darmowych planów, region UE, atomowe
-   operacje (potrzebne do „claimów”), eksport danych i brak własnego serwera do utrzymania. Domyślna hipoteza: Supabase
-   (Postgres, logowanie, reguły dostępu na poziomie wierszy, funkcje SQL); alternatywa: Azure (.NET od początku do końca).
-2. **Model danych:** `monitors` (id, nazwa, hash tokenu, ostatni kontakt, wersja, stan adaptera BLE), `readings`
-   (czujnik, czas, wilgotność, temperatura, bateria, stan baterii, monitor), `alerts`, `report_runs`/claimy, `leases`,
-   `config` (koperta zaszyfrowana, wersja), `commands` (kolejka poleceń do monitorów – potrzebna w 3d). Identyfikatory
-   czujników losowe i nic nie zdradzające.
-3. **Rejestracja monitora:** jednorazowy kod z UI/CLI → odwoływalny token urządzenia; polecenie `glebosaurus enroll`;
-   token w DPAPI (Windows) albo pliku z prawami 600 (Pi).
-4. **Synchronizacja:** dekorator na `IMonitorStore` z lokalnym outboxem (SQLite), wysyłka wsadowa idempotentna (upsert po
-   czujniku i czasie), backoff, praca offline; heartbeat monitora.
+### 2.1 – Supabase i pierwszy agent (bestia5)
 
-**Kryterium:** odczyty z dwóch monitorów widoczne w chmurze bez duplikatów; godzinna przerwa sieci kończy się dosłaniem bez
-strat; unieważnienie tokenu odcina monitor.
+Dzierżawy czujników i blokada nadawcy powstają od razu, choć agent jest jeden (zawsze je dostaje) – po dojściu Androida
+protokół się nie zmienia, a działanie przy kilku agentach sprawdza się w 2.2.
 
-### 2b – zaszyfrowana konfiguracja
+| # | Zadanie | Wielkość |
+|---|---|---|
+| 1 | **Przygotowanie (użytkownik – kont Claude nie zakłada):** projekt Supabase w regionie UE i logowanie dwuetapowe na koncie Supabase (oraz GitHub, jeśli przez niego); klucz `service_role` w pliku w `local/` (tylko import i migracje, nigdy na agentach); osobne konto Gmail do wysyłki z nowym hasłem aplikacji, jeśli obecny nadawca to konto prywatne (hasło aplikacji daje pełny dostęp do skrzynki); konto healthchecks.io; opcjonalnie Docker Desktop (lokalne Supabase CLI do testów funkcji SQL – bez niego drugi, próbny projekt Supabase). Przy zakładaniu sprawdzić aktualne limity na supabase.com/pricing. | S |
+| 2 | **Schemat i funkcje SQL** jako migracje w repozytorium (`supabase/migrations/`). Tabele: agenci (skrót tokenu, rola nadawcy, priorytet, sygnał życia), czujniki (konfiguracja), odczyty, słyszenia (jeden wiersz na agenta i czujnik), dzierżawy, alerty, kolejka maili, polecenia, ustawienia (odbiorcy, harmonogramy); Vault na klucze Tuya i hasło Gmaila; Storage na dzienne logi agentów (7 dni). Funkcje: `enroll`, `agent_sync`, `lease_claim`/`lease_release`, `mail_claim`/`mail_sent`/`mail_credentials`, `get_config`. RLS zamyka wszystkie tabele; agenci wołają tylko funkcje `security definer`. Testy funkcji: dwóch agentów, uśpienie z dzierżawą, utrata sieci, restart w trakcie wysyłki. | M |
+| 3 | **Core:** podział silnika na zbieranie odczytów i wysyłanie (alerty, raporty, log administratora); konfiguracja z chmury z ostatnią dobrą kopią lokalnie; magazyn z buforem SQLite (pełna lokalna kopia odczytów agenta, wysyłka wsadowa idempotentna po `(sensor_id, at)`, praca offline); zasady przydziału czujników i blokady nadawcy (priorytety, oddawanie, epoki) z testami na ręcznie sterowanym czasie; wspólny stan alertów i kolejka maili zamiast lokalnych `report_runs`/`last_notified_at`. | L |
+| 4 | **Agent:** `enroll`, `run` w trybie chmurowym (sekcja `cloud`; z sekcją `mail` naraz – błąd startu), `cloud import` (jednorazowo konfiguracja, klucze z `*.credentials.json`, hasło Gmaila i historia odczytów z `…\Glebosaurus\data` – bez wypisywania sekretów), `cloud backup` (codzienny zrzut bazy, bo darmowy plan nie robi kopii – ARCHITEKTURA.md, zasada 10). Sygnał nadawcy do healthchecks.io. | M |
+| 5 | **Na żywo:** usługa na bestia5 przechodzi na tryb chmurowy przez wydanie i samoaktualizację (tag tylko na prośbę użytkownika); tydzień pracy. | S + czas |
 
-1. **Koperta:** AES-256-GCM, klucz z hasła przez PBKDF2-SHA256 (≥ 600 tys. iteracji), sól i parametry w kopercie, wersja
-   w danych uwierzytelnianych (ochrona przed podmianą na starszą wersję). Wspólne wektory testowe dla .NET i JS
-   (przeglądarka użyje WebCrypto), żeby oba światy na pewno się rozumiały.
-2. **Konfiguracja z koperty:** ten sam model `AgentConfig`, w nim czujniki z kluczami Tuya, progi, harmonogramy, odbiorcy,
-   dane Gmaila. Pobieranie po wersji, przeładowanie na żywo, ostatnia dobra konfiguracja zapamiętana lokalnie.
-3. **Migracja:** `glebosaurus config import` przenosi dzisiejszy plik konfiguracji i pliki `*.credentials.json` do koperty
-   – od tej chwili klucze czujników mają kopię zapasową w chmurze (zaszyfrowaną).
-4. **Hasło:** rejestracja monitora pyta o nie raz; lokalnie chronione DPAPI/plikiem 600. Zdecydować o odzyskiwaniu
-   (eksport zaszyfrowanej kopii, hasło odzyskiwania) – utrata hasła oznacza utratę konfiguracji.
+**Kryterium:** bestia5 przez tydzień czyta czujniki, wysyła odczyty do Supabase i maile przez blokadę i kolejkę; godzinna
+przerwa sieci kończy się dosłaniem bez strat; restarty nie dublują maili; unieważnienie tokenu odcina agenta. Maile wychodzą
+tylko wtedy, gdy bestia5 działa – tak jak dziś.
 
-**Kryterium:** zrzut bazy chmury nie zawiera żadnego sekretu ani nazwy; zła koperta albo błędne hasło → monitor odrzuca ją i
-pracuje na ostatniej dobrej konfiguracji.
+### 2.2 – agent na Androida (Xiaomi Mi 11 Lite 5G)
 
-### 2c – koordynacja wielu monitorów
+Tylko zbieranie, bez roli nadawcy; telefon na Wi-Fi, stale na ładowarce. .NET for Android z tym samym `Glebosaurus.Tuya`,
+zbieraniem z Core i Shiny.BluetoothLE – szczegóły i znane ograniczenia Androida/MIUI w ARCHITEKTURA.md, zasada 12.
 
-1. **Dzierżawa czujnika** (TTL ok. 2 min) przed połączeniem, z jitterem; czujnik przyjmuje jedno połączenie naraz, a kilka
-   monitorów może go widzieć. Brak statycznego przydziału – monitor próbuje czujniki, których reklamy widzi.
-2. **Claimy** alertów i raportów (unikalny klucz: raport + termin, alert + stan), wygasające, żeby inny monitor mógł je
-   przejąć. Lokalne znaczniki z fazy 1 (`report_runs`, `last_notified_at`) zastępuje atomowa operacja w bazie.
-3. **„Monitor milczy”:** alert wysyłany przez inny monitor (z claimem).
-4. **Tryb bez chmury:** zdecydować o polityce (patrz „Decyzje”): monitor offline nadal wysyła własne alerty (ryzyko
-   duplikatów po powrocie sieci) czy czeka.
+| # | Zadanie | Wielkość |
+|---|---|---|
+| 1 | **Próba (spike):** Shiny na Mi 11 – skan z filtrem, odczyt jednego czujnika, noc przy zgaszonym ekranie na ładowarce. Największa niewiadoma fazy 2 – jak kiedyś spike na Windows. | S–M |
+| 2 | **Agent:** usługa pierwszoplanowa ze stałym powiadomieniem, start po restarcie telefonu, rejestracja kodem QR, synchronizacja, bufor odczytów, ekran stanu i skanu z sygnałem (wybór miejsca na telefon), stan telefonu w sygnale życia (bateria, temperatura, ładowanie, Wi-Fi); instrukcja ustawień MIUI w README. | L |
+| 3 | **Wydania:** APK budowany w Actions, podpisany jednym kluczem z sekretów repozytorium (kopia klucza – jego utrata oznacza instalację od nowa); aktualizacja przez powiadomienie o nowej wersji albo Obtainium. | S |
+| 4 | **Praca obok bestia5 na tych samych czujnikach** – prawdziwa próba dzierżaw: przejęcie czujników po wyłączeniu bestia5, oddanie, gdy bestia5 słyszy czujnik lepiej, żadnych równoczesnych połączeń. | S + czas |
 
-**Kryterium:** dwa monitory w zasięgu tego samego czujnika → brak równoczesnych połączeń i dokładnie jeden mail na alert i na
-raport; zatrzymanie monitora w trakcie claimu → przejęcie przez drugi. Najpierw testy na atrapie chmury, potem Windows + Pi.
+**Kryterium:** telefon tydzień pracuje bez dotykania; zero konfliktów z bestia5. Luka do 2.3: gdy bestia5 jest wyłączona,
+Android zbiera odczyty, ale maile nie wychodzą (po powrocie bestia5 alerty są liczone na nowo, a raport nadrobiony w granicach
+`catchUpHours`).
+
+### 2.3 – Raspberry Pi 24/7
+
+| # | Zadanie | Wielkość |
+|---|---|---|
+| 1 | **Pi jako agent:** zakres dawnego 1b.2 (BlueZ przez Shiny, D-Bus i grupa `bluetooth`, systemd z `Restart`, paczka linux-arm64 w wydaniu, aktualizacje na Pi). | M |
+| 2 | **Główny nadawca:** rola nadawcy z priorytetem 1, bestia5 przechodzi na priorytet 2 (zapasowy); próba przejęcia blokady w obie strony. Strażnik i codzienny `cloud backup` przechodzą z bestia5 na Pi. Nadawca nie potrzebuje radia, więc Pi może wysyłać maile nawet wtedy, gdyby BLE na nim zawiodło. | S |
+
+**Kryterium:** Pi wysyła maile 24/7; wyłączenie Pi przenosi wysyłkę na działającą bestia5 w ok. 7 min; brak nadawcy zgłasza
+healthchecks.io.
 
 ---
 
 ## Faza 3 – interfejs webowy
 
-Aplikacja przeglądarkowa (hipoteza: Blazor WASM z cienkim interopem do WebCrypto; alternatywa: TypeScript), logowanie OAuth
-z listą dozwolonych kont, hosting statyczny. Lokalny panel diagnostyczny monitora (1b.7, 2026-11-14) zostaje obok niej jako
+Hipoteza (2026-11-16, po wyborze Supabase): statyczna strona (np. GitHub Pages) czytająca Supabase wprost przez RLS,
+logowanie Supabase Auth tylko na konto właściciela, wykresy z `charts.js` lokalnego panelu, polecenia jako wiersze w tabeli
+poleceń; konfiguracja jest jawna dla właściciela (bez odszyfrowywania), sekrety tylko do ustawienia, nigdy do odczytu. Lokalny panel diagnostyczny monitora (1b.7, 2026-11-14) zostaje obok niej jako
 narzędzie serwisowe bez chmury; jego model statusu (`MonitorStatus`) i układ kart mogą posłużyć za punkt wyjścia dla 3a.
 
 | # | Zakres | Wielkość |
 |---|---|---|
-| 3a | Szkielet, logowanie, **pulpit** (kafelki czujników: wilgotność, temperatura, bateria, ostatni odczyt, który monitor), stan monitorów, **historia** (wykresy 24 h/7 d/30 d). Może ruszyć po 2a. | M |
+| 3a | Szkielet, logowanie, **pulpit** (kafelki czujników: wilgotność, temperatura, bateria, ostatni odczyt, który agent), stan agentów (sygnał życia, przydział czujników, kto nadaje), **historia** (wykresy 24 h/7 d/30 d). Może ruszyć po 2.1. | M |
 | 3b | **Alerty i raporty:** lista alertów (otwarte/zamknięte), potwierdzenie i wyciszenie (polecenie do monitorów), historia raportów z podglądem HTML. | M |
-| 3c | **Konfiguracja:** odszyfrowanie hasłem w przeglądarce, edytor czujników, progów, harmonogramów, odbiorców i Gmaila; te same reguły walidacji co `AgentConfigLoader` (rozważyć wspólny schemat i testy kontraktowe), zapis z kontrolą wersji i obsługą konfliktu. Wymaga 2b. | L |
-| 3d | **Parowanie zdalne:** UI tworzy „żądanie parowania”, wybrany monitor w zasięgu uruchamia `pair` (skan rusza pierwszy), UI mówi „włóż baterie teraz”, klucz trafia od razu do zaszyfrowanej konfiguracji, nigdy jawnie do chmury. Wymaga kolejki poleceń z 2a i krótkiego odpytywania w trybie parowania (okno czujnika ok. 20 s). | M |
+| 3c | **Konfiguracja:** edytor czujników, progów, harmonogramów, odbiorców i ról agentów (kto może nadawać, priorytet); sekrety (hasło Gmaila, klucze Tuya) tylko do ustawienia; te same reguły walidacji co `AgentConfigLoader` (rozważyć wspólny schemat i testy kontraktowe), zapis z kontrolą wersji i obsługą konfliktu. Wymaga 2.1. | M–L |
+| 3d | **Parowanie zdalne:** UI tworzy „żądanie parowania”, wybrany agent w zasięgu uruchamia `pair` (skan rusza pierwszy), UI mówi „włóż baterie teraz”, klucz trafia od razu do Vault. Wymaga tabeli poleceń z 2.1 i krótkiego odpytywania w trybie parowania (okno czujnika ok. 20 s). | M |
 | 3e | Widok mobilny, motyw jasny/ciemny, polski interfejs. | S |
 
 **Kryterium:** cały scenariusz z przeglądarki, bez dotykania plików: dodać czujnik (parowanie zdalne), ustawić próg, zobaczyć
@@ -127,13 +140,14 @@ alert, zmienić odbiorców.
 
 - **Aktualizacje:** skrypt/mechanizm dla Pi (paczka z weryfikacją skrótu); Windows – zrobione 2026-11-15 (samoaktualizacja z
   wydań GitHuba, ARCHITEKTURA.md zasada 7; zostaje podpis wydań, np. Sigstore/minisign, żeby przejęte konto nie wystarczyło);
-  wersjonowanie protokołu monitor–chmura
+  wersjonowanie protokołu agent–chmura (od 2.1 jest `v1`)
   (stare monitory nie mogą zepsuć nowych danych); migracje schematu SQLite (jest `user_version`).
 - **Obserwowalność:** heartbeat, alert „monitor milczy”, liczniki (odczyty, błędy BLE, czasy połączeń); sygnał (RSSI) jest od
   2026-11-14 w dzienniku przy każdym odczycie, błędzie i „nie znaleziono” (ARCHITEKTURA.md, „Zasięg Cisy”); zostaje zapis w
   bazie (kolumna w `readings`), trend w raporcie i alert „sygnał słaby” przy poziomie bliskim granicy (ok. −90 dBm).
-- **Bezpieczeństwo:** przegląd modelu zagrożeń (wyciek tokenu, kradzież urządzenia, podmiana koperty), rotacja tokenów,
-  limity zapytań, kopia zapasowa i odtwarzanie, retencja i agregacja (np. odczyty surowe 90 dni, potem średnie godzinowe).
+- **Bezpieczeństwo:** przegląd modelu zagrożeń (wyciek tokenu – zwłaszcza nadawcy, który może pobrać hasło Gmaila;
+  kradzież urządzenia; przejęcie konta Supabase), rotacja tokenów, limity zapytań, kopia zapasowa i próba odtworzenia z
+  `cloud backup`, retencja i agregacja (np. odczyty surowe 90 dni, potem średnie godzinowe – limit 500 MB darmowego planu).
 - **CI/CD:** build i testy na każdy push, publikacja paczek win-x64 i linux-arm64; testy sprzętowe jako ręczna lista kontrolna.
 - **Runbook:** nowy monitor, nowy czujnik, reset czujnika, utrata hasła, utrata tokenu, przeniesienie na inny komputer.
 - **Wspólna biblioteka poczty:** `GmailSender` istnieje dziś w dwóch projektach (tu i w LibrusNotifier); wyciągnąć do
@@ -157,11 +171,15 @@ alert, zmienić odbiorców.
 
 | Decyzja | Kiedy | Uwagi |
 |---|---|---|
-| Dostawca chmury (Supabase / Azure / inny) | start 2a | Sprawdzić aktualne limity i region UE; wymagane atomowe operacje. |
-| Technologia UI (Blazor WASM / TypeScript) | start 3a | Blazor = jeden język, ale WebCrypto i tak przez JS. |
-| Dostawca logowania do UI | start 3a | Lista dozwolonych kont (jeden właściciel lub kilku). |
-| Polityka offline monitora | 2c | Wysyłać alerty bez chmury (duplikaty) czy czekać. |
-| Odzyskiwanie hasła do konfiguracji | 2b | Bez hasła konfiguracji nie da się odszyfrować; klucze czujników odtworzy tylko reset i ponowne parowanie. |
+| ~~Dostawca chmury (Supabase / Azure / inny)~~ | start 2 | Rozstrzygnięte 2026-11-16 (użytkownik): Supabase, darmowy plan – „celem jest darmowość”. |
+| ~~Gdzie konfiguracja i sekrety~~ | start 2 | Rozstrzygnięte 2026-11-16 (użytkownik): czujniki z nazwami i progami, klucze Tuya i hasło Gmaila w Supabase (Vault); koperta 2b odpada. |
+| ~~Kto wysyła maile~~ | start 2 | Rozstrzygnięte 2026-11-16 (użytkownik): agent z blokadą „nadaję teraz”; kandydatów może być wielu (Pi – główny, bestia5 – zapasowy); Android nie wysyła. |
+| ~~Kolejność kroków fazy 2~~ | start 2 | Rozstrzygnięte 2026-11-16 (użytkownik): bestia5 z chmurą → Android → Raspberry Pi. Czas dzierżawy czujnika: 30 min. |
+| Lokalne testy funkcji SQL | 2.1 | Docker Desktop z Supabase CLI czy drugi, próbny projekt Supabase. |
+| Technologia UI (strona statyczna: TypeScript / Blazor WASM) | start 3a | Strona czyta Supabase wprost; WebCrypto już niepotrzebne. |
+| Dostawca logowania do UI | start 3a | Hipoteza: Supabase Auth, tylko konto właściciela. |
+| ~~Polityka offline monitora~~ | 2 | Rozstrzygnięte 2026-11-16: bez blokady nadawcy (a więc bez Supabase) żaden agent nie wysyła maili; brak nadawcy zgłasza healthchecks.io. |
+| ~~Odzyskiwanie hasła do konfiguracji~~ | – | Nieaktualne od 2026-11-16 – bez zaszyfrowanej koperty. |
 | Licencja repozytorium | 1b | LibrusNotifier jest na GPL-3.0; kod protokołu Tuya wywodzi się z projektów MIT. Widoczność rozstrzygnięta 2026-11-15: publiczne od wydania 0.1.0 (instalacja i aktualizacje bez tokenu). |
 | ~~Usługa czy zadanie Harmonogramu na Windows~~ | 1b, zadanie 3 | Rozstrzygnięte 2026-11-15 (użytkownik): zadanie Harmonogramu przy zalogowaniu, na koncie użytkownika, bez administratora. |
 
@@ -170,11 +188,15 @@ alert, zmienić odbiorców.
 - **Shiny/BlueZ na Pi** – dopóki nie sprawdzone, plan zapasowy to SimpleSharpBLE albo Linux.Bluetooth (zmiana tylko za `IGattLink`).
 - **Zasięg BLE i zużycie baterii** – liczba monitorów zależy od rozkładu czujników; każdy odczyt to ok. 11–14 s połączenia.
 - **Okno parowania ok. 20 s** – zdalne parowanie (3d) musi być bardzo szybkie i dobrze opisane użytkownikowi.
-- **Utrata kluczy czujników** – do 2b istnieją tylko w plikach `*.credentials.json`; utrata oznacza reset czujnika.
+- **Utrata kluczy czujników** – do 2.1 istnieją tylko w plikach `*.credentials.json`; utrata oznacza reset czujnika. Potem
+  są w Vault, a kopię (zrzut bazy + lokalna kopia kluczy) robi `cloud backup`.
+- **Android/MIUI** (2.2) – zabijanie aplikacji w tle, ograniczenia skanu BLE, akumulator telefonu stale na ładowarce.
+- **Darmowy Supabase** – 500 MB (potem tylko odczyt), uśpienie po 7 dniach bez ruchu, brak kopii zapasowych; konto
+  Supabase jest kluczem do wszystkich sekretów (logowanie dwuetapowe).
 - **Dryf wskazań wilgotności** – bez kalibracji progi nie są porównywalne między doniczkami.
 
 ## Sugerowany następny krok
 
-Zadania **1b.1 (mail), 1b.2 (Pi) i 1b.3 (Windows w tle)** – to one zamieniają projekt w używany produkt, a jednocześnie
-rozstrzygają największe niewiadome. Pomiar baterii (1b.4) uruchomić od razu w tle, bo potrzebuje kilku dni. Wybór chmury
-(2a.1) można zacząć równolegle, ponieważ jest to głównie research, a nie kod.
+Faza **2.1** (decyzja użytkownika 2026-11-16), zaczynając od przygotowania kont po stronie użytkownika (2.1.1). Z fazy 1b
+w tle: pomiar baterii (1b.4), kalibracja (1b.5) i parowanie pozostałych czujników (1b.6 – po 2.1 klucze trafią od razu do
+Vault).

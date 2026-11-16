@@ -1,7 +1,7 @@
 # Glebosaurus – kontekst dla pracy nad projektem
 
 Bezobsługowy monitor czujników gleby Tuya BLE (ATLO SMS1) dla Windows 11 i Raspberry Pi OS (.NET 10). Odczyty do lokalnej
-bazy SQLite, alerty „czas podlać” i raporty mailem przez Gmail; później chmura, zaszyfrowana konfiguracja i interfejs WWW.
+bazy SQLite, alerty „czas podlać” i raporty mailem przez Gmail; później chmura Supabase z wieloma agentami (także Android) i interfejs WWW – plan: ROADMAP, faza 2.
 
 Przeczytaj najpierw: [README.md](README.md) (użycie), [docs/ARCHITEKTURA.md](docs/ARCHITEKTURA.md) (projekt i fakty zmierzone
 na sprzęcie), [docs/ROADMAP.md](docs/ROADMAP.md) (kolejne fazy i decyzje do podjęcia).

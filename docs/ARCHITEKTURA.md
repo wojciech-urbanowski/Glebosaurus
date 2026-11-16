@@ -1,8 +1,9 @@
 # Glebosaurus – architektura
 
-Projekt zaakceptowany 2026-11-13. Plan dalszych prac: [ROADMAP.md](ROADMAP.md). Użycie: [../README.md](../README.md).
+Projekt zaakceptowany 2026-11-13; chmura i wielu agentów (faza 2) przeprojektowane z użytkownikiem 2026-11-16 (zasady 1–4,
+10, 12). Plan dalszych prac: [ROADMAP.md](ROADMAP.md). Użycie: [../README.md](../README.md).
 
-Cel: bezobsługowa aplikacja .NET 10 (Windows 11 + Raspberry Pi OS 64-bit), która po cichu zbiera dane z kilkunastu
+Cel: bezobsługowa aplikacja .NET 10 (Windows 11, Raspberry Pi OS 64-bit, Android), która po cichu zbiera dane z kilkunastu
 czujników gleby Tuya BLE (wilgotność, temperatura gleby, bateria), zapisuje je lokalnie i w chmurze, wysyła alerty o
 podlewaniu i raporty o stałych porach mailem (Gmail), a konfigurację, alerty i raporty udostępnia w przeglądarce.
 
@@ -17,7 +18,7 @@ podlewaniu i raporty o stałych porach mailem (Gmail), a konfigurację, alerty i
 | Raspberry Pi (BlueZ przez Shiny) | paczka zbudowana, **niesprawdzone** |
 | Praca w tle na Windows (zadanie Harmonogramu), instalacja i samoaktualizacja z wydań GitHuba | zrobione 2026-11-15 (zasada 7): usługa `glebosaurus-service` bez okna, skrypt `install-windows.ps1`, workflowy CI i wydania; testy logiki w Core. **2026-11-15 na żywo (Windows, katalog próbny, udawane API wydań na loopbacku, monitor z atrapą czujnika):** instalacja z przejęciem konfiguracji, `stop` (1 s), aktualizacja o codziennej porze (monitor zatrzymany czysto, skrypt w tle, nowa usługa wystartowana przez Harmonogram), aktualizacja przy starcie (po wymuszonym powrocie do starszej wersji), zepsute wydanie (zły skrót – stara wersja wraca, próba odłożona o dobę, bez pętli), blokada drugiego monitora (kod 4), odinstalowanie. **2026-11-15 wydanie 0.1.0** opublikowane przez `release.yml` (testy, paczka, próba instalacji w Windows PowerShell 5.1 na runnerze – wszystko zielone; API wydań odpowiada bez logowania) i zainstalowane na bestia5 skryptem pobranym z wydania, z przejęciem `local/` i bez startu. Próba na sucho przejęcia prawdziwych danych wykryła, że `ConvertFrom-Json` z PowerShell 5.1 nie zna komentarzy `//`, a jego komunikat błędu zawiera cały plik z hasłem Gmaila – skrypt czyta teraz konfigurację przez `Read-ConfigJson` i nie wypisuje treści wyjątku. **Na żywo z prawdziwymi danymi:** 2026-11-15 23:56 usługa wystartowana przez Harmonogram (panel WWW ze stałej ścieżki – reguła Zapory zatwierdzona raz; o północy sama wysłała log administratora), a 2026-11-16 00:06 pierwsza samoaktualizacja z GitHuba 0.1.0 → 0.1.1 przy starcie usługi (ok. 15 s: sprawdzenie wydania, skrypt w tle, podmiana `app\`, nowa usługa z Harmonogramu; log administratora się nie powtórzył, Zapora nie pytała ponownie). **Niesprawdzone**: strażnik co godzinę, aktualizacja o 03:30 na prawdziwym wydaniu, zachowanie po uśpieniu i wybudzeniu, wylogowanie w trakcie odczytu, 7 dni ciągłej pracy |
 | Lokalny panel diagnostyczny WWW (HTTPS, sieć lokalna, hasło; podgląd, odczyt i raport na żądanie) | zrobione w kodzie i testach (2026-11-14, w tym testy na prawdziwym Kestrelu z TLS); `web-password` uruchomione na żywo, a strona obejrzana na prawdziwych danych (kopia bazy, dzienniki, konfiguracja) przez program podglądu na loopbacku, także w widoku telefonu 375 px. **2026-11-14 na żywo (Windows, `run` z prawdziwą konfiguracją):** panel startuje z monitorem, odcisk certyfikatu z dziennika zgadza się z `web-password` i z serwerem (127.0.0.1 i adres LAN), bez logowania 302/401; użytkownik zalogował się w przeglądarce (połączenie przyszło z adresu IPv6 link-local – filtr sieci go przepuścił). Próba wykryła błąd: przy `Referrer-Policy: no-referrer` przeglądarka wysyła z formularza `Origin: null`, a filtr POST odrzucał je jako obcą stronę (403, bez wpisu w dzienniku) – teraz rozstrzyga `Sec-Fetch-Site`, polityka to `same-origin`, odrzucenie trafia do dziennika (testy odtwarzają nagłówki przeglądarki). Wykresy (pulpit: 3 doby; strona czujnika: cała historia) – 2026-11-14 w testach i w przeglądarce na programie podglądu z danymi próbnymi (zasada 11). **Niesprawdzone**: wejście z telefonu w sieci domowej (reguła Zapory), wykresy na prawdziwym monitorze, Raspberry Pi |
-| Chmura, konfiguracja zaszyfrowana, wiele monitorów, interfejs WWW | zaprojektowane, niezrobione (fazy 2–3) |
+| Chmura Supabase, wielu agentów (dzierżawy czujników, blokada nadawcy), agent Android, interfejs WWW | zaprojektowane (faza 2 uzgodniona z użytkownikiem 2026-11-16, zasady 1–4, 10, 12), niezrobione (fazy 2–3) |
 
 ## Zweryfikowane na sprzęcie (ATLO SMS1, Tuya `gvygg3m8`)
 
@@ -139,45 +140,104 @@ sparowanych urządzeń BLE/audio (myszy, klawiatura, słuchawki); pomiar surowym
 
 ## Komponenty
 
+Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → SQLite, reguły alertów, raporty, Gmail SMTP
+(MailKit), lokalny panel WWW. Tryb samodzielny zostaje. Docelowo (faza 2, uzgodniona 2026-11-16, zasady 1–4, 10 i 12):
+
 ```
  Czujniki Tuya BLE (~12)
         │ BLE: GATT 0x1910 (notify 0x2B10, write 0x2B11), AES, klucz lokalny
- ┌──────┴───────────────────────┐
- │ MONITOR (Win11 / RPi) × N    │  Worker .NET 10
- │ BLE → Tuya → odczyty         │  SQLite (bufor offline)
- │ reguły alertów, raporty      │  Gmail SMTP (MailKit)
- │ panel WWW (podgląd, odczyt)  │  HTTPS, tylko sieć lokalna, hasło
- └──────┬───────────────────────┘
-        │ HTTPS, tylko ruch wychodzący, token urządzenia          (faza 2)
- ┌──────┴───────────────────────┐
- │ CHMURA: baza + cienkie API   │  widzi: odczyty + zaszyfrowaną konfigurację
- └──────┬───────────────────────┘
-        │ HTTPS, logowanie właściciela                             (faza 3)
- ┌──────┴───────────────────────┐
- │ PRZEGLĄDARKA (SPA)           │  odszyfrowuje konfigurację lokalnie
- └──────────────────────────────┘
+        │ łączy się tylko agent z dzierżawą czujnika; słuchać mogą wszyscy
+ ┌──────┴────────────┐ ┌───────────────────┐ ┌──────────────────────┐
+ │ bestia5 (Win11)   │ │ Android (Mi 11)   │ │ Raspberry Pi 24/7    │  agenci .NET 10, bufor SQLite
+ │ zbieranie         │ │ zbieranie         │ │ zbieranie            │  panel lokalny (Win/Pi)
+ │ nadawca (prior. 2)│ │ bez maili         │ │ nadawca (prior. 1)   │
+ └──────┬────────────┘ └─────────┬─────────┘ └──────────┬───────────┘
+        └─── HTTPS, token agenta ┴ funkcje SQL ─────────┘  tylko ruch wychodzący
+ ┌──────┴───────────────────────────────────────────────────────────┐
+ │ SUPABASE (darmowy plan, region UE) – funkcje SQL, RLS            │
+ │ konfiguracja, odczyty, dzierżawy, blokada nadawcy, kolejka maili │
+ │ Vault: klucze Tuya, hasło Gmaila · Storage: dzienne logi agentów │
+ └──────┬───────────────────────────────────────────────────────────┘
+        │ HTTPS, Supabase Auth – tylko konto właściciela                (faza 3)
+ ┌──────┴──────────────────────────┐
+ │ PRZEGLĄDARKA (strona statyczna) │
+ └─────────────────────────────────┘
+ Poczta: nadawca z blokadą → Gmail SMTP (MailKit). Strażnik: nadawca → healthchecks.io.
 ```
 
 ## Zasady projektowe
 
-1. **Chmura nie zna sekretów.** Nie wysyła maili ani nie ocenia reguł – robią to monitory (mają hasło Gmaila i klucze).
-2. **Koordynacja wielu monitorów.** Czujnik przyjmuje jedno połączenie naraz, a kilka monitorów może go widzieć:
-   dzierżawa (lease, TTL ok. 2 min) per czujnik w bazie; odczyty idempotentne (klucz: czujnik + czas);
-   alerty i raporty przez atomowy „claim” (unikalny klucz: raport + planowany termin), claim wygasa i może go przejąć
-   inny monitor. Monitor nie ma statycznego przydziału czujników – próbuje te, których reklamy widzi.
-3. **Konfiguracja = jedna zaszyfrowana paczka**: AES-256-GCM, klucz z hasła przez PBKDF2-SHA256 (≥ 600 tys. iteracji),
-   sól i parametry w chmurze, wersja do kontroli równoległych zapisów (zapis warunkowy). Zawiera czujniki z kluczami
-   Tuya, progi, harmonogramy, odbiorców, hasło aplikacji Gmail. Odczyty w chmurze są jawne, pod losowymi ID czujników;
-   nazwy widać dopiero po odszyfrowaniu w przeglądarce. Hasło: raz przy rejestracji monitora i w przeglądarce (pamięć
-   sesji); lokalnie DPAPI (Windows) lub plik z prawami 600 (Pi). To chroni poufność, nie dostępność.
-4. **Uwierzytelnianie.** Monitor: odwoływalny token + jednorazowy kod rejestracji z UI. Przeglądarka: logowanie
-   właściciela (OAuth) z listą dozwolonych kont.
+1. **Konfiguracja i sekrety w Supabase** (decyzje użytkownika 2026-11-16; zastępuje wcześniejszą zasadę „chmura nie zna
+   sekretów” z zaszyfrowaną paczką konfiguracji). Supabase trzyma całą konfigurację – czujniki (nazwy, MAC, progi,
+   kalibracja), harmonogramy raportów, odbiorców, role agentów – a w Vault (szyfrowanie kluczem trzymanym poza bazą) klucze
+   Tuya i hasło aplikacji Gmail. Na urządzeniu zostaje tylko adres chmury, własny token agenta i ustawienia lokalnego
+   panelu; konfiguracja z chmury ma lokalnie ostatnią dobrą kopię. Każdy agent zbiera odczyty; reguły alertów, raporty i
+   maile robi agent, który trzyma blokadę nadawcy (zasada 2). Klucze Tuya dostaje każdy zarejestrowany agent (każdy może
+   przejąć każdy czujnik) i trzyma ich lokalną kopię (DPAPI / Android Keystore / plik 600) do pracy bez sieci; `pair` wysyła
+   nowe klucze od razu do Vault. Hasło Gmaila dostaje tylko obecny nadawca (`mail_credentials`, ta sama kontrola epoki co
+   `mail_claim`) i trzyma je wyłącznie w pamięci, nigdy na dysku. Konsekwencje: konto Supabase jest kluczem do wszystkiego
+   (logowanie dwuetapowe; klucz `service_role` nigdy na agentach – tylko do importu i migracji, w pliku w `local/`); hasło
+   aplikacji Gmaila daje pełny dostęp do skrzynki (też IMAP), więc nadawcą ma być osobne konto Gmail tylko dla Glebosaurusa.
+   Tryb samodzielny (bez sekcji `cloud`) działa jak dotąd z plikiem konfiguracji i własną pocztą.
+2. **Koordynacja wielu agentów** (2026-11-16). Czujnik przyjmuje jedno połączenie naraz, a kilka agentów może go słyszeć;
+   każdy mail ma wyjść raz. Jedna funkcja SQL `lease_claim(zasób, agent, ttl)` atomowo daje dzierżawę, gdy zasób jest
+   wolny, wygasł (plus 2 min zapasu) albo już należy do pytającego, i zwraca numer epoki oraz czas ważności;
+   `lease_release` ją oddaje. Czas liczy baza (`now()`), a agent liczy ważność na własnym zegarze monotonicznym od chwili
+   **wysłania** prośby – wychodzi mu krócej niż bazie, więc rozjechane zegary nie szkodzą.
+   - **Dzierżawa czujnika: 30 min** (decyzja użytkownika), odnawiana przy każdej synchronizacji (ok. 60 s). Bez dzierżawy
+     agent się nie łączy; agent nie zaczyna odczytu, gdy zostały mniej niż 2 min. Bez sieci agent czyta swoje czujniki do
+     końca dzierżawy i przestaje, a baza oddaje czujnik innemu dopiero po wygaśnięciu i zapasie – przy podziale sieci nie
+     ma dwóch właścicieli naraz. Koszt: nagłe zniknięcie agenta to ok. 32 min bez odczytów jego czujników. Zasady przydziału
+     (Core, testy na `TimeProvider`): agent ubiega się tylko o czujnik, który słyszy; agent ze słabszym sygnałem czeka
+     dłużej, zanim weźmie wolny czujnik; właściciel oddaje czujnik po 3 porażkach z rzędu albo gdy inny agent słyszy go
+     dłuższy czas co najmniej o 6 dB lepiej (histereza – bez przerzucania); przekazanie planowe (np. `stop`): właściciel
+     kończy trwający odczyt i oddaje (sekundy, nie 30 min). Słyszenia (RSSI, kiedy, wyniki prób) to jeden wiersz na parę
+     agent–czujnik, nadpisywany – bez historii. Odczyt na żądanie trafia do właściciela; `pair` bierze dzierżawę na swój
+     identyfikator czujnika.
+   - **Blokada nadawcy „nadaję teraz”** (zasób `notifier`; decyzja użytkownika: nadawców może być wielu): 5 min, odnawiana
+     co ok. 60 s, jedna na całą pocztę (alerty, raporty, log administratora – wspólny stan alertów). Kandydaci mają w
+     tabeli agentów `can_send_mail` i `sender_priority` (Pi 1, bestia5 2; Android nie jest kandydatem). Przy wolnej blokadzie
+     kandydat z priorytetem N czeka N × 1 min, zanim po nią sięgnie; gdy wraca ważniejszy kandydat (widać go po sygnale
+     życia), obecny nadawca oddaje blokadę dobrowolnie w bezpiecznej chwili (między cyklami, nic w trakcie wysyłki). Po
+     nagłym zniknięciu nadawcy przejęcie po ok. 7 min. Bez blokady agent w trybie chmurowym nie wysyła żadnego maila –
+     także przy niedostępnym Supabase.
+   - **Kolejka maili bez duplikatów** – trzy niezależne zabezpieczenia: (1) blokada z epoką – dwóch nadawców nie pracuje
+     naraz; (2) `mail_claim(klucz, agent, epoka)` udaje się tylko, gdy według zegara bazy agent wciąż trzyma blokadę z tą
+     epoką – np. bestia5 uśpiona z blokadą po przebudzeniu już nic nie wyśle; (3) unikalny klucz maila (`insert … on
+     conflict do nothing` – „tak” tylko raz w historii): `report|2026-11-17T07:00`, `alert|<czujnik>|<rodzaj>|<początek
+     epizodu>`, `log|<dzień>`, `agent-silent|<agent>|<od>`, `report-request|<id zlecenia>`. Potem SMTP i `mail_sent`. Mail
+     zarezerwowany przez nadawcę, który zamarł przed SMTP, nie jest ponawiany przez innego – najgorzej opóźnienie albo
+     utrata jednego maila (ślad w logu administratora), nigdy duplikat. Message-ID wyliczany z klucza. Wspólny stan w
+     Supabase (otwarte alerty unikalne dla czujnika i rodzaju, klucze kolejki, znacznik logu), więc nowy nadawca zaczyna
+     tam, gdzie skończył poprzedni; raport z przerwy nadrabia `catchUpHours`. W trybie chmurowym zastępuje to lokalne
+     `report_runs` i `last_notified_at`.
+   - **Strażnik:** sygnał do healthchecks.io (darmowy) wysyła tylko obecny nadawca i tylko, gdy wszystko działa (blokada,
+     Supabase, SMTP); cisza ponad 30 min → mail od healthchecks.io (padł nadawca, nie ma sieci, Supabase uśpiony lub
+     niedostępny). Jeden strażnik niezależnie od liczby kandydatów.
+   Testy: zasady w Core na atrapie bazy z ręcznie sterowanym czasem; funkcje SQL na lokalnym Supabase (CLI w Dockerze) albo
+   na próbnym projekcie – dwóch agentów, uśpienie z dzierżawą, utrata sieci, restart w trakcie wysyłki.
+3. **Synchronizacja agent ↔ Supabase** (2026-11-16). Tylko ruch wychodzący: HTTPS do funkcji SQL (`/rest/v1/rpc/…`)
+   zwykłym `HttpClient` z publicznym kluczem projektu i tokenem agenta – bez SDK i bez hasła bazy na urządzeniach (wyjątek:
+   agent robiący kopię zapasową, zasada 10). Główne wywołanie `agent_sync` co ok. 60 s: sygnał życia (wersja, stan BLE;
+   telefon także bateria, temperatura, ładowanie, Wi-Fi), słyszenia, paczka odczytów z lokalnego bufora, odnowienie
+   dzierżaw → w odpowiedzi przydziały z epoką i czasem ważności, wersja konfiguracji i polecenia (czytaj teraz, oddaj,
+   paruj, wyślij log). Odczyty idempotentne po `(sensor_id, at)` – ten sam klucz co lokalnie; lokalny SQLite zostaje
+   buforem i pełną kopią odczytów danego agenta, więc przerwa sieci kończy się dosłaniem bez strat. Dzienne logi agentów
+   trafiają do Supabase Storage (7 dni), a nadawca wysyła z nich jeden log administratora z załącznikami wszystkich
+   agentów. Protokół jest wersjonowany (`v1`), żeby stare agenty nie psuły nowych danych.
+4. **Uwierzytelnianie.** Agent: jednorazowy kod rejestracji (z panelu albo SQL; na Androidzie kod QR) → `enroll` →
+   własny token, w bazie tylko jego skrót, odwoływalny w każdej chwili; lokalnie DPAPI (Windows), Android Keystore albo
+   plik 600 (Pi). Zasady dostępu do wierszy (RLS) zamykają wszystkie tabele; agenci wołają wyłącznie funkcje
+   `security definer`, które sprawdzają token i rolę. Najcenniejszy jest token nadawcy (może zdobyć blokadę, a z nią hasło
+   Gmaila), więc rolę nadawcy mają tylko 1–2 zaufane urządzenia. Właściciel (panel, faza 3): Supabase Auth, tylko jego
+   konto; sekrety w panelu można ustawić, nigdy odczytać.
 5. **Klucze Tuya: lokalne parowanie własnym kluczem** (bez Smart Life i Tuya IoT). Sparowany czujnik nie jest w aplikacji
-   Smart Life; reset go przywraca. Do fazy 2b klucze żyją wyłącznie w plikach `*.credentials.json` (kopia zapasowa na
-   użytkowniku).
+   Smart Life; reset go przywraca. Do kroku 2.1 klucze żyją wyłącznie w plikach `*.credentials.json` (kopia zapasowa na
+   użytkowniku); potem w Supabase Vault (zasada 1), a pliki przenosi tam `cloud import`.
 6. **Warstwa BLE: Shiny.BluetoothLE (+ `.Linux`, BlueZ)** za własnym wąskim interfejsem (`IGattLink`); protokół Tuya
    jest czysto zarządzany (`Glebosaurus.Tuya`) i nie zna biblioteki BLE. Zapasowo: SimpleSharpBLE (licencja BUSL-1.1,
-   tylko użytek niekomercyjny) albo bezpośrednio WinRT + Linux.Bluetooth.
+   tylko użytek niekomercyjny) albo bezpośrednio WinRT + Linux.Bluetooth. Ta sama biblioteka obsłuży Androida (zasada 12):
+   Shiny.BluetoothLE 6.5.2 ma `net10.0-android36.0` (sprawdzone w NuGet 2026-11-15).
 7. **Uruchamianie, instalacja i aktualizacje.** Raspberry Pi: usługa systemd (wzór w `deploy/`). Windows (2026-11-15, decyzje
    użytkownika: konto użytkownika zamiast administratora, start przy zalogowaniu, aktualizacja przy starcie i raz na dobę,
    wydania budowane przez GitHub Actions, repozytorium publiczne): zadanie Harmonogramu „Glebosaurus” uruchamia przy
@@ -299,9 +359,25 @@ sparowanych urządzeń BLE/audio (myszy, klawiatura, słuchawki); pomiar surowym
    dłuższy jest obcinany od początku). Znacznik wysłania to klucz `log|RRRR-MM-DD` w tabeli `report_runs` (restart nie
    powtarza maila); nieudana wysyłka ma własny odstęp ponowień (5 min), więc nie opóźnia alertów. Świadome ograniczenie:
    tylko „wczoraj” – jeśli agent wczoraj nie działał albo dzień starszy nie został wysłany, nie jest dosyłany wstecz.
-10. **Chmura i UI.** Hipoteza: Supabase (Postgres + logowanie + reguły dostępu + funkcje SQL dla atomowych claimów, bez
-    własnego serwera); alternatywa Azure. Limity darmowych planów do sprawdzenia przed startem fazy 2. UI: Blazor WASM
-    z małym interopem do WebCrypto: pulpit, historia, alerty, raporty, konfiguracja, monitory, parowanie zdalne.
+10. **Chmura i UI.** **Supabase, darmowy plan** (decyzja użytkownika 2026-11-16: „celem jest darmowość”): Postgres z
+    funkcjami SQL (operacje atomowe), Vault i Storage; bez Edge Functions i bez własnego serwera; region UE. Rozważone
+    wcześniej (2026-11-15): własny serwer ASP.NET Core na VPS (ok. 4–7 €/mies.) i Azure (ok. 15–30 USD/mies.) – odrzucone
+    ze względu na koszt. Limity darmowego planu według opracowań z 2026 r. (przy zakładaniu projektu sprawdzić na
+    supabase.com/pricing):
+    - baza 500 MB, po przekroczeniu tylko do odczytu – odczyty to ok. 0,4 mln wierszy rocznie, szacunkowo 50–80 MB, więc
+      starczy na kilka lat, potem uśrednianie starych odczytów (ROADMAP, faza 4); słyszenia bez historii (zasada 2); rozmiar
+      bazy w logu administratora;
+    - transfer 5 GB/mies. – synchronizacja 3 agentów co 60 s to szacunkowo setki MB;
+    - uśpienie po 7 dniach bez ruchu – agenci wołają bazę co minutę; po tygodniowej awarii trzeba ręcznie wznowić projekt
+      (dane zostają), a ciszę zgłosi strażnik (zasada 2);
+    - brak kopii zapasowych – polecenie `cloud backup` codziennie robi zrzut bazy (`pg_dump` przez pooler sesji, IPv4; hasło
+      bazy tylko na agencie robiącym kopię: najpierw bestia5, docelowo Pi), trzyma 14 ostatnich i dokłada lokalną kopię
+      kluczy Tuya, bo w zrzucie sekrety z Vault są zaszyfrowane kluczem projektu (do potwierdzenia przy implementacji);
+    - 2 projekty – drugi na próby; lokalnie Supabase CLI w Dockerze do testów funkcji SQL.
+    Schemat jako migracje SQL w repozytorium (`supabase/migrations/`). UI (faza 3, hipoteza 2026-11-16): statyczna strona
+    (np. GitHub Pages) czytająca Supabase przez RLS, logowanie Supabase Auth tylko na konto właściciela, wykresy z
+    `charts.js` lokalnego panelu, polecenia („odczytaj teraz”, „wyślij raport teraz”) jako wiersze w tabeli poleceń;
+    konfiguracja jawna dla właściciela, sekrety tylko do ustawienia.
 11. **Lokalny panel diagnostyczny** (2026-11-14; podgląd, odczyt i raport na żądanie, bez zmian konfiguracji). Kestrel w procesie `run` (projekt
     `Glebosaurus.Web`, tylko framework ASP.NET Core, bez pakietów), włączany sekcją `web` (port domyślnie 8470). Warstwy:
     filtr adresów źródłowych (loopback + sieci prywatne albo `web.allowedNetworks`) przed wszystkim innym; HTTPS z
@@ -371,6 +447,25 @@ sparowanych urządzeń BLE/audio (myszy, klawiatura, słuchawki); pomiar surowym
     baza z 12 czujnikami próbnymi o historii 0–400 dni z dziurami): pulpit 1200 px i 375 px, przeciąganie, Ctrl+kółko, przyciski,
     zakresy, klawiatura, czujnik bez odczytów i nieznany identyfikator, brak błędów CSP; na prawdziwym monitorze jeszcze nie.
     Dalsze etapy – ROADMAP 1b.7a.
+12. **Agent na Androida** (plan, faza 2.2; telefon Xiaomi Mi 11 Lite 5G na Wi-Fi, stale na ładowarce). Tylko zbieranie,
+    bez roli nadawcy. .NET for Android (`net10.0-android`, bez MAUI – jedna aktywność ze stanem i usługa) z
+    `Glebosaurus.Tuya`, zbieraniem z Core, buforem SQLite (`Glebosaurus.Data`) i Shiny.BluetoothLE (zasada 6) – protokół nie
+    powstaje drugi raz (Kotlin odrzucony: drugi raz ramki, AES i DP). Usługa pierwszoplanowa typu `connectedDevice`
+    (Android 14 wymaga typu i uprawnienia) ze stałym powiadomieniem, start po restarcie telefonu, uprawnienia
+    `BLUETOOTH_SCAN`/`BLUETOOTH_CONNECT` i powiadomień, wyjątek z optymalizacji baterii; rejestracja kodem QR; ekran stanu i
+    skanu z sygnałem (wybór miejsca na telefon). Znane ograniczenia do obsłużenia:
+    - MIUI/HyperOS zabija aplikacje w tle – ręcznie: Autostart, oszczędzanie baterii „Bez ograniczeń”, blokada w ostatnich
+      aplikacjach (instrukcja w README); gdy mimo to zginie, chmura wyśle alert „agent milczy”;
+    - skan BLE bez filtra jest wstrzymywany przy zgaszonym ekranie – filtr po MAC-ach (albo UUID Tuya); najwyżej 5 startów
+      skanu na 30 s – wznawianie nasłuchu po błędzie co 1 s (`ListenThenReadSensorReader`, zasada 8) trzeba tam wydłużyć,
+      inaczej skan po cichu nic nie zwróci; skan dłuższy niż 30 min system degraduje;
+    - GATT: częsty błąd 133 – zawsze `close()`, ponowienia z odstępem; Android podaje prawdziwy MAC, więc dopasowanie po
+      MAC działa;
+    - na ładowarce Doze się nie włącza, ale stary akumulator stale na 100% może puchnąć – sprawdzić limit ładowania w
+      systemie; temperatura akumulatora w sygnale życia i alert przy przegrzaniu;
+    - na tym telefonie nie instalować Smart Life (dodatkowy klient walczący o połączenia).
+    Wydania: APK z Actions podpisany jednym kluczem (sekret repozytorium; jego utrata = instalacja od nowa); Android i tak
+    wymaga stuknięcia „Zainstaluj”, więc aktualizacja to powiadomienie o nowej wersji (albo Obtainium).
 
 ## Struktura repozytorium
 
@@ -390,7 +485,10 @@ local/                    robocze pliki użytkownika (konfiguracja, klucze, baza
 ```
 
 Interfejsy brzegowe, za którymi fazy 2–3 podmieniają implementacje: `IGattLink` (BLE), `ISensorReader` (radio),
-`IMonitorStore` (baza – faza 2 doda dekorator z chmurą i claimy), `IMailGateway` (poczta); konfiguracja przez `AgentConfig`.
+`IMonitorStore` (baza – faza 2 doda magazyn z buforem lokalnym i Supabase, dzierżawy i kolejkę maili), `IMailGateway`
+(poczta); konfiguracja przez `AgentConfig` (w fazie 2 z chmury). Faza 2 dzieli też silnik na zbieranie odczytów i
+wysyłanie (alerty, raporty, log administratora) – tryb samodzielny ma oba, agent chmurowy zbieranie, a nadawca z blokadą
+także wysyłanie.
 
 ## Ryzyka
 
@@ -402,4 +500,7 @@ Interfejsy brzegowe, za którymi fazy 2–3 podmieniają implementacje: `IGattLi
 - Koszt baterii przy częstych odczytach (decyduje o interwale); dryf wskazań wilgotności bez kalibracji.
 - Zasięg BLE określa liczbę monitorów; wiele innych urządzeń Tuya w eterze (część to czujniki użytkownika do sparowania
   lokalnie – każdy wymaga resetu, który usuwa go ze Smart Life).
-- Do fazy 2b klucze czujników istnieją tylko w plikach lokalnych.
+- Do kroku 2.1 klucze czujników istnieją tylko w plikach lokalnych.
+- Chmura (faza 2): konto Supabase jest kluczem do wszystkich sekretów; limity darmowego planu (500 MB, uśpienie po 7
+  dniach, brak kopii zapasowych – zasada 10); bez Supabase nie wychodzi żaden mail (zgłasza to strażnik).
+- Android (faza 2.2): MIUI/HyperOS zabija aplikacje w tle, ograniczenia skanu BLE, akumulator telefonu stale na ładowarce.
