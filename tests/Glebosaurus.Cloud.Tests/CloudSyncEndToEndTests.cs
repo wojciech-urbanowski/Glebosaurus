@@ -1,4 +1,3 @@
-using System.Text.Json.Nodes;
 using Glebosaurus.Core;
 using Glebosaurus.Core.Cloud;
 using Glebosaurus.Core.Domain;
@@ -34,7 +33,7 @@ public sealed class CloudSyncEndToEndTests(CloudDatabase db) : IDisposable
         var name = Scenario.Unique("e2e");
         var code = await setup.CodeAsync(name, false, null, DateTimeOffset.UtcNow);
         var enrolled = await SupabaseCloudApi.EnrollAsync(http, db.Settings.Url, db.Settings.PublishableKey!, code, ct);
-        var api = new FlakyApi(new SupabaseCloudApi(http, db.Settings.Url, db.Settings.PublishableKey!, enrolled.Token)) { FailuresLeft = 2 };
+        var api = new FlakyApi(new SupabaseCloudApi(http, db.Settings.Url, db.Settings.PublishableKey!, enrolled.Token)) { SyncFailuresLeft = 2 };
 
         var store = new SqliteMonitorStore(databasePath);
         await store.InitializeAsync(ct);
@@ -73,42 +72,5 @@ public sealed class CloudSyncEndToEndTests(CloudDatabase db) : IDisposable
     private sealed class StaticHearing(string sensor, SensorObservation observation) : ISensorHearingSource
     {
         public IReadOnlyDictionary<string, SensorObservation> Observations() => new Dictionary<string, SensorObservation> { [sensor] = observation };
-    }
-
-    /// <summary>Klient, któremu na początku „nie ma sieci”.</summary>
-    private sealed class FlakyApi(ICloudApi inner) : ICloudApi
-    {
-        public ICloudApi Inner { get; } = inner;
-        public int FailuresLeft { get; set; }
-
-        public Task<SyncResponse> SyncAsync(SyncRequest request, CancellationToken cancellationToken)
-        {
-            if (FailuresLeft-- > 0) throw new CloudApiException(CloudErrorKind.Unavailable, "agent_sync: brak sieci (próba)");
-            return Inner.SyncAsync(request, cancellationToken);
-        }
-
-        public Task<CloudConfig> GetConfigAsync(CancellationToken cancellationToken) => Inner.GetConfigAsync(cancellationToken);
-        public Task<LeaseResult> ClaimAsync(string resource, CancellationToken cancellationToken) => Inner.ClaimAsync(resource, cancellationToken);
-        public Task<bool> ReleaseAsync(string resource, long epoch, CancellationToken cancellationToken) => Inner.ReleaseAsync(resource, epoch, cancellationToken);
-        public Task<MailClaimResult> MailClaimAsync(string key, long epoch, CancellationToken cancellationToken) => Inner.MailClaimAsync(key, epoch, cancellationToken);
-        public Task<bool> MailSentAsync(string key, string? messageId, CancellationToken cancellationToken) => Inner.MailSentAsync(key, messageId, cancellationToken);
-        public Task<bool> MailAbandonAsync(string key, CancellationToken cancellationToken) => Inner.MailAbandonAsync(key, cancellationToken);
-        public Task<MailCredentials> MailCredentialsAsync(long epoch, CancellationToken cancellationToken) => Inner.MailCredentialsAsync(epoch, cancellationToken);
-        public Task<IReadOnlyList<StoredReading>> ReadingsRangeAsync(IReadOnlyCollection<string> sensors, DateTimeOffset from, DateTimeOffset to,
-            CancellationToken cancellationToken) => Inner.ReadingsRangeAsync(sensors, from, to, cancellationToken);
-        public Task<IReadOnlyList<CloudAlert>> AlertListAsync(CancellationToken cancellationToken) => Inner.AlertListAsync(cancellationToken);
-        public Task<AlertOpenResult> AlertOpenAsync(long epoch, string sensor, AlertKind kind, string detail, CancellationToken cancellationToken) =>
-            Inner.AlertOpenAsync(epoch, sensor, kind, detail, cancellationToken);
-        public Task<bool> AlertResolveAsync(long epoch, long alertId, CancellationToken cancellationToken) => Inner.AlertResolveAsync(epoch, alertId, cancellationToken);
-        public Task<int> AlertNotifiedAsync(long epoch, IReadOnlyCollection<long> alertIds, CancellationToken cancellationToken) =>
-            Inner.AlertNotifiedAsync(epoch, alertIds, cancellationToken);
-        public Task<CommandCreateResult> CommandCreateAsync(string kind, string? sensor, CancellationToken cancellationToken) =>
-            Inner.CommandCreateAsync(kind, sensor, cancellationToken);
-        public Task<bool> CommandDoneAsync(long commandId, JsonObject? result, CancellationToken cancellationToken) =>
-            Inner.CommandDoneAsync(commandId, result, cancellationToken);
-        public Task<LogPutResult> LogPutAsync(DateOnly day, byte[] gzipContent, CancellationToken cancellationToken) =>
-            Inner.LogPutAsync(day, gzipContent, cancellationToken);
-        public Task<IReadOnlyList<AgentLog>> LogGetAsync(long epoch, DateOnly day, CancellationToken cancellationToken) =>
-            Inner.LogGetAsync(epoch, day, cancellationToken);
     }
 }

@@ -48,9 +48,10 @@ public sealed class Scenario(CloudDatabase db, DateTimeOffset start)
         return id;
     }
 
+    /// <summary>Dane Tuya czujnika testowego – UUID losowy, bo agent pomija czujniki z powtórzonym UUID.</summary>
     public static JsonObject Credentials(string mac) => new()
     {
-        ["mac"] = mac, ["uuid"] = "07aaad78f40b0a74", ["deviceId"] = "1234567890123456789012",
+        ["mac"] = mac, ["uuid"] = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8)), ["deviceId"] = "1234567890123456789012",
         ["localKeyHex"] = "a1b2c3d4e5f6", ["productId"] = "gvygg3m8"
     };
 

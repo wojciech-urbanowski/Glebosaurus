@@ -220,6 +220,7 @@ public interface ICloudApi
 [JsonSerializable(typeof(LeaseResult))]
 [JsonSerializable(typeof(EnrollResult))]
 [JsonSerializable(typeof(CloudConfig))]
+[JsonSerializable(typeof(CachedCloudConfig))]
 [JsonSerializable(typeof(MailClaimResult))]
 [JsonSerializable(typeof(MailCredentials))]
 [JsonSerializable(typeof(List<ReadingReport>))]

@@ -597,6 +597,28 @@ Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → S
       przerwa sieci na próbnym projekcie z prawdziwym SQLite – po powrocie w chmurze jest dokładnie to, co w buforze,
       a zatrzymanie oddaje czujnik od razu (2026-11-16 zielone).
 
+    Kawałek c (2026-11-16):
+    - **Przełożenie** (`CloudConfigMapper`): z chmury czujniki (tylko włączone), progi, odstępy, pory raportów,
+      przypomnienia, retencja logów, nazwa agenta (`MonitorName`); z pliku na urządzeniu – baza, retencja odczytów i panel.
+      `AgentConfig.Mail` zostaje puste (w trybie chmurowym poczta idzie przez blokadę nadawcy); odbiorcy i adres nadawcy
+      tylko dla kandydatów na nadawcę (`CloudAgentConfig.Mail`), hasło – nigdy (`mail_credentials` przy wysyłce). Czujnik
+      bez danych Tuya, z błędnymi danymi, z innym MAC niż w chmurze, nieznanego typu albo z powtórzonym UUID jest pomijany z
+      ostrzeżeniem – zły wpis nie zatrzymuje agenta; inna wersja protokołu – odrzucenie. Strefa czasowa raportów z chmury
+      (IANA, np. Europe/Warsaw): agent działa z `InvariantGlobalization`, a wtedy Windows nie zna nazw IANA, więc zapasowa
+      mapa najczęstszych stref na nazwy Windows, a w ostateczności strefa systemu z ostrzeżeniem.
+    - **Ostatnia dobra kopia** (`CloudConfigCache`): cała konfiguracja z chmury (z kluczami Tuya) w pliku z nagłówkiem
+      `GLBC1`, chroniona `ILocalProtector` – Windows: DPAPI bieżącego użytkownika z własną entropią, Linux: plik 600
+      (`LocalProtectors` w `Glebosaurus.Cloud`; Android – Keystore w fazie 2.2); zapis atomowy. Plik z innego konta albo
+      komputera, uszkodzony albo obcy → czytelny błąd, nie wyjątek kryptograficzny.
+    - **Źródło konfiguracji** (`CloudConfigSource`): start z chmury (i zapis kopii), bez niej z kopii (ostrzeżenie z datą
+      kopii), bez obu – czytelny błąd „pierwsze uruchomienie wymaga sieci”; unieważniony token nie jest maskowany kopią.
+      Odświeżanie, gdy synchronizacja zobaczy nowszą wersję (albo agent pracuje na kopii – wtedy przy pierwszej udanej
+      synchronizacji); błąd sieci – następnym razem; zła konfiguracja w chmurze – zostaje poprzednia, a tej wersji agent
+      drugi raz nie pobiera. Zdarzenie `Changed` dla silników.
+    - **Testy:** przełożenie, kopia (atrapa szyfrowania, prawdziwe DPAPI na Windows, prawa 600 na Linuksie), źródło na
+      atrapie chmury (w CI) oraz próbny projekt: `get_config` → `AgentConfig` (czujnik bez kluczy pominięty z ostrzeżeniem)
+      i start bez sieci z kopii chronionej DPAPI – 2026-11-16 zielone.
+
 ## Struktura repozytorium
 
 ```

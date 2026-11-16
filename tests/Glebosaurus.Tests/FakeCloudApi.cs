@@ -59,7 +59,16 @@ internal sealed class FakeCloudApi(ManualTimeProvider clock) : ICloudApi
         });
     }
 
-    public Task<CloudConfig> GetConfigAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+    public CloudConfig? Config { get; set; }
+    public Queue<CloudApiException> ConfigFailures { get; } = new();
+    public int ConfigCalls { get; private set; }
+
+    public Task<CloudConfig> GetConfigAsync(CancellationToken cancellationToken)
+    {
+        ConfigCalls++;
+        if (ConfigFailures.TryDequeue(out var failure)) throw failure;
+        return Task.FromResult(Config ?? throw new InvalidOperationException("Test nie ustawił konfiguracji."));
+    }
     public Task<LeaseResult> ClaimAsync(string resource, CancellationToken cancellationToken) => throw new NotSupportedException();
     public Task<bool> ReleaseAsync(string resource, long epoch, CancellationToken cancellationToken) => throw new NotSupportedException();
     public Task<MailClaimResult> MailClaimAsync(string key, long epoch, CancellationToken cancellationToken) => throw new NotSupportedException();
