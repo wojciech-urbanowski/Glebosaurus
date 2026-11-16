@@ -18,7 +18,7 @@ podlewaniu i raporty o stałych porach mailem (Gmail), a konfigurację, alerty i
 | Raspberry Pi (BlueZ przez Shiny) | paczka zbudowana, **niesprawdzone** |
 | Praca w tle na Windows (zadanie Harmonogramu), instalacja i samoaktualizacja z wydań GitHuba | zrobione 2026-11-15 (zasada 7): usługa `glebosaurus-service` bez okna, skrypt `install-windows.ps1`, workflowy CI i wydania; testy logiki w Core. **2026-11-15 na żywo (Windows, katalog próbny, udawane API wydań na loopbacku, monitor z atrapą czujnika):** instalacja z przejęciem konfiguracji, `stop` (1 s), aktualizacja o codziennej porze (monitor zatrzymany czysto, skrypt w tle, nowa usługa wystartowana przez Harmonogram), aktualizacja przy starcie (po wymuszonym powrocie do starszej wersji), zepsute wydanie (zły skrót – stara wersja wraca, próba odłożona o dobę, bez pętli), blokada drugiego monitora (kod 4), odinstalowanie. **2026-11-15 wydanie 0.1.0** opublikowane przez `release.yml` (testy, paczka, próba instalacji w Windows PowerShell 5.1 na runnerze – wszystko zielone; API wydań odpowiada bez logowania) i zainstalowane na bestia5 skryptem pobranym z wydania, z przejęciem `local/` i bez startu. Próba na sucho przejęcia prawdziwych danych wykryła, że `ConvertFrom-Json` z PowerShell 5.1 nie zna komentarzy `//`, a jego komunikat błędu zawiera cały plik z hasłem Gmaila – skrypt czyta teraz konfigurację przez `Read-ConfigJson` i nie wypisuje treści wyjątku. **Na żywo z prawdziwymi danymi:** 2026-11-15 23:56 usługa wystartowana przez Harmonogram (panel WWW ze stałej ścieżki – reguła Zapory zatwierdzona raz; o północy sama wysłała log administratora), a 2026-11-16 00:06 pierwsza samoaktualizacja z GitHuba 0.1.0 → 0.1.1 przy starcie usługi (ok. 15 s: sprawdzenie wydania, skrypt w tle, podmiana `app\`, nowa usługa z Harmonogramu; log administratora się nie powtórzył, Zapora nie pytała ponownie). **Niesprawdzone**: strażnik co godzinę, aktualizacja o 03:30 na prawdziwym wydaniu, zachowanie po uśpieniu i wybudzeniu, wylogowanie w trakcie odczytu, 7 dni ciągłej pracy |
 | Lokalny panel diagnostyczny WWW (HTTPS, sieć lokalna, hasło; podgląd, odczyt i raport na żądanie) | zrobione w kodzie i testach (2026-11-14, w tym testy na prawdziwym Kestrelu z TLS); `web-password` uruchomione na żywo, a strona obejrzana na prawdziwych danych (kopia bazy, dzienniki, konfiguracja) przez program podglądu na loopbacku, także w widoku telefonu 375 px. **2026-11-14 na żywo (Windows, `run` z prawdziwą konfiguracją):** panel startuje z monitorem, odcisk certyfikatu z dziennika zgadza się z `web-password` i z serwerem (127.0.0.1 i adres LAN), bez logowania 302/401; użytkownik zalogował się w przeglądarce (połączenie przyszło z adresu IPv6 link-local – filtr sieci go przepuścił). Próba wykryła błąd: przy `Referrer-Policy: no-referrer` przeglądarka wysyła z formularza `Origin: null`, a filtr POST odrzucał je jako obcą stronę (403, bez wpisu w dzienniku) – teraz rozstrzyga `Sec-Fetch-Site`, polityka to `same-origin`, odrzucenie trafia do dziennika (testy odtwarzają nagłówki przeglądarki). Wykresy (pulpit: 3 doby; strona czujnika: cała historia) – 2026-11-14 w testach i w przeglądarce na programie podglądu z danymi próbnymi (zasada 11). **Niesprawdzone**: wejście z telefonu w sieci domowej (reguła Zapory), wykresy na prawdziwym monitorze, Raspberry Pi |
-| Chmura Supabase, wielu agentów (dzierżawy czujników, blokada nadawcy), agent Android, interfejs WWW | zaprojektowane (faza 2 uzgodniona z użytkownikiem 2026-11-16, zasady 1–4, 10, 12), niezrobione (fazy 2–3) |
+| Chmura Supabase, wielu agentów (dzierżawy czujników, blokada nadawcy), agent Android, interfejs WWW | zaprojektowane (faza 2 uzgodniona z użytkownikiem 2026-11-16, zasady 1–4, 10, 12); 2026-11-16 projekty Supabase (prawdziwy i próbny) założone, a rdzeń schematu i funkcji SQL zrobiony i sprawdzony testami na próbnym projekcie (zasada 13); prawdziwy projekt jeszcze bez schematu; agenci, Android i interfejs – niezrobione |
 
 ## Zweryfikowane na sprzęcie (ATLO SMS1, Tuya `gvygg3m8`)
 
@@ -221,8 +221,8 @@ Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → S
      (2.1–2.2), jej wyłączenie albo uśpienie na noc też wywoła alarm.
    Testy: zasady w Core na atrapie bazy z ręcznie sterowanym czasem; funkcje SQL na drugim, próbnym projekcie Supabase
    (`glebosaurus-test`, decyzja użytkownika 2026-11-16 – bez Dockera) – dwóch agentów, uśpienie z dzierżawą, utrata sieci,
-   restart w trakcie wysyłki. Testy na chmurze uruchamia się na żądanie (bez pliku `local/cloud-admin.test.json` są
-   pomijane) i nigdy na prawdziwym projekcie: odmawiają, gdy id projektu jest takie jak w `local/cloud-admin.json` albo gdy
+   restart w trakcie wysyłki. Testy na chmurze uruchamia się na żądanie (`GLEBOSAURUS_CLOUD_TESTS=1`; bez tego albo bez
+   pliku `local/cloud-admin.test.json` są pomijane) i nigdy na prawdziwym projekcie: odmawiają, gdy id projektu jest takie jak w `local/cloud-admin.json` albo gdy
    baza ma tabele Glebosaurusa bez znacznika bazy próbnej.
 3. **Synchronizacja agent ↔ Supabase** (2026-11-16). Tylko ruch wychodzący: HTTPS do funkcji SQL (`/rest/v1/rpc/…`)
    zwykłym `HttpClient` z kluczem publikowalnym projektu (`sb_publishable_…` w nagłówku `apikey`, rola `anon`; dawnych
@@ -490,6 +490,40 @@ Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → S
     - na tym telefonie nie instalować Smart Life (dodatkowy klient walczący o połączenia).
     Wydania: APK z Actions podpisany jednym kluczem (sekret repozytorium; jego utrata = instalacja od nowa); Android i tak
     wymaga stuknięcia „Zainstaluj”, więc aktualizacja to powiadomienie o nowej wersji (albo Obtainium).
+13. **Schemat chmury** (krok 2.1.2, 2026-11-16; `supabase/migrations/20261116200000_core.sql`). Realizacja zasad 1–4:
+    - **Schemat `glebosaurus`** (Data API go nie wystawia, RLS na każdej tabeli bez żadnych zasad): `agents` (skrót
+      tokenu, `can_send_mail`, `sender_priority`, sygnał życia), `enrollment_codes`, `settings` (jeden wiersz; czas lokalny
+      raportów – `time_zone`, domyślnie Europe/Warsaw; `config_version` rośnie przy każdej zmianie ustawień i czujników),
+      `sensors` (progi jak `SensorConfig`; dane Tuya w Vault jako `glebosaurus:sensor:<id>`), `readings` (klucz
+      `(sensor_id, at)`, temperatura w dziesiątych częściach – jak w SQLite, plus agent, który odczytał), `sightings`,
+      `leases` (wiersz zostaje po oddaniu, więc epoka tylko rośnie), `mail_outbox`, `environment` (znacznik bazy próbnej)
+      i `schema_migrations`.
+    - **API agentów** – funkcje `public.*` `security definer` z pustym `search_path`, wykonywalne tylko przez `anon`:
+      `enroll`, `get_config`, `agent_sync`, `lease_claim`, `lease_release`, `mail_claim`, `mail_sent`, `mail_abandon`,
+      `mail_credentials`, `readings_range`. Nieznany albo unieważniony token → SQLSTATE 28000 (Data API: 403); błędne dane
+      → 22023 (400). Czasy z agenta są względne (`heardSecondsAgo`), bo jego zegar może się rozjechać z bazą; odczyty mają
+      własny czas, a baza odrzuca te z przyszłości (ponad 10 min), sprzed 2020 i spoza zakresów – z powodem w odpowiedzi,
+      żeby agent ich nie ponawiał. `agent_sync` najpierw oddaje, potem bierze dzierżawy w stałej kolejności (bez
+      zakleszczeń) i zwraca dla każdego czujnika właściciela oraz najlepsze słyszenie innego agenta z ostatnich 15 min.
+    - **Administracja** (`glebosaurus.admin_*`: agent i kod rejestracji, unieważnienie, czujnik, dane Tuya, sekrety poczty,
+      ustawienia) – tylko przez połączenie z bazą hasłem bazy (`Glebosaurus.Cloud.Admin`, pooler sesji), nigdy przez Data
+      API. Klucz tajny `sb_secret_…` nie jest więc dziś do niczego potrzebny – do rozstrzygnięcia przy `cloud import`
+      (2.1.4). Migracje stosuje `MigrationRunner` (blokada doradcza, suma kontrolna – zastosowanej migracji nie wolno
+      zmieniać), wbudowane w bibliotekę z `supabase/migrations/`.
+    - **Czas:** wszystko liczy `glebosaurus.clock()` = `now()`; tylko w bazie ze znacznikiem próbnej testy przesuwają zegar
+      ustawieniem `glebosaurus.test_now` we własnej transakcji (Data API nie daje klientom ustawiać takich zmiennych).
+    - **Połączenie z bazą:** serwer ma certyfikat od własnego CA Supabase, którego Windows nie zna (`VerifyFull` odrzucony,
+      2026-11-16). Z plikiem `supabase/prod-ca-2021.crt` (certyfikat główny z panelu projektu, publiczny) połączenie
+      sprawdza tożsamość serwera; bez niego tylko szyfruje.
+    - **Testy** (`tests/Glebosaurus.Cloud.Tests`, 36 przypadków; uruchamiane świadomie – `GLEBOSAURUS_CLOUD_TESTS=1` i
+      `local/cloud-admin.test.json`): każdy przebieg czyści próbną bazę i stosuje migracje od zera; przypadki z ROADMAP
+      (dwóch agentów, uśpienie z dzierżawą, utrata sieci, restart w trakcie wysyłki), równoczesne prośby o jedną dzierżawę
+      (dokładnie jeden zwycięzca), rejestracja i unieważnienie, uprawnienia `anon` (dokładnie lista funkcji API, nic w
+      `glebosaurus`, RLS wszędzie) i prawdziwa droga przez Data API z kluczem publikowalnym. **2026-11-16: wszystkie zielone
+      na `glebosaurus-test`, także drugi przebieg na istniejącym schemacie.**
+    - **Jeszcze nie ma** (dalsza część 2.1.2): wspólny stan alertów, polecenia (odczyt i raport na żądanie, oddanie,
+      parowanie, wysłanie logu) i dzienne logi agentów. Storage (zasada 3) wymaga zalogowanego użytkownika albo klucza
+      tajnego, więc logi pójdą raczej do tabeli przez funkcję API (gzip, 7 dni) – do decyzji przy implementacji.
 
 ## Struktura repozytorium
 
@@ -501,7 +535,10 @@ src/Glebosaurus.Mail      GmailSender (MailKit)
 src/Glebosaurus.Web       lokalny panel diagnostyczny (Kestrel, HTTPS, hasło; pulpit z wykresami, strona czujnika, odczyt i raport na żądanie; strony w wwwroot/ wbudowane w bibliotekę)
 src/Glebosaurus.Agent     CLI/monitor: run, stop, pair, status, report, mail-test, mail-preview, send-log, web-password, scan, read, listen (Shiny; net10.0 + net10.0-windows10.0.19041.0)
 src/Glebosaurus.Service   usługa Windows bez okna (glebosaurus-service.exe): nadzór monitora, sprawdzanie wydań, przekazanie aktualizacji skryptowi
-tests/                    testy jednostkowe: protokół i sesja na atrapie czujnika; alerty, raporty, magazyn, silnik na atrapach
+src/Glebosaurus.Cloud.Admin  narzędzia właściciela chmury: połączenie z bazą Supabase (Npgsql, pooler sesji), migracje
+supabase/migrations/      schemat i funkcje SQL chmury (zasada 13), wbudowane w Glebosaurus.Cloud.Admin
+tests/                    testy jednostkowe: protokół i sesja na atrapie czujnika; alerty, raporty, magazyn, silnik na atrapach;
+                          Glebosaurus.Cloud.Tests – funkcje SQL na próbnym projekcie Supabase (na żądanie)
 examples/                 wzór konfiguracji            deploy/    install-windows.ps1, package-windows.ps1, wzór unitu systemd
 .github/workflows/        ci.yml (build + testy), release.yml (tag v* → testy, paczka, próba instalacji, wydanie)
 docs/                     dokumentacja                 publish/   gotowe paczki (win-x64, linux-arm64) – wynik budowania, poza repozytorium

@@ -26,6 +26,7 @@ historią, odczyt czujników i raport mailowy na żądanie) działa od 2026-11-1
 | `Glebosaurus.Web` | panel diagnostyczny WWW wbudowany w `run` (Kestrel, HTTPS, hasło; pulpit z wykresami, strona czujnika, odczyt i raport na żądanie) |
 | `Glebosaurus.Agent` | CLI: `run`, `stop`, `pair`, `status`, `report`, `mail-test`, `mail-preview`, `send-log`, `web-password`, `scan`, `read`, `listen` |
 | `Glebosaurus.Service` | usługa Windows bez okna (`glebosaurus-service.exe`): uruchamia i pilnuje monitora, sprawdza wydania i przekazuje aktualizację skryptowi |
+| `Glebosaurus.Cloud.Admin` | narzędzia właściciela chmury (faza 2): połączenie z bazą Supabase i migracje schematu z `supabase/migrations/` |
 
 ## Budowanie i testy
 
@@ -35,6 +36,13 @@ dotnet test --solution Glebosaurus.slnx -c Release
 ```
 
 `global.json` włącza Microsoft Testing Platform (wymagane przez xunit.v3 na SDK 10+).
+
+Testy schematu i funkcji SQL chmury działają na **próbnym** projekcie Supabase (`local/cloud-admin.test.json`) i tylko na
+żądanie – każdy przebieg czyści próbną bazę i stosuje migracje od zera (ok. pół minuty); bez zmiennej są pomijane:
+
+```powershell
+$env:GLEBOSAURUS_CLOUD_TESTS = '1'; dotnet test --project tests/Glebosaurus.Cloud.Tests -c Release
+```
 
 Pliki wydania dla Windows (paczka samodzielna, skrypt instalacji, `SHA256SUMS`) buduje `./deploy/package-windows.ps1`
 (wynik w `publish/release`; `-Version 0.1.1 -OutputDir …` – paczka próbna z innym numerem). Wydanie na GitHubie: wersja w

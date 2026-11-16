@@ -11,6 +11,7 @@ na sprzęcie), [docs/ROADMAP.md](docs/ROADMAP.md) (kolejne fazy i decyzje do pod
 ```powershell
 dotnet build Glebosaurus.slnx -c Release
 dotnet test --solution Glebosaurus.slnx -c Release        # xunit.v3 na Microsoft Testing Platform (global.json)
+$env:GLEBOSAURUS_CLOUD_TESTS='1'; dotnet test --project tests/Glebosaurus.Cloud.Tests -c Release   # SQL na PRÓBNYM Supabase (czyści go)
 dotnet run --project src/Glebosaurus.Agent -f net10.0-windows10.0.19041.0 -- --help   # Windows; Linux: -f net10.0
 dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self-contained false -o publish/linux-arm64
 ./deploy/package-windows.ps1                               # pliki wydania Windows (zip samodzielny, install-windows.ps1, SHA256SUMS) w publish/release
@@ -38,7 +39,13 @@ dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self
   minutę na czujnik – i **raport mailowy na żądanie** przez `MonitorEngine.RequestReport` – ta sama kolejka, po odczytach cyklu,
   najwyżej raz na minutę, bez zmiany harmonogramu; konfiguracji nie zmienia); dane z `MonitorEngine.State` i `MonitorStatusBuilder` (status składany pole po
   pole, bez sekretów). Strona: `wwwroot/` wbudowane w bibliotekę, dane wstawiane tylko jako tekst (CSP bez skryptów inline).
-- `tests/` – protokół i sesja na atrapie czujnika; alerty, raporty, magazyn i silnik na atrapach z ręcznie sterowanym czasem.
+- `supabase/migrations/` – schemat i funkcje SQL chmury (ARCHITEKTURA.md, zasada 13): tabele w prywatnym schemacie
+  `glebosaurus` z RLS, agenci wołają tylko funkcje `public.*` (rola `anon`), administracja (`glebosaurus.admin_*`) tylko
+  przez połączenie z bazą. Zastosowanej migracji nie zmieniaj – zmiana schematu to nowa migracja (suma kontrolna).
+  `src/Glebosaurus.Cloud.Admin` – połączenie z bazą (Npgsql, pooler sesji) i `MigrationRunner` z migracjami wbudowanymi.
+- `tests/` – protokół i sesja na atrapie czujnika; alerty, raporty, magazyn i silnik na atrapach z ręcznie sterowanym czasem;
+  `Glebosaurus.Cloud.Tests` – funkcje SQL na próbnym projekcie (zegar przesuwany `glebosaurus.test_now`, tylko w bazie ze
+  znacznikiem próbnej).
 - `local/` – **poza repozytorium** (`.gitignore`): robocza konfiguracja, klucze czujników, baza, dzienniki.
 
 ## Konwencje
@@ -121,8 +128,9 @@ Raspberry Pi, kalibracja wilgotności. Następne kroki: patrz [docs/ROADMAP.md](
 Faza 2 (plan z 2026-11-16 w ROADMAP): konta gotowe – projekt Supabase (darmowy, Frankfurt) i sprawdzenie healthchecks.io
 założył użytkownik, połączenie sprawdzone z bestia5 (ARCHITEKTURA.md, zasady 2 i 10); dane dostępowe w
 `local/cloud-admin.json`. Konto Gmail nadawcy zostaje (jest już osobne). Funkcje SQL testujemy na drugim, próbnym
-projekcie `glebosaurus-test` (decyzja 2026-11-16, bez Dockera; założony i sprawdzony tego dnia). Kodu chmurowego jeszcze
-nie ma – następny krok to schemat i funkcje SQL (ROADMAP 2.1.2).
+projekcie `glebosaurus-test` (decyzja 2026-11-16, bez Dockera; założony i sprawdzony tego dnia). Rdzeń schematu i funkcji
+SQL (2.1.2) zrobiony 2026-11-16 i zielony na próbnym projekcie; prawdziwy projekt jest jeszcze bez schematu. Zostały: wspólny
+stan alertów, polecenia, dzienne logi agentów; potem Core (2.1.3) i agent (2.1.4).
 
 Usługa Windows (2026-11-15): wydanie **0.1.0** opublikowane przez Actions (repo publiczne), a na bestia5 zainstalowane z
 GitHuba skryptem z `-ImportFrom local -NoStart`: program w `%LOCALAPPDATA%\Glebosaurus\app`, **kopia** danych z `local/` w

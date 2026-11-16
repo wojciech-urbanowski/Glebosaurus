@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Narzędzia właściciela chmury (faza 2.1): połączenie z bazą Supabase hasłem bazy przez pooler sesji i migracje schematu.
+    Tylko komputer właściciela (import, migracje, kopia zapasowa) – agenci rozmawiają z chmurą przez Data API, bez Npgsql.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Glebosaurus.Cloud.Admin</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Npgsql" Version="10.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\supabase\migrations\*.sql" LogicalName="Glebosaurus.Migrations.%(Filename)%(Extension)" />
+  </ItemGroup>
+
+</Project>
