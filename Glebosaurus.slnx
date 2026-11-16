@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/Glebosaurus.Tuya/Glebosaurus.Tuya.csproj" />
     <Project Path="src/Glebosaurus.Cloud.Admin/Glebosaurus.Cloud.Admin.csproj" />
+    <Project Path="src/Glebosaurus.Cloud/Glebosaurus.Cloud.csproj" />
     <Project Path="src/Glebosaurus.Core/Glebosaurus.Core.csproj" />
     <Project Path="src/Glebosaurus.Data/Glebosaurus.Data.csproj" />
     <Project Path="src/Glebosaurus.Mail/Glebosaurus.Mail.csproj" />

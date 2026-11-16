@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Klient chmury dla agentów (faza 2.1): funkcje SQL Supabase przez Data API (HTTPS, klucz publikowalny, token agenta).
+    Bez Npgsql i bez SDK Supabase – ten sam klient posłuży agentowi na Windows, Raspberry Pi i Androidzie.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Glebosaurus.Cloud</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Glebosaurus.Core\Glebosaurus.Core.csproj" />
+  </ItemGroup>
+
+</Project>

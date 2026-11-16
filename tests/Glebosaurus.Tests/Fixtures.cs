@@ -52,6 +52,10 @@ internal sealed class ManualTimeProvider(DateTimeOffset start) : TimeProvider
     private DateTimeOffset now = start;
     public override DateTimeOffset GetUtcNow() => now;
     public override TimeZoneInfo LocalTimeZone => TimeZoneInfo.Utc;
+
+    // Zegar monotoniczny idzie razem z ręcznym czasem (dzierżawy agenta liczą ważność na nim).
+    public override long GetTimestamp() => now.UtcTicks;
+    public override long TimestampFrequency => TimeSpan.TicksPerSecond;
     public void Advance(TimeSpan span) => now += span;
 }
 

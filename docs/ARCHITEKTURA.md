@@ -549,6 +549,34 @@ Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → S
       `glebosaurus-test`, także drugi przebieg na istniejącym schemacie i przebieg z `VerifyFull`.**
     - Krok 2.1.2 jest skończony; prawdziwy projekt dostanie schemat poleceniem migracji agenta (2.1.4) – na prośbę
       użytkownika.
+14. **Core w trybie chmurowym** (krok 2.1.3, w kawałkach – ROADMAP; od 2026-11-16). Tryb samodzielny (`MonitorEngine`)
+    zostaje bez zmian; tryb chmurowy powstaje obok, z tych samych części (`AlertEvaluator`, `ReportSchedule`,
+    `MailTemplates`, `SnapshotBuilder`). Zrobione (kawałek a):
+    - **Protokół** (`Core/Cloud/Protocol.cs`): typy 1:1 z funkcjami SQL (zasada 13), `ICloudApi` – silniki testuje się na
+      atrapie; serializacja przez generator źródeł (`CloudJsonContext`, bez refleksji – agent Android będzie przycinany).
+      Odczyt w postaci chmury ma czas w pełnych milisekundach UTC (jak SQLite; baza trzyma mikrosekundy, .NET 100 ns) –
+      klucz `(sensor_id, at)` jest ten sam po obu stronach, więc dosyłanie jest idempotentne. Sekrety (token, hasło
+      Gmaila, klucze Tuya) są poza `ToString` (test). Błędy mają rodzaj (`CloudErrorKind`): `Unauthorized` (28000 albo zły
+      klucz – agent przestaje), `NotNotifier` (42501 – stracił blokadę), `Invalid` (22023 – błąd programu, bez ponowień),
+      `Unavailable` (sieć, czas, 5xx, 429 – ponowić później), `Protocol` (np. brak funkcji `PGRST202` – baza bez migracji).
+    - **Klient HTTP** (`src/Glebosaurus.Cloud`, `SupabaseCloudApi`): sam `HttpClient`, bez Npgsql i SDK Supabase – ten sam
+      dla Windows, Pi i Androida; komunikaty błędów bez tokenu i treści żądań.
+    - **Księga dzierżaw** (`LeaseLedger`): ważność od chwili **wysłania** prośby na zegarze monotonicznym agenta
+      (`TimeProvider.GetTimestamp`); bez udanej synchronizacji po prostu wygasa; odmowa usuwa wpis; epoka zostaje do oddania
+      i do maili, dopóki baza nie odmówi.
+    - **Przydział czujników** (`SensorLeasePolicy`): prośba tylko o czujnik słyszany w ostatnich 10 min; przy wolnym
+      czujniku czekanie zależne od sygnału (−70 dBm i lepiej od razu, potem 6 s na każdy dB słabiej, najwyżej 3 min; brak
+      ważnej mocy liczony jak −95 dBm); trzymany – przedłużany w każdej synchronizacji; oddanie po 3 porażkach z rzędu
+      (potem 10 min przerwy) albo gdy inny agent słyszy go o ≥ 6 dB lepiej nieprzerwanie przez 10 min (potem 30 min
+      przerwy); po restarcie agent przedłuża czujnik, który baza wciąż przypisuje jemu; odczyt tylko z ≥ 2 min ważności;
+      oddanie powtarza się do udanej synchronizacji; przy zatrzymaniu – oddanie wszystkich czujników.
+    - **Blokada nadawcy** (`NotifierLockPolicy`): agent bez roli nigdy jej nie bierze; wolną kandydat bierze po
+      priorytet × 1 min; trzymaną przedłuża; ważniejszemu kandydatowi obecnemu (sygnał życia ≤ 3 min) od 2 min oddaje ją
+      tylko w bezpiecznej chwili (nic w trakcie wysyłki) i przez 10 min po nią nie sięga, dopóki tamten jest obecny; mail
+      tylko z ≥ 1 min ważności blokady.
+    - **Testy:** zasady i księga na ręcznym czasie (w CI, także zegar monotoniczny `ManualTimeProvider`), protokół na
+      przykładowym JSON-ie funkcji SQL (w CI) i klient przez prawdziwe Data API próbnego projektu (ścieżka zbieracza,
+      ścieżka nadawcy, rodzaje błędów) – 2026-11-16 zielone.
 
 ## Struktura repozytorium
 
@@ -560,6 +588,7 @@ src/Glebosaurus.Mail      GmailSender (MailKit)
 src/Glebosaurus.Web       lokalny panel diagnostyczny (Kestrel, HTTPS, hasło; pulpit z wykresami, strona czujnika, odczyt i raport na żądanie; strony w wwwroot/ wbudowane w bibliotekę)
 src/Glebosaurus.Agent     CLI/monitor: run, stop, pair, status, report, mail-test, mail-preview, send-log, web-password, scan, read, listen (Shiny; net10.0 + net10.0-windows10.0.19041.0)
 src/Glebosaurus.Service   usługa Windows bez okna (glebosaurus-service.exe): nadzór monitora, sprawdzanie wydań, przekazanie aktualizacji skryptowi
+src/Glebosaurus.Cloud     klient chmury dla agentów: funkcje SQL przez Data API (HttpClient, bez Npgsql) – ICloudApi z Core
 src/Glebosaurus.Cloud.Admin  narzędzia właściciela chmury: połączenie z bazą Supabase (Npgsql, pooler sesji, VerifyFull), migracje
 supabase/migrations/      schemat i funkcje SQL chmury (zasada 13), wbudowane w Glebosaurus.Cloud.Admin
 supabase/prod-ca-2021.crt certyfikat główny Supabase (publiczny, do 2031-04-26), wbudowany w Glebosaurus.Cloud.Admin

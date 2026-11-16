@@ -44,6 +44,10 @@ dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self
   przez połączenie z bazą. Zastosowanej migracji nie zmieniaj – zmiana schematu to nowa migracja (suma kontrolna).
   `src/Glebosaurus.Cloud.Admin` – połączenie z bazą (Npgsql, pooler sesji, zawsze `VerifyFull` z wbudowanym certyfikatem
   głównym Supabase `supabase/prod-ca-2021.crt`, ważnym do 2031-04-26) i `MigrationRunner` z migracjami wbudowanymi.
+- Tryb chmurowy w Core (`Core/Cloud`, ARCHITEKTURA.md, zasada 14): protokół 1:1 z funkcjami SQL i `ICloudApi`,
+  `LeaseLedger` (ważność od wysłania prośby, zegar monotoniczny), `SensorLeasePolicy` i `NotifierLockPolicy`. Klient HTTP:
+  `src/Glebosaurus.Cloud` (`SupabaseCloudApi`, sam HttpClient – także dla Androida). Zmiana funkcji SQL = zmiana typów
+  protokołu i testów `CloudProtocolTests`/`CloudApiClientTests`. `MonitorEngine` (tryb samodzielny) zostaje bez zmian.
 - `tests/` – protokół i sesja na atrapie czujnika; alerty, raporty, magazyn i silnik na atrapach z ręcznie sterowanym czasem;
   `Glebosaurus.Cloud.Tests` – funkcje SQL na próbnym projekcie (zegar przesuwany `glebosaurus.test_now`, tylko w bazie ze
   znacznikiem próbnej).
@@ -131,7 +135,9 @@ założył użytkownik, połączenie sprawdzone z bestia5 (ARCHITEKTURA.md, zasa
 `local/cloud-admin.json`. Konto Gmail nadawcy zostaje (jest już osobne). Funkcje SQL testujemy na drugim, próbnym
 projekcie `glebosaurus-test` (decyzja 2026-11-16, bez Dockera; założony i sprawdzony tego dnia). Schemat i funkcje SQL
 (2.1.2: dzierżawy, blokada nadawcy, kolejka maili, alerty, polecenia, logi agentów w tabeli zamiast Storage) zrobione
-2026-11-16 i zielone na próbnym projekcie; prawdziwy projekt jest jeszcze bez schematu. Dalej Core (2.1.3) i agent (2.1.4).
+2026-11-16 i zielone na próbnym projekcie; prawdziwy projekt jest jeszcze bez schematu. Core (2.1.3): kawałek (a) – protokół,
+klient HTTP, księga dzierżaw i zasady przydziału – zrobiony 2026-11-16; dalej (b) bufor odczytów i pętla synchronizacji,
+(c) konfiguracja z chmury, (d) zbieracz, (e) nadawca; potem agent (2.1.4).
 
 Usługa Windows (2026-11-15): wydanie **0.1.0** opublikowane przez Actions (repo publiczne), a na bestia5 zainstalowane z
 GitHuba skryptem z `-ImportFrom local -NoStart`: program w `%LOCALAPPDATA%\Glebosaurus\app`, **kopia** danych z `local/` w
