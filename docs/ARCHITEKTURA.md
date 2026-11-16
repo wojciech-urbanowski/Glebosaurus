@@ -176,8 +176,9 @@ Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → S
    przejąć każdy czujnik) i trzyma ich lokalną kopię (DPAPI / Android Keystore / plik 600) do pracy bez sieci; `pair` wysyła
    nowe klucze od razu do Vault. Hasło Gmaila dostaje tylko obecny nadawca (`mail_credentials`, ta sama kontrola epoki co
    `mail_claim`) i trzyma je wyłącznie w pamięci, nigdy na dysku. Konsekwencje: konto Supabase jest kluczem do wszystkiego
-   (logowanie dwuetapowe; klucz `service_role` nigdy na agentach – tylko do importu i migracji, w pliku w `local/`); hasło
-   aplikacji Gmaila daje pełny dostęp do skrzynki (też IMAP), więc nadawcą ma być osobne konto Gmail tylko dla Glebosaurusa.
+   (logowanie dwuetapowe; klucz tajny `sb_secret_…` nigdy na agentach – tylko do importu i migracji, w
+   `local/cloud-admin.json`); hasło aplikacji Gmaila daje pełny dostęp do skrzynki (też IMAP), więc nadawcą jest osobne
+   konto Gmail tylko do takich zastosowań (obecne konto nadawcy już takie jest – użytkownik, 2026-11-16).
    Tryb samodzielny (bez sekcji `cloud`) działa jak dotąd z plikiem konfiguracji i własną pocztą.
 2. **Koordynacja wielu agentów** (2026-11-16). Czujnik przyjmuje jedno połączenie naraz, a kilka agentów może go słyszeć;
    każdy mail ma wyjść raz. Jedna funkcja SQL `lease_claim(zasób, agent, ttl)` atomowo daje dzierżawę, gdy zasób jest
@@ -213,11 +214,20 @@ Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → S
      `report_runs` i `last_notified_at`.
    - **Strażnik:** sygnał do healthchecks.io (darmowy) wysyła tylko obecny nadawca i tylko, gdy wszystko działa (blokada,
      Supabase, SMTP); cisza ponad 30 min → mail od healthchecks.io (padł nadawca, nie ma sieci, Supabase uśpiony lub
-     niedostępny). Jeden strażnik niezależnie od liczby kandydatów.
-   Testy: zasady w Core na atrapie bazy z ręcznie sterowanym czasem; funkcje SQL na lokalnym Supabase (CLI w Dockerze) albo
-   na próbnym projekcie – dwóch agentów, uśpienie z dzierżawą, utrata sieci, restart w trakcie wysyłki.
+     niedostępny). Jeden strażnik niezależnie od liczby kandydatów. Sygnał co 5 min (limit serwisu: 5 na minutę na
+     sprawdzenie; 100 wpisów historii to ok. 8 godz.), sprawdzenie „Simple”: Period 5 min, Grace 25 min – założone
+     2026-11-16 (adres sygnału w `local/cloud-admin.json`, to sekret). Nowe sprawdzenie nie alarmuje do pierwszego
+     sygnału, a `/log` dopisuje do historii bez zmiany stanu – tak sprawdzono adres. Dopóki nadawcą jest sama bestia5
+     (2.1–2.2), jej wyłączenie albo uśpienie na noc też wywoła alarm.
+   Testy: zasady w Core na atrapie bazy z ręcznie sterowanym czasem; funkcje SQL na drugim, próbnym projekcie Supabase
+   (`glebosaurus-test`, decyzja użytkownika 2026-11-16 – bez Dockera) – dwóch agentów, uśpienie z dzierżawą, utrata sieci,
+   restart w trakcie wysyłki. Testy na chmurze uruchamia się na żądanie (bez pliku `local/cloud-admin.test.json` są
+   pomijane) i nigdy na prawdziwym projekcie: odmawiają, gdy id projektu jest takie jak w `local/cloud-admin.json` albo gdy
+   baza ma tabele Glebosaurusa bez znacznika bazy próbnej.
 3. **Synchronizacja agent ↔ Supabase** (2026-11-16). Tylko ruch wychodzący: HTTPS do funkcji SQL (`/rest/v1/rpc/…`)
-   zwykłym `HttpClient` z publicznym kluczem projektu i tokenem agenta – bez SDK i bez hasła bazy na urządzeniach (wyjątek:
+   zwykłym `HttpClient` z kluczem publikowalnym projektu (`sb_publishable_…` w nagłówku `apikey`, rola `anon`; dawnych
+   kluczy `anon`/`service_role` nie używamy – Supabase wycofuje je do końca 2026) i tokenem agenta – bez SDK i bez hasła
+   bazy na urządzeniach (wyjątek:
    agent robiący kopię zapasową, zasada 10). Główne wywołanie `agent_sync` co ok. 60 s: sygnał życia (wersja, stan BLE;
    telefon także bateria, temperatura, ładowanie, Wi-Fi), słyszenia, paczka odczytów z lokalnego bufora, odnowienie
    dzierżaw → w odpowiedzi przydziały z epoką i czasem ważności, wersja konfiguracji i polecenia (czytaj teraz, oddaj,
@@ -228,7 +238,11 @@ Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → S
 4. **Uwierzytelnianie.** Agent: jednorazowy kod rejestracji (z panelu albo SQL; na Androidzie kod QR) → `enroll` →
    własny token, w bazie tylko jego skrót, odwoływalny w każdej chwili; lokalnie DPAPI (Windows), Android Keystore albo
    plik 600 (Pi). Zasady dostępu do wierszy (RLS) zamykają wszystkie tabele; agenci wołają wyłącznie funkcje
-   `security definer`, które sprawdzają token i rolę. Najcenniejszy jest token nadawcy (może zdobyć blokadę, a z nią hasło
+   `security definer`, które sprawdzają token i rolę. Od 2026 Supabase nie wystawia nowych tabel przez Data API bez
+   jawnego `grant` (w projekcie domyślne uprawnienia `public` dają `anon` przy tabelach tylko `Dxtm`, bez odczytu i
+   zapisu), ale funkcje nadal dostają `execute` dla `PUBLIC` z ogólnej zasady Postgresa (dokumentacja i domyślne
+   uprawnienia projektu, sprawdzone 2026-11-16) – migracje odbierają je (`revoke execute … from public`, też jako
+   domyślne uprawnienie dla przyszłych funkcji) i nadają `anon` tylko funkcje agentów. Najcenniejszy jest token nadawcy (może zdobyć blokadę, a z nią hasło
    Gmaila), więc rolę nadawcy mają tylko 1–2 zaufane urządzenia. Właściciel (panel, faza 3): Supabase Auth, tylko jego
    konto; sekrety w panelu można ustawić, nigdy odczytać.
 5. **Klucze Tuya: lokalne parowanie własnym kluczem** (bez Smart Life i Tuya IoT). Sparowany czujnik nie jest w aplikacji
@@ -360,10 +374,11 @@ Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → S
    powtarza maila); nieudana wysyłka ma własny odstęp ponowień (5 min), więc nie opóźnia alertów. Świadome ograniczenie:
    tylko „wczoraj” – jeśli agent wczoraj nie działał albo dzień starszy nie został wysłany, nie jest dosyłany wstecz.
 10. **Chmura i UI.** **Supabase, darmowy plan** (decyzja użytkownika 2026-11-16: „celem jest darmowość”): Postgres z
-    funkcjami SQL (operacje atomowe), Vault i Storage; bez Edge Functions i bez własnego serwera; region UE. Rozważone
-    wcześniej (2026-11-15): własny serwer ASP.NET Core na VPS (ok. 4–7 €/mies.) i Azure (ok. 15–30 USD/mies.) – odrzucone
-    ze względu na koszt. Limity darmowego planu według opracowań z 2026 r. (przy zakładaniu projektu sprawdzić na
-    supabase.com/pricing):
+    funkcjami SQL (operacje atomowe), Vault i Storage; bez Edge Functions i bez własnego serwera; region Central EU
+    (Frankfurt). Rozważone wcześniej (2026-11-15): własny serwer ASP.NET Core na VPS (ok. 4–7 €/mies.) i Azure (ok.
+    15–30 USD/mies.) – odrzucone ze względu na koszt. Limity darmowego planu (supabase.com/pricing, sprawdzone
+    2026-11-16; poza wymienionymi niżej: Storage 1 GB – logi agentów z 7 dni mieszczą się z zapasem; logi API i bazy
+    trzymane tylko 1 dzień):
     - baza 500 MB, po przekroczeniu tylko do odczytu – odczyty to ok. 0,4 mln wierszy rocznie, szacunkowo 50–80 MB, więc
       starczy na kilka lat, potem uśrednianie starych odczytów (ROADMAP, faza 4); słyszenia bez historii (zasada 2); rozmiar
       bazy w logu administratora;
@@ -373,7 +388,16 @@ Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → S
     - brak kopii zapasowych – polecenie `cloud backup` codziennie robi zrzut bazy (`pg_dump` przez pooler sesji, IPv4; hasło
       bazy tylko na agencie robiącym kopię: najpierw bestia5, docelowo Pi), trzyma 14 ostatnich i dokłada lokalną kopię
       kluczy Tuya, bo w zrzucie sekrety z Vault są zaszyfrowane kluczem projektu (do potwierdzenia przy implementacji);
-    - 2 projekty – drugi na próby; lokalnie Supabase CLI w Dockerze do testów funkcji SQL.
+    - 2 aktywne projekty – drugi, `glebosaurus-test`, do testów funkcji SQL (zasada 2); też usypia po tygodniu bez ruchu,
+      więc przed testami po przerwie trzeba go wznowić (Restore project).
+    **Projekt założony 2026-11-16** (użytkownik; dane w `local/cloud-admin.json`): Central EU (Frankfurt), Postgres 17.12,
+    Vault (`supabase_vault` 0.3.2), automatyczne RLS na nowych tabelach (wyzwalacz zdarzeń `ensure_rls`). Sprawdzone z
+    bestia5 tego dnia: klucz publikowalny przyjmowany przez Data API (nieistniejąca funkcja → 404 PGRST202, zmyślony klucz
+    → 401), a opis schematu dla niego zamknięty (401); klucz tajny czyta schemat i Storage; hasło bazy działa przez pooler
+    sesji `aws-1-eu-central-1.pooler.supabase.com:5432` (użytkownik `postgres.<id projektu>`) – `aws-0` nie zna projektu,
+    a połączenie bezpośrednie `db.<id projektu>.supabase.co` ma tylko adres IPv6, którego bestia5 nie rozwiązuje.
+    Próbny projekt `glebosaurus-test` (dane w `local/cloud-admin.test.json`) założony i sprawdzony tego samego dnia z tym
+    samym wynikiem (region, wersje, automatyczne RLS, zachowanie kluczy, pooler `aws-1`).
     Schemat jako migracje SQL w repozytorium (`supabase/migrations/`). UI (faza 3, hipoteza 2026-11-16): statyczna strona
     (np. GitHub Pages) czytająca Supabase przez RLS, logowanie Supabase Auth tylko na konto właściciela, wykresy z
     `charts.js` lokalnego panelu, polecenia („odczytaj teraz”, „wyślij raport teraz”) jako wiersze w tabeli poleceń;

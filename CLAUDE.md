@@ -82,7 +82,12 @@ dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self
   załącznikiem do `mail.adminRecipients`); w panelu WWW prawdziwy mail wysyła też „Wyślij raport teraz” (`POST /api/report`). Wyglądu maili sprawdzaj przez
   `mail-preview` (tylko pliki) – maile są projektowane pod wąski ekran telefonu, nie psuj tego (testy pilnują układu).
 - Nie drukuj i nie loguj kluczy z `*.credentials.json` ani hasła aplikacji Gmail; nie commituj `local/`. Sekretami są też
-  `local/glebosaurus-web.password` (skrót hasła panelu) i `local/glebosaurus-web.pfx` (klucz certyfikatu panelu).
+  `local/glebosaurus-web.password` (skrót hasła panelu), `local/glebosaurus-web.pfx` (klucz certyfikatu panelu) i
+  `local/cloud-admin.json` (klucz tajny Supabase, hasło bazy, adres sygnału healthchecks.io) oraz
+  `local/cloud-admin.test.json` (to samo dla próbnego projektu) – skrypty czytają je bez wypisywania wartości; adresów
+  projektów Supabase też nie wpisuj do repozytorium, bo jest publiczne.
+- Migracje i testy SQL tylko na próbnym projekcie `glebosaurus-test` (`local/cloud-admin.test.json`). Prawdziwy projekt
+  (`local/cloud-admin.json`) zmienia się wyłącznie na prośbę użytkownika – także migracja „gotowa i sprawdzona”.
 - **Claude działa z pakietu MSIX**: moje polecenia piszące do `%LOCALAPPDATA%` (poza `Temp`) trafiają do
   `%LOCALAPPDATA%\Packages\Claude_…\LocalCache\Local`, której Harmonogram nie widzi – `install-windows.ps1` przerwie wtedy z
   wyjaśnieniem. Prawdziwą usługę instaluje/aktualizuje użytkownik w zwykłym oknie PowerShell albo tymczasowe zadanie
@@ -112,6 +117,12 @@ prawdziwym monitorze jeszcze nie. 2026-11-14 `run` sam wysłał prawdziwy mail o
 wersję użytkownik obejrzał na telefonie i poprawił (2 godz., temperatura jako zakres). Niesprawdzone:
 wejście z telefonu (reguła Zapory), prawdziwy raport z `run`,
 Raspberry Pi, kalibracja wilgotności. Następne kroki: patrz [docs/ROADMAP.md](docs/ROADMAP.md).
+
+Faza 2 (plan z 2026-11-16 w ROADMAP): konta gotowe – projekt Supabase (darmowy, Frankfurt) i sprawdzenie healthchecks.io
+założył użytkownik, połączenie sprawdzone z bestia5 (ARCHITEKTURA.md, zasady 2 i 10); dane dostępowe w
+`local/cloud-admin.json`. Konto Gmail nadawcy zostaje (jest już osobne). Funkcje SQL testujemy na drugim, próbnym
+projekcie `glebosaurus-test` (decyzja 2026-11-16, bez Dockera; założony i sprawdzony tego dnia). Kodu chmurowego jeszcze
+nie ma – następny krok to schemat i funkcje SQL (ROADMAP 2.1.2).
 
 Usługa Windows (2026-11-15): wydanie **0.1.0** opublikowane przez Actions (repo publiczne), a na bestia5 zainstalowane z
 GitHuba skryptem z `-ImportFrom local -NoStart`: program w `%LOCALAPPDATA%\Glebosaurus\app`, **kopia** danych z `local/` w
