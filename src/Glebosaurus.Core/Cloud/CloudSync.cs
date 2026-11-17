@@ -70,7 +70,17 @@ public sealed record CloudSyncState(
     IReadOnlyList<string> Leases)
 {
     public static readonly CloudSyncState NotStarted = new(null, null, null, null, 0, 0, null, false, null, []);
+
+    /// <summary>Obraz chmury z ostatniej udanej synchronizacji (dla panelu); po porażce zostaje poprzedni.</summary>
+    public CloudView? View { get; init; }
 }
+
+/// <summary>
+/// Co agent wie o pozostałych z ostatniej udanej synchronizacji: kim jest, kto trzyma które czujniki i blokadę nadawcy,
+/// kto jeszcze pracuje. Czasy w odpowiedzi chmury są względne – liczy się je od <paramref name="At"/> (chwila odpowiedzi).
+/// </summary>
+public sealed record CloudView(DateTimeOffset At, AgentIdentity Agent, IReadOnlyList<SensorLeaseView> Sensors, NotifierView? Notifier,
+    IReadOnlyList<AgentView> Agents);
 
 /// <summary>
 /// Synchronizacja agenta z chmurą (ARCHITEKTURA.md, zasady 3 i 14): co <see cref="CloudSyncOptions.Interval"/> jedno
@@ -244,7 +254,10 @@ public sealed class CloudSync(
 
         var unsent = await outbox.CountUnsentAsync(cancellationToken);
         state = new(received, now, null, null, 0, unsent, response.ConfigVersion, false, offset,
-            [.. ledger.Known().Select(l => l.Resource)]);
+            [.. ledger.Known().Select(l => l.Resource)])
+        {
+            View = new(received, response.Agent, response.Sensors, response.Notifier, response.Agents)
+        };
         return unsent > 0 && batch.Count >= settings.BatchSize ? SyncOutcome.Backlog : SyncOutcome.Synced;
     }
 

@@ -1,5 +1,6 @@
 using Glebosaurus.Agent.Ble;
 using Glebosaurus.Cloud;
+using Glebosaurus.Cloud.Admin;
 using Glebosaurus.Core;
 using Glebosaurus.Core.Cloud;
 using Glebosaurus.Core.Config;
@@ -7,7 +8,9 @@ using Glebosaurus.Core.Hosting;
 using Glebosaurus.Core.Monitoring;
 using Glebosaurus.Data;
 using Glebosaurus.Mail;
+using Glebosaurus.Web;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 
 namespace Glebosaurus.Agent;
 
@@ -57,9 +60,12 @@ internal static class CloudAgent
         return ExitCodes.Success;
     }
 
-    /// <summary>Praca ciągła w trybie chmurowym: konfiguracja z chmury, synchronizacja, zbieracz i nadawca w jednym procesie.</summary>
-    public static async Task<int> RunAsync(LoadedConfig loaded, CloudAccessConfig cloud, BleHost ble, SqliteMonitorStore store, ILogger logger,
-        CancellationToken cancellationToken)
+    /// <summary>
+    /// Praca ciągła w trybie chmurowym: konfiguracja z chmury, synchronizacja, zbieracz i nadawca w jednym procesie; z sekcją
+    /// <c>web</c> także lokalny panel i kopia odczytów wszystkich agentów, którą panel pokazuje.
+    /// </summary>
+    public static async Task<int> RunAsync(LoadedConfig loaded, CloudAccessConfig cloud, BleHost ble, SqliteMonitorStore store,
+        ILoggerFactory loggers, ILogger logger, CancellationToken cancellationToken)
     {
         var protector = LocalProtectors.ForThisPlatform();
         var tokens = new AgentTokenStore(loaded.CloudTokenPath!, protector);
@@ -94,13 +100,25 @@ internal static class CloudAgent
         var notifier = new NotifierEngine(() => configSource.Current, api, notifierPolicy,
             credentials => new GmailSender(credentials.GmailAddress!, credentials.AppPassword!), new HealthchecksHeartbeat(http),
             () => sync.State, clock, logger);
-        var runtime = new CloudRuntime(configSource, sync, collector, notifier, logger);
+        var withPanel = loaded.Config.Web is { Enabled: true };
+        var mirror = withPanel
+            ? new CloudReadingMirror(api, store, cloud.ProjectUrl.Host, TimeSpan.FromDays(loaded.Config.RetentionDays), clock, logger)
+            : null;
+        var runtime = new CloudRuntime(configSource, sync, collector, notifier, logger, mirror);
+
+        WebPanel? panel = null;
+        if (withPanel)
+        {
+            var panelData = new CloudPanel(cloud.ProjectUrl.Host, () => configSource.Current, store, api,
+                () => collector.State, () => sync.State, () => notifier.MailState, () => mirror!.State, sync.Wake, clock, logger);
+            runtime.Loaded = async ct => panel = await AgentWebPanel.TryStartAsync(loaded, configSource, panelData, store, loggers, logger, ct);
+        }
 
         logger.LogInformation("Tryb chmurowy: projekt {Host}; token i kopia konfiguracji chronione ({Protection}).",
             cloud.ProjectUrl.Host, protector.Description);
-        if (loaded.Config.Web is { Enabled: true })
-            logger.LogWarning("Panel WWW w trybie chmurowym jeszcze nie działa (faza 2.1.4) – monitor pracuje bez panelu.");
 
+        using var backupStop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var (backupData, backupLoop) = StartDailyBackup(loaded, cloud, logger, backupStop.Token);
         try
         {
             await runtime.RunAsync(cancellationToken);
@@ -116,5 +134,50 @@ internal static class CloudAgent
             logger.LogError("{Error}", e.Message);
             return ExitCodes.Error;
         }
+        finally
+        {
+            if (panel is not null) await panel.DisposeAsync();
+            await backupStop.CancelAsync();
+            try { await backupLoop; }
+            catch (OperationCanceledException) { }
+            if (backupData is not null) await backupData.DisposeAsync();
+        }
+    }
+
+    /// <summary>
+    /// Codzienna kopia chmury (sekcja <c>cloud.backup</c>): plik administratora z hasłem bazy musi wskazywać ten sam projekt.
+    /// Problem z kopią to tylko wpis w dzienniku – agent pracuje dalej.
+    /// </summary>
+    private static (NpgsqlDataSource? Data, Task Loop) StartDailyBackup(LoadedConfig loaded, CloudAccessConfig cloud, ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        if (cloud.Backup is not { } backup) return (null, Task.CompletedTask);
+        CloudAdminSettings settings;
+        try
+        {
+            settings = CloudAdminSettings.Load(loaded.CloudBackupAdminPath!);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException)
+        {
+            logger.LogError("Kopia zapasowa chmury wyłączona: nie da się odczytać {File} ({Error}).", loaded.CloudBackupAdminPath, e.Message);
+            return (null, Task.CompletedTask);
+        }
+        if (!string.Equals(settings.Url.Host, cloud.ProjectUrl.Host, StringComparison.OrdinalIgnoreCase))
+        {
+            logger.LogError("Kopia zapasowa chmury wyłączona: {File} dotyczy innego projektu ({Other}) niż cloud.url ({Project}).",
+                loaded.CloudBackupAdminPath, settings.Url.Host, cloud.ProjectUrl.Host);
+            return (null, Task.CompletedTask);
+        }
+        if (settings.SecretKey is not null)
+            logger.LogWarning("Plik {File} ma klucz tajny Supabase – agent go nie potrzebuje (do kopii wystarczy adres i hasło bazy); usuń go z pliku na tym urządzeniu.",
+                loaded.CloudBackupAdminPath);
+
+        var data = settings.CreateDataSource("glebosaurus-backup");
+        var directory = loaded.CloudBackupDirectory!;
+        var daily = new DailyCloudBackup(ct => CloudBackup.CreateAsync(data, settings.ProjectRef, directory, TimeProvider.System, ct),
+            directory, settings.ProjectRef, backup.Keep, TimeZoneInfo.Local, TimeProvider.System, logger);
+        logger.LogInformation("Kopia zapasowa chmury: raz dziennie do {Directory} (zostaje {Keep} najnowszych); ostatnia: {Last}.",
+            directory, backup.Keep, daily.LastBackupAt is { } last ? last.ToLocalTime().ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture) : "brak");
+        return (data, daily.RunAsync(cancellationToken));
     }
 }

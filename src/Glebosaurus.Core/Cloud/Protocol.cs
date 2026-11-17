@@ -148,6 +148,13 @@ public sealed record CloudAlert(long Id, string Sensor, AlertKind Kind, string D
 
 public sealed record AlertOpenResult(bool Created, CloudAlert Alert);
 
+/// <summary>
+/// Paczka z <c>readings_feed</c>: odczyty wszystkich agentów przyjęte po numerze kolejnym <c>after</c> (od najstarszego
+/// numeru); <paramref name="Last"/> – od tego numeru pytać następnym razem, <paramref name="More"/> – czeka więcej.
+/// Baza oddaje tylko odczyty „ustalone” (przyjęte co najmniej 30 s temu), więc żaden nie przepada między paczkami.
+/// </summary>
+public sealed record ReadingsFeed(IReadOnlyList<ReadingReport> Readings, long Last, bool More);
+
 public sealed record CommandCreateResult(long Id, bool Created);
 
 public sealed record LogPutResult(DateOnly Day, int SizeBytes);
@@ -200,6 +207,9 @@ public interface ICloudApi
     Task<IReadOnlyList<StoredReading>> ReadingsRangeAsync(IReadOnlyCollection<string> sensors, DateTimeOffset from, DateTimeOffset to,
         CancellationToken cancellationToken);
 
+    /// <summary>Odczyty wszystkich agentów przyjęte po numerze <paramref name="after"/> (kopia lokalna dla panelu).</summary>
+    Task<ReadingsFeed> ReadingsFeedAsync(long after, int limit, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<CloudAlert>> AlertListAsync(CancellationToken cancellationToken);
     Task<AlertOpenResult> AlertOpenAsync(long epoch, string sensor, AlertKind kind, string detail, CancellationToken cancellationToken);
     Task<bool> AlertResolveAsync(long epoch, long alertId, CancellationToken cancellationToken);
@@ -224,6 +234,7 @@ public interface ICloudApi
 [JsonSerializable(typeof(MailClaimResult))]
 [JsonSerializable(typeof(MailCredentials))]
 [JsonSerializable(typeof(List<ReadingReport>))]
+[JsonSerializable(typeof(ReadingsFeed))]
 [JsonSerializable(typeof(List<CloudAlert>))]
 [JsonSerializable(typeof(AlertOpenResult))]
 [JsonSerializable(typeof(CommandCreateResult))]

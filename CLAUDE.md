@@ -15,6 +15,7 @@ $env:GLEBOSAURUS_CLOUD_TESTS='1'; dotnet test --project tests/Glebosaurus.Cloud.
 dotnet run --project src/Glebosaurus.Agent -f net10.0-windows10.0.19041.0 -- --help   # Windows; Linux: -f net10.0
 # Tryb chmurowy: sekcja "cloud" w konfiguracji (wzór examples/glebosaurus.cloud.config.json), potem enroll --code KOD i run
 # Właściciel: cloud migrate|import|agent --admin local/cloud-admin.test.json (bez --confirm tylko plan; prawdziwy projekt – tylko na prośbę)
+# Kopia chmury: cloud backup --admin local/cloud-admin.test.json --out <scratchpad> (tylko czyta bazę; plik ZIP z odszyfrowanymi sekretami)
 dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self-contained false -o publish/linux-arm64
 ./deploy/package-windows.ps1                               # pliki wydania Windows (zip samodzielny, install-windows.ps1, SHA256SUMS) w publish/release
 ```
@@ -45,7 +46,9 @@ dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self
   `glebosaurus` z RLS, agenci wołają tylko funkcje `public.*` (rola `anon`), administracja (`glebosaurus.admin_*`) tylko
   przez połączenie z bazą. Zastosowanej migracji nie zmieniaj – zmiana schematu to nowa migracja (suma kontrolna).
   `src/Glebosaurus.Cloud.Admin` – połączenie z bazą (Npgsql, pooler sesji, zawsze `VerifyFull` z wbudowanym certyfikatem
-  głównym Supabase `supabase/prod-ca-2021.crt`, ważnym do 2031-04-26) i `MigrationRunner` z migracjami wbudowanymi.
+  głównym Supabase `supabase/prod-ca-2021.crt`, ważnym do 2031-04-26), `MigrationRunner` z migracjami wbudowanymi, import,
+  agenci i `CloudBackup` (zrzut bez `pg_dump`: tabele CSV z jednej migawki + odszyfrowane sekrety z Vault, ZIP;
+  `DailyCloudBackup` – raz dziennie w `run` z sekcją `cloud.backup`).
 - Tryb chmurowy w Core (`Core/Cloud`, ARCHITEKTURA.md, zasada 14): protokół 1:1 z funkcjami SQL i `ICloudApi`,
   `LeaseLedger` (ważność od wysłania prośby, zegar monotoniczny), `SensorLeasePolicy` i `NotifierLockPolicy`, `CloudSync`
   (pętla `agent_sync`, bufor `IReadingOutbox` = kolumna `sync_state` w SQLite – dodawana zgodnie wstecz, `user_version`
@@ -55,7 +58,11 @@ dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self
   nasłuch wszystkich czujników co 3 min przez `ISensorListener`, polecenia `read_now`/`release`/`send_log`, dziennik dnia
   poprzedniego do chmury), `NotifierEngine` (tylko z blokadą i hasłem na tę epokę; każdy mail: `mail_claim` → SMTP →
   `mail_sent`, pewna porażka SMTP oddaje rezerwację, niepewna nie – najwyżej raz; alerty, raporty, log administratora po
-  jednym mailu na agenta, „agent milczy”, strażnik healthchecks.io). Klient HTTP:
+  jednym mailu na agenta, „agent milczy”, strażnik healthchecks.io), lokalny panel w trybie chmurowym: `CloudPanel` (status
+  z konfiguracji z chmury, migawki zbieracza `CollectorEngine.State`, obrazu ostatniej synchronizacji `CloudSyncState.View`
+  i alertów z chmury; odczyt/raport na żądanie jako `command_create`) i `CloudReadingMirror` (kopia odczytów wszystkich
+  agentów w SQLite przez `readings_feed` – numer kolejny z barierą „ustalonych”, tabela `cloud_feed`, `sync_state` = 1,
+  więc nie wracają do wysyłki). Klient HTTP:
   `src/Glebosaurus.Cloud` (`SupabaseCloudApi`, sam HttpClient – także dla Androida). Zmiana funkcji SQL = zmiana typów
   protokołu i testów `CloudProtocolTests`/`CloudApiClientTests`. `MonitorEngine` (tryb samodzielny) zostaje bez zmian.
 - `tests/` – protokół i sesja na atrapie czujnika; alerty, raporty, magazyn i silnik na atrapach z ręcznie sterowanym czasem;
@@ -106,7 +113,8 @@ dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self
 - Nie drukuj i nie loguj kluczy z `*.credentials.json` ani hasła aplikacji Gmail; nie commituj `local/`. Sekretami są też
   `local/glebosaurus-web.password` (skrót hasła panelu), `local/glebosaurus-web.pfx` (klucz certyfikatu panelu) i
   `local/cloud-admin.json` (klucz tajny Supabase, hasło bazy, adres sygnału healthchecks.io) oraz
-  `local/cloud-admin.test.json` (to samo dla próbnego projektu) – skrypty czytają je bez wypisywania wartości; adresów
+  `local/cloud-admin.test.json` (to samo dla próbnego projektu) oraz kopie chmury `glebosaurus-backup-*.zip` (np.
+  `local/backups/` – odszyfrowane klucze Tuya i hasło Gmaila) – skrypty czytają je bez wypisywania wartości; adresów
   projektów Supabase też nie wpisuj do repozytorium, bo jest publiczne. W trybie chmurowym sekretami są też
   `glebosaurus-cloud.token` (token agenta) i `glebosaurus-cloud-config.bin` (kopia konfiguracji z kluczami Tuya) obok
   konfiguracji agenta, a także jednorazowe kody rejestracji.
@@ -140,10 +148,10 @@ trzeba wiedzieć przed każdą pracą:
 - **Zatwierdzone przez użytkownika – nie zmieniaj bez prośby:** układ i kolorystyka maili (kwadratowe, pastelowe, pod
   telefon), wykres w raporcie (`MailChart`: kolumny po 2 godz., temperatura jako blady zakres), panel WWW bez edycji
   konfiguracji (pełny edytor – faza 3c), log administratora w trybie chmurowym jako osobny mail od każdego agenta.
-- **Faza 2.1 (chmura):** konta i oba projekty Supabase oraz healthchecks.io gotowe, schemat SQL (2.1.2) i Core (2.1.3)
-  skończone, agent (2.1.4) bez `cloud backup` i panelu w trybie chmurowym. **Prawdziwy projekt Supabase jest bez
-  schematu**, wydanie 0.1.1 nie ma trybu chmurowego, a maila w tym trybie jeszcze nie było; przejście usługi (2.1.5) –
-  tylko na prośbę użytkownika.
+- **Faza 2.1 (chmura):** konta i oba projekty Supabase oraz healthchecks.io gotowe, schemat SQL (2.1.2, trzy migracje),
+  Core (2.1.3) i agent (2.1.4, z panelem w trybie chmurowym i `cloud backup` – 2026-11-17) skończone w kodzie i testach.
+  **Prawdziwy projekt Supabase jest bez schematu**, wydanie 0.1.1 nie ma trybu chmurowego, a maila w tym trybie jeszcze
+  nie było; przejście usługi (2.1.5) – tylko na prośbę użytkownika.
 - **Z pracy usługi (2026-11-17):** czujniki przy wejściu prawie poza zasięgiem bestia5 (ROADMAP, „Do zbadania”); fałszywe
   alerty „brak odczytów” po wyłączeniu komputera poprawione w kodzie (`SilenceGrace`, ARCHITEKTURA.md, zasada 9) – na
   bestia5 dopiero z następnym wydaniem.

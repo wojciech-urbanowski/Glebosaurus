@@ -13,7 +13,8 @@ koncie użytkownika (zadanie Harmonogramu przy zalogowaniu, bez okna), instalowa
 na GitHubie (patrz „Windows: instalacja jako usługa”): protokół Tuya BLE z lokalnym parowaniem bez konta Tuya (`pair`),
 odczyty do SQLite, alerty, raporty z wykresem i log administratora mailem przez Gmail (wygląd pod telefon), lokalny panel
 diagnostyczny w przeglądarce (HTTPS, sieć lokalna, hasło; wykresy, odczyt i raport na żądanie – patrz „Panel WWW”).
-**Tryb chmurowy** (Supabase, wielu agentów – faza 2) jest w kodzie i testach, ale jeszcze nie w użyciu ani w wydaniu.
+**Tryb chmurowy** (Supabase, wielu agentów – faza 2; z panelem WWW i kopią zapasową chmury) jest w kodzie i testach, ale
+jeszcze nie w użyciu ani w wydaniu.
 **Niesprawdzone:** Raspberry Pi, kalibracja wilgotności. Co zrobione, co zostało i w jakiej kolejności:
 [ROADMAP](docs/ROADMAP.md), „Stan w skrócie”.
 
@@ -27,7 +28,7 @@ diagnostyczny w przeglądarce (HTTPS, sieć lokalna, hasło; wykresy, odczyt i r
 | `Glebosaurus.Agent` | CLI: `run`, `stop`, `enroll`, `pair`, `status`, `report`, `mail-test`, `mail-preview`, `send-log`, `web-password`, `scan`, `read`, `listen` |
 | `Glebosaurus.Service` | usługa Windows bez okna (`glebosaurus-service.exe`): uruchamia i pilnuje monitora, sprawdza wydania i przekazuje aktualizację skryptowi |
 | `Glebosaurus.Cloud` | klient chmury dla agentów (faza 2): funkcje SQL Supabase przez Data API, ochrona tokenu i kopii konfiguracji, sygnał dla healthchecks.io |
-| `Glebosaurus.Cloud.Admin` | narzędzia właściciela chmury (faza 2): połączenie z bazą Supabase i migracje schematu z `supabase/migrations/` |
+| `Glebosaurus.Cloud.Admin` | narzędzia właściciela chmury (faza 2): połączenie z bazą Supabase, migracje schematu z `supabase/migrations/`, import, agenci, kopia zapasowa |
 
 ## Budowanie i testy
 
@@ -310,7 +311,7 @@ Zabezpieczenia (kilka warstw):
 Pliki `glebosaurus-web.password` i `glebosaurus-web.pfx` (z kluczem prywatnym) są sekretami jak klucze czujników – leżą w
 `local/` (poza repozytorium); na Linuksie powstają z prawami 600. Nowe hasło: ponownie `web-password` i restart monitora.
 
-## Tryb chmurowy (faza 2) – w przygotowaniu
+## Tryb chmurowy (faza 2) – gotowy w kodzie, jeszcze nie w użyciu
 
 Wielu agentów (Windows, Raspberry Pi, później Android) pracuje na wspólnej chmurze Supabase: czujniki, progi, harmonogramy,
 odbiorcy, klucze Tuya i hasło Gmaila są w chmurze, agenci dzielą się czujnikami przez dzierżawy (żaden czujnik nie ma dwóch
@@ -339,8 +340,31 @@ glebosaurus run --config glebosaurus.config.json
 Token agenta (`glebosaurus-cloud.token`) i ostatnia dobra kopia konfiguracji z chmury (`glebosaurus-cloud-config.bin`, z
 kluczami Tuya) leżą obok konfiguracji, chronione DPAPI (Windows) albo prawami 600 (Linux) – to sekrety, nie kopiuj ich na
 inne urządzenia. Bez sieci agent startuje z kopii i czyta czujniki do końca dzierżaw; odczyty czekają w lokalnej bazie i
-trafiają do chmury po powrocie sieci. Jeszcze nie ma: kopii zapasowej chmury (`cloud backup`) i panelu WWW w trybie
-chmurowym.
+trafiają do chmury po powrocie sieci.
+
+**Panel WWW w trybie chmurowym** (sekcja `web`, hasło jak zwykle przez `web-password`): ten sam pulpit i strona czujnika,
+ale z odczytami **wszystkich** agentów – agent z panelem trzyma ich lokalną kopię (dociąga z chmury co 2 min to, co przyjęła,
+także odczyty dosłane z opóźnieniem; nie odsyła ich z powrotem). Przy każdym czujniku widać, który agent go czyta (ma
+dzierżawę) i kto poza tym agentem słyszy go najlepiej; karta „Chmura i agenci” pokazuje synchronizację, bufor, nadawcę
+maili, kopię odczytów i wszystkich agentów. „Odczytaj teraz” i „Wyślij raport teraz” idą poleceniem przez chmurę – odczyt do
+agenta z dzierżawą czujnika (może nim być ten), raport do obecnego nadawcy (zwykle w ciągu 1–2 min). Alerty są ze wspólnego
+stanu w chmurze. Konfiguracji panel nie zmienia – czujniki, progi i poczta są w chmurze.
+
+**Kopia zapasowa chmury** (darmowy plan Supabase kopii nie robi):
+
+```powershell
+glebosaurus cloud backup --admin local/cloud-admin.json            # teraz; domyślnie do local/backups, 14 najnowszych
+```
+
+Kopia to jeden plik ZIP z jednej chwili (transakcja tylko do odczytu): wszystkie tabele schematu `glebosaurus` jako CSV (bez
+dzienników agentów), lista migracji i **odszyfrowane** sekrety z Vault (klucze Tuya, hasło Gmaila, adres sygnału
+healthchecks.io) – w zrzucie bazy są zaszyfrowane kluczem projektu, który przepada razem z projektem. Plik jest więc sekretem
+jak `cloud-admin.json` (na Linuksie prawa 600); poza ten komputer – tylko w zaszyfrowane miejsce. Robi go sam program (bez
+`pg_dump`). Codziennie robi go agent z sekcją `cloud.backup` w konfiguracji (wzór w
+[examples/glebosaurus.cloud.config.json](examples/glebosaurus.cloud.config.json)): raz na dzień kalendarzowy, przy pierwszej
+okazji (komputer bywa w nocy wyłączony), co najmniej 10 min po starcie; potrzebuje pliku administratora z adresem projektu i
+hasłem bazy – bez klucza tajnego – więc tylko jeden zaufany agent (dziś bestia5, docelowo Raspberry Pi). Odtwarzania z kopii
+jeszcze nie ma (ROADMAP, faza 4).
 
 ## Raspberry Pi (linux-arm64) – niesprawdzone
 

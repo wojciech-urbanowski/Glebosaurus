@@ -13,7 +13,10 @@ public enum ReportRequestStatus
     TooSoon,
 
     /// <summary>Poczta nie jest skonfigurowana – raportu nie ma czym wysłać.</summary>
-    MailNotConfigured
+    MailNotConfigured,
+
+    /// <summary>Tryb chmurowy: polecenia nie udało się zostawić w chmurze (brak sieci, chmura niedostępna).</summary>
+    Unavailable
 }
 
 /// <param name="AvailableAt">Przy <see cref="ReportRequestStatus.TooSoon"/>: od kiedy można zlecić raport.</param>

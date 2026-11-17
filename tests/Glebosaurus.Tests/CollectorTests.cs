@@ -63,6 +63,27 @@ public sealed class CollectorTests : IDisposable
     }
 
     [Fact]
+    public async Task State_ShowsAttemptsResultsAndSignal_ForThePanel()
+    {
+        Grant("s1");
+        Grant("s2");
+        reader.Script = sensor => sensor.Id == "s1"
+            ? Fixtures.Ok(sensor, 41) with { SignalDbm = -77 }
+            : new SensorReadOutcome(sensor, null, SensorReadFailure.NotFound);
+        Assert.Null(collector.State.StartedAt);
+
+        await collector.CycleAsync(Ct);
+
+        var state = collector.State;
+        Assert.Equal((Fixtures.T0, Fixtures.T0), (state.StartedAt!.Value, state.LastCycleAt!.Value));
+        Assert.Empty(state.ReadingNow);
+        var s1 = state.Sensors["s1"];
+        Assert.Equal((SensorReadFailure.None, 0, -77), (s1.LastResult!.Value, s1.Failures, s1.LastSignalDbm!.Value));
+        var s2 = state.Sensors["s2"];
+        Assert.Equal((SensorReadFailure.NotFound, 1, Fixtures.T0 + Minute), (s2.LastResult!.Value, s2.Failures, s2.RetryAt!.Value));
+    }
+
+    [Fact]
     public async Task WithoutLease_NothingIsRead()
     {
         await collector.CycleAsync(Ct);

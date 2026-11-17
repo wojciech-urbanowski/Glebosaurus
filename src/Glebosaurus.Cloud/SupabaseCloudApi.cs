@@ -76,6 +76,9 @@ public sealed class SupabaseCloudApi : ICloudApi
         return [.. readings.Select(r => r.ToStored())];
     }
 
+    public Task<ReadingsFeed> ReadingsFeedAsync(long after, int limit, CancellationToken cancellationToken) =>
+        Call("readings_feed", new() { ["p_after"] = after, ["p_limit"] = limit }, CloudJsonContext.Default.ReadingsFeed, cancellationToken);
+
     public async Task<IReadOnlyList<CloudAlert>> AlertListAsync(CancellationToken cancellationToken) =>
         await Call("alert_list", [], CloudJsonContext.Default.ListCloudAlert, cancellationToken);
 

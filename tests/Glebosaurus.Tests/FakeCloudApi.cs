@@ -119,6 +119,37 @@ internal sealed class FakeCloudApi(ManualTimeProvider clock) : ICloudApi
         CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<StoredReading>>([.. CloudReadings.Where(r => sensors.Contains(r.SensorId) && r.At >= from && r.At <= to).OrderBy(r => r.At)]);
 
+    // ---- Kopia odczytów (readings_feed): numery kolejne jak w bazie ----
+
+    public List<(long Seq, StoredReading Reading)> Feed { get; } = [];
+    public Queue<CloudApiException> FeedFailures { get; } = new();
+    public List<(long After, int Limit)> FeedCalls { get; } = [];
+
+    public void AddToFeed(params StoredReading[] readings)
+    {
+        foreach (var reading in readings) Feed.Add((Feed.Count == 0 ? 1 : Feed[^1].Seq + 1, reading));
+    }
+
+    public Task<ReadingsFeed> ReadingsFeedAsync(long after, int limit, CancellationToken cancellationToken)
+    {
+        FeedCalls.Add((after, limit));
+        if (FeedFailures.TryDequeue(out var failure)) throw failure;
+        var page = Feed.Where(f => f.Seq > after).OrderBy(f => f.Seq).Take(limit).ToList();
+        return Task.FromResult(new ReadingsFeed([.. page.Select(p => ReadingReport.From(p.Reading))],
+            page.Count > 0 ? page[^1].Seq : after, page.Count == limit));
+    }
+
+    public List<(string Kind, string? Sensor)> CreatedCommands { get; } = [];
+    public Queue<CloudApiException> CommandFailures { get; } = new();
+
+    public Task<CommandCreateResult> CommandCreateAsync(string kind, string? sensor, CancellationToken cancellationToken)
+    {
+        if (CommandFailures.TryDequeue(out var failure)) throw failure;
+        var created = !CreatedCommands.Contains((kind, sensor));
+        CreatedCommands.Add((kind, sensor));
+        return Task.FromResult(new CommandCreateResult(100 + CreatedCommands.Count, created));
+    }
+
     public Task<IReadOnlyList<CloudAlert>> AlertListAsync(CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<CloudAlert>>([.. Alerts.Where(a => a.ResolvedAt is null)]);
 
@@ -154,8 +185,6 @@ internal sealed class FakeCloudApi(ManualTimeProvider clock) : ICloudApi
         return Task.FromResult(count);
     }
 
-    public Task<CommandCreateResult> CommandCreateAsync(string kind, string? sensor, CancellationToken cancellationToken) =>
-        throw new NotSupportedException();
     public List<(long Id, JsonObject? Result)> Done { get; } = [];
     public Queue<CloudApiException> DoneFailures { get; } = new();
 

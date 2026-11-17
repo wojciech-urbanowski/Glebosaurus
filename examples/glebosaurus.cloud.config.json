@@ -9,6 +9,11 @@
     "publishableKey": "sb_publishable_…"
     // Opcjonalnie (domyślne obok tego pliku): "tokenFile": "glebosaurus-cloud.token",
     //                                          "configCacheFile": "glebosaurus-cloud-config.bin"
+
+    // Codzienna kopia zapasowa chmury – tylko na JEDNYM zaufanym agencie (dziś bestia5, docelowo Raspberry Pi). adminFile to
+    // plik jak local/cloud-admin.json, ale wystarczy w nim supabase.url i supabase.databasePassword (bez klucza tajnego).
+    // Kopie zawierają odszyfrowane klucze Tuya i hasło Gmaila – są sekretem.
+    // , "backup": { "adminFile": "cloud-admin.json", "directory": "backups", "keep": 14 }
   },
 
   // Lokalny bufor i kopia odczytów tego agenta (SQLite); ścieżka względna od katalogu tego pliku.
@@ -18,5 +23,7 @@
   // Dziennik agenta (pliki dzienne w logs/); wczorajszy trafia do chmury, a nadawca wysyła go administratorowi.
   "logs": { "retentionDays": 7 }
 
-  // Panel WWW w trybie chmurowym – w przygotowaniu (faza 2.1.4).
+  // Panel WWW (hasło: glebosaurus web-password): pulpit z odczytami wszystkich agentów (lokalna kopia z chmury), kto czyta
+  // który czujnik, nadawca maili; odczyt i raport na żądanie idą poleceniem przez chmurę.
+  // , "web": { "port": 8470 }
 }

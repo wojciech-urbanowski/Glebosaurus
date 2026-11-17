@@ -55,6 +55,21 @@ public sealed class CloudSyncTests : IDisposable
     }
 
     [Fact]
+    public async Task View_FromLastSync_StaysAfterAFailure()
+    {
+        Assert.Null(sync.State.View);
+        await sync.SyncOnceAsync(Ct);
+        var view = sync.State.View!;
+        Assert.Equal(("bestia5", Fixtures.T0), (view.Agent.Name, view.At));
+
+        clock.Advance(TimeSpan.FromMinutes(1));
+        api.Failures.Enqueue(new(CloudErrorKind.Unavailable, "brak sieci"));
+        await sync.SyncOnceAsync(Ct);
+        Assert.Same(view, sync.State.View);
+        Assert.Equal("brak sieci", sync.State.LastError);
+    }
+
+    [Fact]
     public async Task RejectedReadings_AreNotResent()
     {
         await StoreReadingsAsync("s1", 2);

@@ -19,7 +19,8 @@ namespace Glebosaurus.Agent;
 internal sealed record CliOptions(
     string Command, int? Seconds, int Timeout, string? Credentials, string? Config, string? Output, bool Verbose, bool Quiet,
     int? Minutes, bool ConfirmBind, string? Id, string? Name, string? Mac, int? Linger, bool Samples, string? Date, string? StopEvent,
-    string? Code = null, string? Subcommand = null, string? Admin = null, bool Confirm = false, int? SenderPriority = null, string? TimeZone = null);
+    string? Code = null, string? Subcommand = null, string? Admin = null, bool Confirm = false, int? SenderPriority = null, string? TimeZone = null,
+    int? Keep = null);
 
 internal static class Cli
 {
@@ -70,6 +71,11 @@ internal static class Cli
           glebosaurus cloud agent --admin PLIK [--name NAZWA [--sender-priority N] --confirm]
               Bez --name: lista agentów. Z --name i --confirm: tworzy agenta (z --sender-priority 1–9 – kandydat na
               nadawcę, 1 najważniejszy; bez – tylko zbiera) i wypisuje jednorazowy kod rejestracji (24 h) do enroll.
+          glebosaurus cloud backup --admin PLIK [--out KATALOG] [--keep N]
+              Kopia zapasowa chmury teraz (darmowy plan Supabase jej nie robi): tabele i odszyfrowane sekrety z Vault w
+              jednym pliku ZIP (domyślnie katalog backups/ obok pliku administratora), zostawia N najnowszych (domyślnie 14).
+              Tylko czyta bazę. Plik zawiera klucze Tuya i hasło Gmaila – trzymaj go jak cloud-admin.json. Codziennie robi
+              ją sam agent z sekcją "backup" wewnątrz "cloud" (adminFile – plik z hasłem bazy) w konfiguracji.
 
         Panel WWW (diagnostyka w przeglądarce: stan, historia, dziennik, odczyt czujników na żądanie):
           glebosaurus web-password [--config PLIK]
@@ -147,7 +153,7 @@ internal static class Cli
         var timeout = 12;
         string? credentials = null, config = null, output = null, id = null, name = null, mac = null, date = null, stopEvent = null, code = null;
         string? admin = null, timeZone = null;
-        int? senderPriority = null;
+        int? senderPriority = null, keep = null;
         bool verbose = false, quiet = false, confirmBind = false, samples = false, confirm = false;
         for (var i = (hasCommand ? 1 : 0) + (subcommand is null ? 0 : 1); i < args.Length; i++)
         {
@@ -175,13 +181,14 @@ internal static class Cli
                 case "--confirm": confirm = true; break;
                 case "--sender-priority": senderPriority = Number(args, ++i, "--sender-priority", 9); break;
                 case "--time-zone": timeZone = Value(args, ++i, "--time-zone"); break;
+                case "--keep": keep = Number(args, ++i, "--keep", 365); break;
                 // Prywatny sygnał zatrzymania od usługi Windows (glebosaurus-service); nie dla ludzi, więc bez opisu w pomocy.
                 case "--stop-event": stopEvent = Value(args, ++i, "--stop-event"); break;
                 default: throw new ArgumentException($"Nieznany parametr {args[i]}. Użyj --help.");
             }
         }
         return new(command, seconds, timeout, credentials, config, output, verbose, quiet, minutes, confirmBind, id, name, mac, linger, samples, date, stopEvent, code,
-            subcommand, admin, confirm, senderPriority, timeZone);
+            subcommand, admin, confirm, senderPriority, timeZone, keep);
     }
 
     private static string Value(string[] args, int index, string flag) =>
@@ -291,7 +298,7 @@ internal static class Cli
         await ble.EnsureAccessAsync();
         var store = new SqliteMonitorStore(loaded.DatabasePath);
         await store.InitializeAsync(limit.Token);
-        if (loaded.Config.Cloud is { } cloud) return await CloudAgent.RunAsync(loaded, cloud, ble, store, logger, limit.Token);
+        if (loaded.Config.Cloud is { } cloud) return await CloudAgent.RunAsync(loaded, cloud, ble, store, loggers, logger, limit.Token);
 
         IMailGateway? mail = loaded.Config.Mail is { } m ? new GmailSender(m.GmailAddress, m.AppPassword) : null;
         if (mail is null) logger.LogWarning("Sekcja „mail” nie jest skonfigurowana – alerty i raporty będą tylko w dzienniku.");

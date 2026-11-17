@@ -27,6 +27,8 @@ internal sealed class FlakyApi(ICloudApi inner) : ICloudApi
     public Task<MailCredentials> MailCredentialsAsync(long epoch, CancellationToken cancellationToken) => Inner.MailCredentialsAsync(epoch, cancellationToken);
     public Task<IReadOnlyList<StoredReading>> ReadingsRangeAsync(IReadOnlyCollection<string> sensors, DateTimeOffset from, DateTimeOffset to,
         CancellationToken cancellationToken) => Inner.ReadingsRangeAsync(sensors, from, to, cancellationToken);
+    public Task<ReadingsFeed> ReadingsFeedAsync(long after, int limit, CancellationToken cancellationToken) =>
+        Inner.ReadingsFeedAsync(after, limit, cancellationToken);
     public Task<IReadOnlyList<CloudAlert>> AlertListAsync(CancellationToken cancellationToken) => Inner.AlertListAsync(cancellationToken);
     public Task<AlertOpenResult> AlertOpenAsync(long epoch, string sensor, AlertKind kind, string detail, CancellationToken cancellationToken) =>
         Inner.AlertOpenAsync(epoch, sensor, kind, detail, cancellationToken);

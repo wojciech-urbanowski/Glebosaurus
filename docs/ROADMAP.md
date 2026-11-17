@@ -27,21 +27,22 @@ Stan: ✔ zrobione · ◐ w toku albo częściowo · ○ do zrobienia.
 - Supabase: prawdziwy i próbny projekt, healthchecks.io (2.1.1); schemat i funkcje SQL zielone na próbnym projekcie (2.1.2).
 - Core: protokół, dzierżawy, synchronizacja z buforem, konfiguracja z chmury, zbieracz, nadawca (2.1.3 – całość).
 - Agent: sekcja `cloud`, `enroll`, `run` w trybie chmurowym (w testach), `cloud migrate`/`import`/`agent` (na próbnym
-  projekcie) – większość 2.1.4.
+  projekcie), panel WWW w trybie chmurowym z kopią odczytów wszystkich agentów i kopia zapasowa chmury (`cloud backup`,
+  także codziennie w `run`) – 2.1.4 całość (2026-11-17).
 - **Prawdziwy projekt Supabase jest pusty** (bez schematu), a usługa na bestia5 pracuje w trybie samodzielnym. Wydanie
   0.1.1 trybu chmurowego jeszcze nie zawiera.
 
 ### Następne kroki (w tej kolejności)
 
-1. **Dokończyć 2.1.4:** `cloud backup` (codzienny zrzut bazy – darmowy plan nie robi kopii) i panel WWW w trybie
-   chmurowym (dziś wyłączony z ostrzeżeniem w dzienniku).
-2. **Przejście bestia5 na chmurę (2.1.5) – tylko na prośbę i z udziałem użytkownika:** `cloud migrate`, `cloud import` i
-   `cloud agent` na prawdziwym projekcie, wydanie z tagiem, sekcja `cloud` i `enroll` w danych usługi, potem tydzień pracy
-   (kryterium 2.1). Przy okazji pierwszy prawdziwy mail w trybie chmurowym i pierwszy sygnał do healthchecks.io.
-3. **2.2 – Android:** najpierw próba (spike) na Mi 11 – największa niewiadoma fazy 2; potem agent. Czujniki przy wejściu
+1. **Przejście bestia5 na chmurę (2.1.5) – tylko na prośbę i z udziałem użytkownika:** `cloud migrate`, `cloud import` i
+   `cloud agent` na prawdziwym projekcie, wydanie z tagiem, sekcja `cloud` (z `backup` i plikiem administratora bez klucza
+   tajnego) i `enroll` w danych usługi, potem tydzień pracy (kryterium 2.1). Przy okazji pierwszy prawdziwy mail w trybie
+   chmurowym, pierwszy sygnał do healthchecks.io, pierwsza codzienna kopia i panel w trybie chmurowym na żywo.
+2. **2.2 – Android:** najpierw próba (spike) na Mi 11 – największa niewiadoma fazy 2; potem agent. Czujniki przy wejściu
    bestia5 prawie nie słyszy (niżej), więc drugi zbieracz ma konkretny cel.
-4. **2.3 – Raspberry Pi 24/7** jako główny nadawca.
-5. **Faza 3** – interfejs WWW w chmurze (może ruszyć zaraz po 2.1).
+3. **2.3 – Raspberry Pi 24/7** jako główny nadawca.
+4. **Faza 3** – interfejs WWW w chmurze (może ruszyć zaraz po 2.1).
+5. **Odtwarzanie z kopii zapasowej** (faza 4) – kopia jest od 2026-11-17, odtwarzania i jego próby jeszcze nie ma.
 
 **W tle, niezależnie od kolejności:** pomiar baterii (1b.4 – dane zbiera usługa od 2026-11-15), kalibracja wilgotności
 (1b.5), parowanie pozostałych czujników (1b.6 – najlepiej po 2.1.5, wtedy klucze trafią od razu do Vault), licencja (1b.8).
@@ -77,7 +78,7 @@ Stan: ✔ zrobione · ◐ w toku albo częściowo · ○ do zrobienia.
 | Poczta | dzienny limit Gmaila, zachowanie przy błędnym haśle |
 | Usługa Windows | strażnik co godzinę; aktualizacja o 03:30 (komputer był wtedy dotąd wyłączony); uśpienie i wybudzenie; wylogowanie w trakcie odczytu; utrata adaptera BLE; 7 dni ciągłej pracy; usuwanie dzienników starszych niż 7 dni |
 | Panel WWW | wejście z telefonu w sieci domowej; wykresy na prawdziwym monitorze |
-| Tryb chmurowy | wszystko na prawdziwym projekcie, prawdziwy `run`, pełny nasłuch w radiu Shiny |
+| Tryb chmurowy | wszystko na prawdziwym projekcie, prawdziwy `run`, pełny nasłuch w radiu Shiny, panel na prawdziwym agencie, codzienna kopia w `run` |
 | Raspberry Pi | wszystko (paczka tylko zbudowana) |
 | Czujnik | kalibracja wilgotności; profil `ojzlzzsw`; czy niesparowany czujnik milczy po oknie 20 s |
 
@@ -89,7 +90,7 @@ Stan: ✔ zrobione · ◐ w toku albo częściowo · ○ do zrobienia.
 |---|---|---|---|
 | 0, 1 | Spike sprzętowy, lokalny monitor (SQLite, alerty, raporty, parowanie) | – | ✔ 2026-11-13 |
 | **1b** | Domknięcie lokalnego monitora: prawdziwy mail, praca w tle na Windows, panel, baterie, kalibracja, parowanie | M | ◐ mail, usługa, panel i repozytorium ✔; baterie, kalibracja, parowanie ○ |
-| **2.1** | Chmura Supabase (darmowa) i pierwszy agent – bestia5 | L | ◐ 2.1.1–2.1.3 ✔, 2.1.4 w toku, 2.1.5 ○ |
+| **2.1** | Chmura Supabase (darmowa) i pierwszy agent – bestia5 | L | ◐ 2.1.1–2.1.4 ✔, 2.1.5 ○ |
 | **2.2** | Agent na Androida (Xiaomi Mi 11 Lite 5G) – tylko zbieranie | L | ○ |
 | **2.3** | Agent na Raspberry Pi 24/7 – główny nadawca maili | M | ○ |
 | **3** | Interfejs webowy w chmurze: pulpit, historia, alerty, raporty, konfiguracja, parowanie zdalne | L | ○ (lokalny panel diagnostyczny jest z 1b) |
@@ -157,8 +158,8 @@ protokół się nie zmienia, a działanie przy kilku agentach sprawdza się w 2.
 | 1 | **Przygotowanie (użytkownik – kont Claude nie zakłada):** konto Supabase z logowaniem dwuetapowym, projekt na planie Free we Frankfurcie, klucz publikowalny, osobny klucz tajny (tylko import i migracje, nigdy na agentach) i hasło bazy w `local/cloud-admin.json`; próbny projekt `glebosaurus-test` tak samo (`local/cloud-admin.test.json`); healthchecks.io ze sprawdzeniem nadawcy. Konto Gmail zostaje (już jest osobne). | ✔ 2026-11-16 (zasady 2 i 10): oba projekty sprawdzone z bestia5; sprawdzenie „Glebosaurus – nadawca” (Period 5 min, Grace 25 min) w stanie „New” do pierwszego prawdziwego sygnału. | S |
 | 2 | **Schemat i funkcje SQL** jako migracje w `supabase/migrations/`: agenci, czujniki, odczyty, słyszenia, dzierżawy, blokada nadawcy, kolejka maili, sekrety poczty (Vault), wspólny stan alertów, polecenia, dzienne logi agentów; RLS na wszystkim, agenci wołają tylko funkcje `public.*`. | ✔ 2026-11-16 (zasada 13): dwie migracje, 53 testy na `glebosaurus-test`. Prawdziwy projekt bez schematu – dostanie go `cloud migrate` w 2.1.5. | M |
 | 3 | **Core:** tryb chmurowy obok niezmienionego `MonitorEngine`, w kawałkach: (a) protokół, klient HTTP, księga dzierżaw i zasady przydziału; (b) bufor odczytów w SQLite i pętla synchronizacji; (c) konfiguracja z chmury z chronioną ostatnią dobrą kopią; (d) zbieracz; (e) nadawca (alerty, raporty, log administratora, „agent milczy”, kolejka maili, strażnik). | ✔ 2026-11-16 (zasada 14), testy na ręcznym czasie i na próbnym projekcie. Niesprawdzone: pełny nasłuch w radiu Shiny na sprzęcie, prawdziwy mail w trybie chmurowym. | L |
-| 4 | **Agent:** sekcja `cloud` (z `mail` albo `sensors` naraz – błąd startu), `enroll`, `run` w trybie chmurowym, narzędzia właściciela `cloud migrate`/`import`/`agent`, `cloud backup` (darmowy plan nie robi kopii – zasada 10), panel WWW w trybie chmurowym. | ◐ ✔ 2026-11-16 (zasada 15): sekcja `cloud`, chroniony token, `enroll` (CLI na próbnym projekcie), `CloudRuntime` i `run` (testy z atrapą radia), `cloud migrate`/`import`/`agent` (próbny projekt, także CLI), wzór `examples/glebosaurus.cloud.config.json`. ○ `cloud backup`, panel w trybie chmurowym. | M |
-| 5 | **Na żywo:** prawdziwy projekt (`cloud migrate`, `cloud import`, `cloud agent`), usługa na bestia5 przechodzi na tryb chmurowy przez wydanie i samoaktualizację (tag tylko na prośbę użytkownika), sekcja `cloud` i `enroll` w danych usługi; tydzień pracy. Historii odczytów `cloud import` nie przenosi – wysyła ją agent ze swojej bazy, więc najpierw import, potem agent. | ○ – na prośbę i z udziałem użytkownika | S + czas |
+| 4 | **Agent:** sekcja `cloud` (z `mail` albo `sensors` naraz – błąd startu), `enroll`, `run` w trybie chmurowym, narzędzia właściciela `cloud migrate`/`import`/`agent`, `cloud backup` (darmowy plan nie robi kopii – zasada 10), panel WWW w trybie chmurowym. | ✔ 2026-11-16 (zasada 15): sekcja `cloud`, chroniony token, `enroll` (CLI na próbnym projekcie), `CloudRuntime` i `run` (testy z atrapą radia), `cloud migrate`/`import`/`agent` (próbny projekt, także CLI), wzór `examples/glebosaurus.cloud.config.json`. ✔ 2026-11-17: panel WWW w trybie chmurowym – kopia odczytów wszystkich agentów (nowa funkcja `readings_feed`, trzecia migracja), kto czyta który czujnik, nadawca, agenci, odczyt i raport na żądanie przez polecenia w chmurze (testy, próbny projekt, przeglądarka na programie podglądu); `cloud backup` – tabele i odszyfrowane sekrety w ZIP bez `pg_dump`, ręcznie i codziennie w `run` (`cloud.backup`; próbny projekt, także CLI). | M |
+| 5 | **Na żywo:** prawdziwy projekt (`cloud migrate`, `cloud import`, `cloud agent`), usługa na bestia5 przechodzi na tryb chmurowy przez wydanie i samoaktualizację (tag tylko na prośbę użytkownika), sekcja `cloud` (z `backup` – kopia pliku administratora bez klucza tajnego w danych usługi) i `enroll` w danych usługi; tydzień pracy. Historii odczytów `cloud import` nie przenosi – wysyła ją agent ze swojej bazy, więc najpierw import, potem agent. | ○ – na prośbę i z udziałem użytkownika | S + czas |
 
 **Kryterium:** bestia5 przez tydzień czyta czujniki, wysyła odczyty do Supabase i maile przez blokadę i kolejkę; godzinna
 przerwa sieci kończy się dosłaniem bez strat; restarty nie dublują maili; unieważnienie tokenu odcina agenta. Maile wychodzą
@@ -223,8 +224,8 @@ alert, zmienić odbiorców.
   healthchecks.io – w kodzie trybu chmurowego (2.1.3), na żywo od 2.1.5; ○ liczniki (odczyty, błędy BLE, czasy połączeń), sygnał w bazie (kolumna w
   `readings`), trend w raporcie i alert „sygnał słaby” przy poziomie bliskim granicy (ok. −90 dBm).
 - **Bezpieczeństwo:** przegląd modelu zagrożeń (wyciek tokenu – zwłaszcza nadawcy, który może pobrać hasło Gmaila;
-  kradzież urządzenia; przejęcie konta Supabase), rotacja tokenów, limity zapytań, kopia zapasowa i próba odtworzenia z
-  `cloud backup`, retencja i agregacja (np. odczyty surowe 90 dni, potem średnie godzinowe – limit 500 MB darmowego planu).
+  kradzież urządzenia; przejęcie konta Supabase), rotacja tokenów, limity zapytań, kopia zapasowa (✔ `cloud backup`, 2026-11-17) i próba
+  odtworzenia z niej (○ – polecenie odtwarzania: nowy projekt, migracje do wersji z kopii, tabele z CSV, sekrety do Vault), retencja i agregacja (np. odczyty surowe 90 dni, potem średnie godzinowe – limit 500 MB darmowego planu).
 - **CI/CD:** ✔ build i testy na każdy push, wydanie win-x64 z tagu (2026-11-15); ○ paczka linux-arm64 (2.3.1), APK
   (2.2.3); testy sprzętowe jako ręczna lista kontrolna.
 - **Runbook:** nowy monitor, nowy czujnik, reset czujnika, utrata hasła, utrata tokenu, przeniesienie na inny komputer.
@@ -252,6 +253,7 @@ alert, zmienić odbiorców.
 | Decyzja | Kiedy | Uwagi |
 |---|---|---|
 | Raport przy wielu czujnikach | przy ok. 10 czujnikach | 1b.7b: szersze kolumny wykresu albo kilka maili. |
+| Szyfrowanie kopii zapasowej chmury | zanim kopie trafią poza komputer (np. dysk w chmurze) | Od 2026-11-17 kopia (z odszyfrowanymi kluczami Tuya i hasłem Gmaila) leży bez szyfrowania obok pliku administratora, którego hasło bazy i tak otwiera wszystkie sekrety. Opcja: szyfrowanie kluczem publicznym (codzienna kopia bez sekretu na urządzeniu, klucz prywatny tylko u właściciela). |
 | Licencja repozytorium | 1b.8 | LibrusNotifier jest na GPL-3.0; kod protokołu Tuya wywodzi się z projektów MIT. |
 | Technologia UI (strona statyczna: TypeScript / Blazor WASM) | start 3a | Strona czyta Supabase wprost. |
 | Dostawca logowania do UI | start 3a | Hipoteza: Supabase Auth, tylko konto właściciela. |

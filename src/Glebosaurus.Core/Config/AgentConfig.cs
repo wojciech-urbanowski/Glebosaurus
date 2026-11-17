@@ -59,7 +59,27 @@ public sealed class CloudAccessConfig
     /// <summary>Ostatnia dobra konfiguracja z chmury (z kluczami Tuya, chroniona jak token); względna od katalogu konfiguracji.</summary>
     public string ConfigCacheFile { get; set; } = "glebosaurus-cloud-config.bin";
 
+    /// <summary>Codzienna kopia zapasowa chmury robiona przez tego agenta (tylko jeden agent – ten z hasłem bazy).</summary>
+    public CloudBackupConfig? Backup { get; set; }
+
     public Uri ProjectUrl => new(Url.TrimEnd('/'));
+}
+
+/// <summary>
+/// Kopia zapasowa chmury w ramach <c>run</c> (darmowy plan Supabase kopii nie robi): raz dziennie zrzut bazy i sekretów do
+/// lokalnego katalogu. Wymaga pliku administratora z hasłem bazy – to jedyny agent, który je ma.
+/// </summary>
+public sealed class CloudBackupConfig
+{
+    /// <summary>Plik administratora (jak local/cloud-admin.json, wystarczy supabase.url i databasePassword – bez klucza
+    /// tajnego); ścieżka względna od katalogu konfiguracji.</summary>
+    public string AdminFile { get; set; } = "";
+
+    /// <summary>Katalog kopii (względny od katalogu konfiguracji). Kopie zawierają odszyfrowane sekrety.</summary>
+    public string Directory { get; set; } = "backups";
+
+    /// <summary>Ile najnowszych kopii zostawić.</summary>
+    public int Keep { get; set; } = 14;
 }
 
 /// <summary>

@@ -52,7 +52,23 @@ public sealed class CollectorEngine(
     private DateTimeOffset logRetryAt = DateTimeOffset.MinValue;
     private DateTimeOffset nextPurgeAt = DateTimeOffset.MinValue;
 
+    // Tylko do migawki stanu dla lokalnego panelu (State); logika zbieracza z nich nie korzysta.
+    private readonly Dictionary<string, (DateTimeOffset At, SensorReadFailure Result, string? Error)> lastOutcome = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, (int Dbm, DateTimeOffset At)> lastSignal = new(StringComparer.Ordinal);
+    private IReadOnlyList<string> readingNow = [];
+    private DateTimeOffset? readingSince;
+    private DateTimeOffset startedAt;
+    private DateTimeOffset? lastCycleAt;
+    private (string Message, DateTimeOffset At)? lastCycleError;
+    private volatile MonitorRuntimeState state = MonitorRuntimeState.NotStarted;
+
     private sealed record Attempt(DateTimeOffset NextAttemptAt, int Failures);
+
+    /// <summary>
+    /// Migawka stanu dla lokalnego panelu – ten sam kształt co w trybie samodzielnym (próby, ponowienia, sygnał, trwający
+    /// odczyt), bez poczty (tę ma nadawca). Bezpieczna do czytania z innego wątku: podmieniana w całości po każdym kroku.
+    /// </summary>
+    public MonitorRuntimeState State => state;
 
     /// <summary>Po zapisaniu nowych odczytów (np. obudzenie synchronizacji).</summary>
     public Action? ReadingsStored { get; set; }
@@ -147,24 +163,58 @@ public sealed class CollectorEngine(
     {
         if (config() is not { } current) return;
         var agent = current.Config;
-        await RetryReportsAsync(cancellationToken);
-
-        if (clock.GetUtcNow() - lastHearAt >= settings.HearEvery) await HearAsync(agent, cancellationToken);
-
-        Dictionary<string, List<long>> onRequest;
-        lock (gate)
+        if (startedAt == default) startedAt = clock.GetUtcNow();
+        try
         {
-            onRequest = new(requested, StringComparer.Ordinal);
-            requested.Clear();
-        }
-        var due = await DueAsync(agent, onRequest, cancellationToken);
-        if (due.Count > 0) await ReadAsync(agent, due, onRequest, cancellationToken);
-        foreach (var (sensorId, ids) in onRequest.Where(r => due.All(d => d.Id != r.Key)))
-            foreach (var id in ids)
-                await ReportAsync(id, Failure("agent nie ma teraz ważnej dzierżawy tego czujnika"), cancellationToken);
+            await RetryReportsAsync(cancellationToken);
 
-        await UploadDailyLogAsync(current, cancellationToken);
-        await PurgeAsync(agent, cancellationToken);
+            if (clock.GetUtcNow() - lastHearAt >= settings.HearEvery) await HearAsync(agent, cancellationToken);
+
+            Dictionary<string, List<long>> onRequest;
+            lock (gate)
+            {
+                onRequest = new(requested, StringComparer.Ordinal);
+                requested.Clear();
+            }
+            var due = await DueAsync(agent, onRequest, cancellationToken);
+            if (due.Count > 0) await ReadAsync(agent, due, onRequest, cancellationToken);
+            foreach (var (sensorId, ids) in onRequest.Where(r => due.All(d => d.Id != r.Key)))
+                foreach (var id in ids)
+                    await ReportAsync(id, Failure("agent nie ma teraz ważnej dzierżawy tego czujnika"), cancellationToken);
+
+            await UploadDailyLogAsync(current, cancellationToken);
+            await PurgeAsync(agent, cancellationToken);
+            lastCycleAt = clock.GetUtcNow();
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            lastCycleError = (e.Message, clock.GetUtcNow());
+            throw;
+        }
+        finally
+        {
+            readingNow = [];
+            readingSince = null;
+            Publish(agent);
+        }
+    }
+
+    /// <summary>Składa nową migawkę stanu z pól zbieracza i podmienia ją w całości (patrz <see cref="State"/>).</summary>
+    private void Publish(AgentConfig agent)
+    {
+        var sensors = new Dictionary<string, SensorRuntimeState>(StringComparer.Ordinal);
+        foreach (var sensor in agent.Sensors)
+        {
+            var hasOutcome = lastOutcome.TryGetValue(sensor.Id, out var outcome);
+            var hasSignal = lastSignal.TryGetValue(sensor.Id, out var signal);
+            var attempt = attempts.GetValueOrDefault(sensor.Id);
+            sensors[sensor.Id] = new(
+                hasOutcome ? outcome.At : null, hasOutcome ? outcome.Result : null, hasOutcome ? outcome.Error : null,
+                attempt?.Failures ?? 0, attempt?.NextAttemptAt,
+                hasSignal ? signal.Dbm : null, hasSignal ? signal.At : null);
+        }
+        state = new(startedAt == default ? null : startedAt, lastCycleAt, lastCycleError?.Message, lastCycleError?.At,
+            readingNow, readingSince, sensors, MailRuntimeState.Unused);
     }
 
     private async Task HearAsync(AgentConfig agent, CancellationToken cancellationToken)
@@ -182,7 +232,11 @@ public sealed class CollectorEngine(
                 e.Message, settings.HearEvery.TotalMinutes);
             return;
         }
-        foreach (var sensor in heard) hearing.RecordHeard(sensor.SensorId, sensor.Rssi);
+        foreach (var sensor in heard)
+        {
+            hearing.RecordHeard(sensor.SensorId, sensor.Rssi);
+            if (sensor.Rssi is { } rssi) lastSignal[sensor.SensorId] = (rssi, lastHearAt);
+        }
         logger.LogDebug("Nasłuch: słyszę {Heard} z {Count} czujników.", heard.Count, agent.Sensors.Count);
     }
 
@@ -213,6 +267,9 @@ public sealed class CollectorEngine(
         CancellationToken cancellationToken)
     {
         logger.LogInformation("Odczyt czujników: {Names}.", string.Join(", ", due.Select(s => s.Name)));
+        readingNow = [.. due.Select(s => s.Id)];
+        readingSince = clock.GetUtcNow();
+        Publish(agent);
         var reported = new HashSet<string>(StringComparer.Ordinal);
         var stored = false;
         await foreach (var outcome in reader.ReadAsync(due, TimeSpan.FromSeconds(agent.ScanWindowSeconds), cancellationToken))
@@ -221,6 +278,7 @@ public sealed class CollectorEngine(
             reported.Add(sensor.Id);
             var now = clock.GetUtcNow();
             if (outcome.Failure != SensorReadFailure.NotFound) hearing.RecordHeard(sensor.Id, outcome.SignalDbm);
+            if (outcome.SignalDbm is { } dbm) lastSignal[sensor.Id] = (dbm, now);
             foreach (var note in outcome.Notes) logger.LogWarning("{Sensor}: uwaga z sesji czujnika: {Note}", sensor.Name, note);
 
             JsonObject result;
@@ -234,6 +292,7 @@ public sealed class CollectorEngine(
                     reading.BatteryPercent, reading.BatteryState), cancellationToken);
                 stored = true;
                 attempts.Remove(sensor.Id);
+                lastOutcome[sensor.Id] = (now, SensorReadFailure.None, null);
                 hearing.RecordAttempt(sensor.Id, success: true);
                 logger.LogInformation("{Sensor}: wilgotność {Moisture}%, temperatura {Temperature} °C, bateria {Battery}%, sygnał {Signal}.",
                     sensor.Name, reading.MoisturePercent?.ToString(CultureInfo.InvariantCulture) ?? "–",
@@ -254,6 +313,9 @@ public sealed class CollectorEngine(
                     _ => outcome.Error ?? "czujnik nie zgłosił pomiarów"
                 };
                 RegisterFailure(agent, sensor, now, outcome.Failure == SensorReadFailure.Unbound ? UnboundRetryDelay : null);
+                lastOutcome[sensor.Id] = outcome.Failure is SensorReadFailure.NotFound or SensorReadFailure.Unbound
+                    ? (now, outcome.Failure, null)
+                    : (now, SensorReadFailure.Error, error);
                 hearing.RecordAttempt(sensor.Id, success: false);
                 if (outcome.Failure == SensorReadFailure.Unbound) logger.LogError("{Sensor}: {Error}.", sensor.Name, error);
                 else logger.LogWarning("{Sensor}: {Error} (sygnał {Signal}).", sensor.Name, error, SignalStats.Format(outcome.SignalDbm));
@@ -261,10 +323,13 @@ public sealed class CollectorEngine(
             }
             if (onRequest.TryGetValue(sensor.Id, out var ids))
                 foreach (var id in ids) await ReportAsync(id, result, cancellationToken);
+            readingNow = [.. readingNow.Where(id => id != sensor.Id)];
+            Publish(agent);
         }
 
         foreach (var sensor in due.Where(s => !reported.Contains(s.Id)))
         {
+            lastOutcome[sensor.Id] = (clock.GetUtcNow(), SensorReadFailure.Error, "warstwa BLE nie zwróciła wyniku");
             RegisterFailure(agent, sensor, clock.GetUtcNow());
             hearing.RecordAttempt(sensor.Id, success: false);
             logger.LogWarning("{Sensor}: warstwa BLE nie zwróciła wyniku.", sensor.Name);

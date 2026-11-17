@@ -136,6 +136,15 @@ public static partial class AgentConfigLoader
             throw new InvalidDataException("cloud.publishableKey: podaj klucz publikowalny projektu (sb_publishable_…), nie klucz tajny.");
         if (string.IsNullOrWhiteSpace(cloud.TokenFile) || string.IsNullOrWhiteSpace(cloud.ConfigCacheFile))
             throw new InvalidDataException("cloud.tokenFile i cloud.configCacheFile nie mogą być puste.");
+        if (cloud.Backup is { } backup)
+        {
+            if (string.IsNullOrWhiteSpace(backup.AdminFile))
+                throw new InvalidDataException("cloud.backup.adminFile: podaj plik z adresem projektu i hasłem bazy (jak cloud-admin.json, bez klucza tajnego).");
+            if (string.IsNullOrWhiteSpace(backup.Directory))
+                throw new InvalidDataException("cloud.backup.directory nie może być pusty.");
+            if (backup.Keep is < 1 or > 365)
+                throw new InvalidDataException("cloud.backup.keep: od 1 do 365 kopii.");
+        }
     }
 
     public static string ResolveRelative(string configPath, string file) =>

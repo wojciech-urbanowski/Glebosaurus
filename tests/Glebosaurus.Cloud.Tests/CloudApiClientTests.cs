@@ -86,6 +86,17 @@ public sealed class CloudApiClientTests(CloudDatabase db) : IDisposable
         var stored = Assert.Single(await api.ReadingsRangeAsync([sensor], now.AddHours(-1), now.AddHours(1), ct));
         Assert.Equal(reading, stored);
 
+        // Kopia odczytów: odczyt jest świeży (nieustalony), więc od najnowszego numeru nic nie przychodzi; starsze paczki
+        // (z innych testów) muszą dać się odczytać.
+        var lastSeq = (await db.AdminAsync("select to_jsonb(coalesce(max(seq), 0))::text from glebosaurus.readings", null)).GetInt64();
+        var empty = await api.ReadingsFeedAsync(lastSeq, 100, ct);
+        Assert.Empty(empty.Readings);
+        Assert.Equal(lastSeq, empty.Last);
+        Assert.False(empty.More);
+        var oldest = await api.ReadingsFeedAsync(0, 2, ct);
+        Assert.InRange(oldest.Readings.Count, 0, 2);
+        Assert.All(oldest.Readings, r => Assert.False(string.IsNullOrEmpty(r.Sensor)));
+
         var created = await api.CommandCreateAsync("read_now", sensor, ct);
         Assert.True(created.Created);
         var next = await api.SyncAsync(new SyncRequest(new AgentStatus("0.2.0-test", "test")) { Claims = [CloudProtocol.SensorResource(sensor)] }, ct);

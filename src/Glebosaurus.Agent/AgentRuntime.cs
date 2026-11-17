@@ -23,6 +23,12 @@ internal sealed record LoadedConfig(AgentConfig Config, string ConfigPath, strin
 
     /// <summary>Tryb chmurowy: ostatnia dobra konfiguracja z chmury (z kluczami Tuya); null bez sekcji „cloud”.</summary>
     public string? CloudConfigCachePath => Config.Cloud is { } cloud ? AgentConfigLoader.ResolveRelative(ConfigPath, cloud.ConfigCacheFile) : null;
+
+    /// <summary>Codzienna kopia chmury: plik administratora z hasłem bazy; null bez sekcji „cloud.backup”.</summary>
+    public string? CloudBackupAdminPath => Config.Cloud?.Backup is { } backup ? AgentConfigLoader.ResolveRelative(ConfigPath, backup.AdminFile) : null;
+
+    /// <summary>Codzienna kopia chmury: katalog kopii; null bez sekcji „cloud.backup”.</summary>
+    public string? CloudBackupDirectory => Config.Cloud?.Backup is { } backup ? AgentConfigLoader.ResolveRelative(ConfigPath, backup.Directory) : null;
 }
 
 internal static class AgentRuntime

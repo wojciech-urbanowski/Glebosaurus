@@ -10,11 +10,19 @@ const timeSecFmt = new Intl.DateTimeFormat('pl-PL', { hour: '2-digit', minute: '
 export const dateFmt = new Intl.DateTimeFormat('pl-PL', { day: 'numeric', month: 'numeric' });
 
 let skewMs = 0;   // zegar monitora minus zegar przeglądarki
+let cloudMode = false;
 
 /** Ustawia przesunięcie zegara według czasu monitora z /api/status. */
 export function syncClock(monitorNowIso) {
   skewMs = new Date(monitorNowIso) - Date.now();
 }
+
+/** Tryb chmurowy (status.cloud): odczyty i raport na żądanie idą przez chmurę, czujnik czyta agent z dzierżawą. */
+export function setCloudMode(cloud) {
+  cloudMode = Boolean(cloud);
+}
+
+export const isCloudMode = () => cloudMode;
 
 /** „Teraz” według zegara monitora. */
 export const now = () => new Date(Date.now() + skewMs);
@@ -138,7 +146,8 @@ const REQUEST_TEXT = {
   alreadyQueued: 'Już czeka w kolejce',
   inProgress: 'Odczyt właśnie trwa',
   tooSoon: 'Za wcześnie (ostatnia próba przed chwilą)',
-  unknown: 'Nieznany czujnik'
+  unknown: 'Nieznany czujnik',
+  unavailable: 'Chmura niedostępna – nie zlecono'
 };
 
 function describeRequest(result) {
@@ -149,7 +158,9 @@ function describeRequest(result) {
     if (!groups.has(item.status)) groups.set(item.status, []);
     groups.get(item.status).push(label);
   }
-  return [...groups].map(([status, names]) => `${REQUEST_TEXT[status] || status}: ${names.join(', ')}`).join(' · ');
+  // W chmurze „już czeka” znaczy: to samo polecenie zlecono w ostatniej minucie (z tego albo innego panelu).
+  const text = (status) => (cloudMode && status === 'alreadyQueued' ? 'Już zlecony w ostatniej minucie' : REQUEST_TEXT[status] || status);
+  return [...groups].map(([status, names]) => `${text(status)}: ${names.join(', ')}`).join(' · ');
 }
 
 /** Zleca odczyt na żądanie (sensorId = null → wszystkie czujniki), pokazuje wynik w notce i wywołuje „done”. */
@@ -158,8 +169,10 @@ export async function requestRead(sensorId, done) {
   try {
     const result = await api(path, 'POST');
     const queued = result.items.some((i) => i.status === 'queued');
-    showActionNote(`${describeRequest(result)}.${queued ? ' Monitor zaczyna od razu; wynik pojawi się za chwilę (do ok. pół minuty na czujnik).' : ''}`,
-      queued ? 'green' : 'amber');
+    const hint = !queued ? ''
+      : cloudMode ? ' Polecenie trafi przez chmurę do agenta, który czyta czujnik; wynik pojawi się zwykle w ciągu 1–2 min.'
+      : ' Monitor zaczyna od razu; wynik pojawi się za chwilę (do ok. pół minuty na czujnik).';
+    showActionNote(`${describeRequest(result)}.${hint}`, queued ? 'green' : 'amber');
   } catch (error) {
     showActionNote(`Nie udało się zlecić odczytu: ${error.message}`, 'red');
   }
@@ -228,15 +241,28 @@ export function sensorMetrics(sensor) {
   return box;
 }
 
+/** Kto czyta czujnik w trybie chmurowym (agent z dzierżawą); null w trybie samodzielnym. */
+export function holderText(sensor) {
+  if (!cloudMode) return null;
+  if (!sensor.holder) return 'Czujnika nie czyta teraz żaden agent (nikt go nie słyszy albo dzierżawa wygasła).';
+  return sensor.holderIsMe ? 'Czyta ten agent.' : `Czyta agent ${sensor.holder}.`;
+}
+
 /** Wiersze pod liczbami: wiek odczytu i następny odczyt, ewentualnie problem z ostatnią próbą. */
 export function sensorLines(sensor, withSignal) {
   const latest = sensor.latest;
   const lines = h('div', 'lines');
+  const nobody = cloudMode && !sensor.holder;
   lines.append(h('div', 'muted', latest
-    ? `Odczyt ${ago(latest.at)} (${when(latest.at)}) · następny ${until(sensor.nextReadAt)}`
-    : `Brak odczytów w bazie · pierwszy ${until(sensor.nextReadAt)}`));
+    ? `Odczyt ${ago(latest.at)} (${when(latest.at)})${nobody ? '' : ` · następny ${until(sensor.nextReadAt)}`}`
+    : `Brak odczytów w bazie${nobody ? '' : ` · pierwszy ${until(sensor.nextReadAt)}`}`));
+  const holder = holderText(sensor);
+  if (holder) lines.append(h('div', nobody ? 'problem' : 'muted', holder));
   if (withSignal && sensor.lastSignalDbm !== null && sensor.lastSignalDbm !== undefined) {
-    lines.append(h('div', 'muted', `Sygnał ${dbm(sensor.lastSignalDbm)} (${ago(sensor.lastSignalAt)})`));
+    lines.append(h('div', 'muted', `Sygnał ${dbm(sensor.lastSignalDbm)} (${ago(sensor.lastSignalAt)})${cloudMode ? ' – tu, u tego agenta' : ''}`));
+  }
+  if (withSignal && cloudMode && sensor.bestOtherAgent) {
+    lines.append(h('div', 'muted', `Najlepiej z innych słyszy go ${sensor.bestOtherAgent} (${dbm(sensor.bestOtherRssi)})`));
   }
   if (sensor.lastResult && sensor.lastResult !== 'ok') {
     const retry = sensor.retryAt ? `; ponowienie ${until(sensor.retryAt)}` : '';

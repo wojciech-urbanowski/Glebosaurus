@@ -101,6 +101,22 @@ public sealed class CloudProtocolTests
     }
 
     [Fact]
+    public void ReadingsFeed_ReadsJsonOfSqlFunction()
+    {
+        const string json = """
+            {"readings": [{"sensor": "cisy", "at": "2026-11-17T10:00:00.123+00:00", "moisture": 41, "tempTenths": -35,
+                           "battery": null, "batteryState": 0}], "last": 4711, "more": true}
+            """;
+
+        var feed = JsonSerializer.Deserialize(json, CloudJsonContext.Default.ReadingsFeed)!;
+
+        var reading = Assert.Single(feed.Readings).ToStored();
+        Assert.Equal(new StoredReading("cisy", new DateTimeOffset(2026, 11, 17, 10, 0, 0, 123, TimeSpan.Zero), 41, -3.5m, null, 0), reading);
+        Assert.Equal(4711, feed.Last);
+        Assert.True(feed.More);
+    }
+
+    [Fact]
     public void Reading_RoundTripsThroughCloudForm()
     {
         var stored = new StoredReading("cisy", Fixtures.T0, 41, -3.5m, null, 0);

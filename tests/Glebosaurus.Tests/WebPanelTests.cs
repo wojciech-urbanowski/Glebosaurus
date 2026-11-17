@@ -565,17 +565,17 @@ public class WebPanelIntegrationTests
                 Readings = async (id, count, ct) => config.Sensors.Any(s => s.Id == id) ? await MonitorStatusBuilder.RecentReadingsAsync(store, id, count, ct) : null,
                 Series = (id, from, to, points, ct) => ReadingSeriesBuilder.LoadAsync(config, store, id, from, to, points, TimeZoneInfo.Utc, ct),
                 Logs = logs,
-                RequestRead = ids =>
+                RequestRead = (ids, _) =>
                 {
                     panel.ReadRequests.Add(ids);
-                    return new ReadRequestResult((ids ?? ["s1"]).Select(id => id == "s1"
+                    return Task.FromResult(new ReadRequestResult((ids ?? ["s1"]).Select(id => id == "s1"
                         ? new ReadRequestItem(id, "Monstera", ReadRequestStatus.Queued)
-                        : new ReadRequestItem(id, null, ReadRequestStatus.Unknown)).ToList());
+                        : new ReadRequestItem(id, null, ReadRequestStatus.Unknown)).ToList()));
                 },
-                RequestReport = () =>
+                RequestReport = _ =>
                 {
                     panel.ReportRequests++;
-                    return panel.ReportResult;
+                    return Task.FromResult(panel.ReportResult);
                 },
                 Clock = panel.Clock,
                 Zone = TimeZoneInfo.Utc,

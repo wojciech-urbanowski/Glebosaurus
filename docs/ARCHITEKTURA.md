@@ -18,7 +18,7 @@ podlewaniu i raporty o stałych porach mailem (Gmail), a konfigurację, alerty i
 | Raspberry Pi (BlueZ przez Shiny) | paczka zbudowana, **niesprawdzone** |
 | Praca w tle na Windows (zadanie Harmonogramu), instalacja i samoaktualizacja z wydań GitHuba | zrobione 2026-11-15 (zasada 7): usługa `glebosaurus-service` bez okna, skrypt `install-windows.ps1`, workflowy CI i wydania; testy logiki w Core. **2026-11-15 na żywo (Windows, katalog próbny, udawane API wydań na loopbacku, monitor z atrapą czujnika):** instalacja z przejęciem konfiguracji, `stop` (1 s), aktualizacja o codziennej porze (monitor zatrzymany czysto, skrypt w tle, nowa usługa wystartowana przez Harmonogram), aktualizacja przy starcie (po wymuszonym powrocie do starszej wersji), zepsute wydanie (zły skrót – stara wersja wraca, próba odłożona o dobę, bez pętli), blokada drugiego monitora (kod 4), odinstalowanie. **2026-11-15 wydanie 0.1.0** opublikowane przez `release.yml` (testy, paczka, próba instalacji w Windows PowerShell 5.1 na runnerze – wszystko zielone; API wydań odpowiada bez logowania) i zainstalowane na bestia5 skryptem pobranym z wydania, z przejęciem `local/` i bez startu. Próba na sucho przejęcia prawdziwych danych wykryła, że `ConvertFrom-Json` z PowerShell 5.1 nie zna komentarzy `//`, a jego komunikat błędu zawiera cały plik z hasłem Gmaila – skrypt czyta teraz konfigurację przez `Read-ConfigJson` i nie wypisuje treści wyjątku. **Na żywo z prawdziwymi danymi:** 2026-11-15 23:56 usługa wystartowana przez Harmonogram (panel WWW ze stałej ścieżki – reguła Zapory zatwierdzona raz; o północy sama wysłała log administratora), a 2026-11-16 00:06 pierwsza samoaktualizacja z GitHuba 0.1.0 → 0.1.1 przy starcie usługi (ok. 15 s: sprawdzenie wydania, skrypt w tle, podmiana `app\`, nowa usługa z Harmonogramu; log administratora się nie powtórzył, Zapora nie pytała ponownie). **Dzienniki usługi 2026-11-16…17:** komputer dwa razy wyłączony w trakcie pracy monitora (nie w trakcie połączenia z czujnikiem; bez wpisu o zatrzymaniu) – po zalogowaniu usługa wystartowała sama, sprawdziła wydania, a pierwszy odczyt dociągnął zaległe pomiary z pamięci czujnika (Zioła: 19 od 22:32 poprzedniego dnia); log administratora za poprzedni dzień wyszedł przy pierwszym przebiegu. Po przerwie ok. 18 h monitor ok. 2 min po starcie otworzył alerty „brak odczytów” – cisza liczy się od ostatniego odczytu w bazie, także za czas przestoju monitora; od 2026-11-17 w kodzie okres ochronny 30 min po starcie i uśpieniu (zasada 9; na bestia5 dopiero z następnym wydaniem). **Niesprawdzone**: strażnik co godzinę, aktualizacja o 03:30 na prawdziwym wydaniu (o 03:30 komputer był dotąd wyłączony), zachowanie po uśpieniu i wybudzeniu, wylogowanie w trakcie odczytu, 7 dni ciągłej pracy |
 | Lokalny panel diagnostyczny WWW (HTTPS, sieć lokalna, hasło; podgląd, odczyt i raport na żądanie) | zrobione w kodzie i testach (2026-11-14, w tym testy na prawdziwym Kestrelu z TLS); `web-password` uruchomione na żywo, a strona obejrzana na prawdziwych danych (kopia bazy, dzienniki, konfiguracja) przez program podglądu na loopbacku, także w widoku telefonu 375 px. **2026-11-14 na żywo (Windows, `run` z prawdziwą konfiguracją):** panel startuje z monitorem, odcisk certyfikatu z dziennika zgadza się z `web-password` i z serwerem (127.0.0.1 i adres LAN), bez logowania 302/401; użytkownik zalogował się w przeglądarce (połączenie przyszło z adresu IPv6 link-local – filtr sieci go przepuścił). Próba wykryła błąd: przy `Referrer-Policy: no-referrer` przeglądarka wysyła z formularza `Origin: null`, a filtr POST odrzucał je jako obcą stronę (403, bez wpisu w dzienniku) – teraz rozstrzyga `Sec-Fetch-Site`, polityka to `same-origin`, odrzucenie trafia do dziennika (testy odtwarzają nagłówki przeglądarki). Wykresy (pulpit: 3 doby; strona czujnika: cała historia) – 2026-11-14 w testach i w przeglądarce na programie podglądu z danymi próbnymi (zasada 11). **Niesprawdzone**: wejście z telefonu w sieci domowej (reguła Zapory), wykresy na prawdziwym monitorze, Raspberry Pi |
-| Chmura Supabase, wielu agentów (dzierżawy czujników, blokada nadawcy) | faza 2 uzgodniona z użytkownikiem 2026-11-16 (zasady 1–4, 10, 12); 2026-11-16: projekty Supabase (prawdziwy i próbny) i healthchecks.io założone; schemat i funkcje SQL (zasada 13), Core w trybie chmurowym (zasada 14) i większość agenta (zasada 15: sekcja `cloud`, `enroll`, `run`, `cloud migrate`/`import`/`agent`) zrobione i sprawdzone w testach i na próbnym projekcie. **Prawdziwy projekt jeszcze bez schematu**, tryb chmurowy nie ma jeszcze wydania ani prawdziwego `run`; zostały `cloud backup`, panel w trybie chmurowym i przejście usługi na bestia5 |
+| Chmura Supabase, wielu agentów (dzierżawy czujników, blokada nadawcy) | faza 2 uzgodniona z użytkownikiem 2026-11-16 (zasady 1–4, 10, 12); 2026-11-16: projekty Supabase (prawdziwy i próbny) i healthchecks.io założone; schemat i funkcje SQL (zasada 13), Core w trybie chmurowym (zasada 14) i agent (zasada 15: sekcja `cloud`, `enroll`, `run`, `cloud migrate`/`import`/`agent`) zrobione i sprawdzone w testach i na próbnym projekcie; 2026-11-17: panel WWW w trybie chmurowym z kopią odczytów wszystkich agentów (`readings_feed`) i kopia zapasowa chmury (`cloud backup`, także codziennie w `run`) – w testach, na próbnym projekcie i (panel) w przeglądarce na programie podglądu. **Prawdziwy projekt jeszcze bez schematu**, tryb chmurowy nie ma jeszcze wydania ani prawdziwego `run`; zostało przejście usługi na bestia5 (2.1.5) |
 | Agent Android, Raspberry Pi jako nadawca, interfejs WWW w chmurze | zaprojektowane (zasady 10, 12), niezrobione – fazy 2.2, 2.3 i 3 |
 
 ## Zweryfikowane na sprzęcie (ATLO SMS1, Tuya `gvygg3m8`)
@@ -393,9 +393,10 @@ Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → S
     - transfer 5 GB/mies. – synchronizacja 3 agentów co 60 s to szacunkowo setki MB;
     - uśpienie po 7 dniach bez ruchu – agenci wołają bazę co minutę; po tygodniowej awarii trzeba ręcznie wznowić projekt
       (dane zostają), a ciszę zgłosi strażnik (zasada 2);
-    - brak kopii zapasowych – polecenie `cloud backup` codziennie robi zrzut bazy (`pg_dump` przez pooler sesji, IPv4; hasło
-      bazy tylko na agencie robiącym kopię: najpierw bestia5, docelowo Pi), trzyma 14 ostatnich i dokłada lokalną kopię
-      kluczy Tuya, bo w zrzucie sekrety z Vault są zaszyfrowane kluczem projektu (do potwierdzenia przy implementacji);
+    - brak kopii zapasowych – `cloud backup` (zasada 15, od 2026-11-17) robi zrzut sam, przez pooler sesji (IPv4), bez
+      `pg_dump` (musiałby być w wersji serwera, 17): tabele jako CSV i odszyfrowane sekrety z Vault (w surowym zrzucie są
+      zaszyfrowane kluczem projektu, który przepada z projektem), jeden plik ZIP, 14 ostatnich; codziennie w `run` agenta z
+      hasłem bazy (najpierw bestia5, docelowo Pi);
     - 2 aktywne projekty – drugi, `glebosaurus-test`, do testów funkcji SQL (zasada 2); też usypia po tygodniu bez ruchu,
       więc przed testami po przerwie trzeba go wznowić (Restore project).
     **Projekt założony 2026-11-16** (użytkownik; dane w `local/cloud-admin.json`): Central EU (Frankfurt), Postgres 17.12,
@@ -499,7 +500,8 @@ Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → S
     Wydania: APK z Actions podpisany jednym kluczem (sekret repozytorium; jego utrata = instalacja od nowa); Android i tak
     wymaga stuknięcia „Zainstaluj”, więc aktualizacja to powiadomienie o nowej wersji (albo Obtainium).
 13. **Schemat chmury** (krok 2.1.2, 2026-11-16; `supabase/migrations/20261116200000_core.sql` – rdzeń,
-    `20261116220000_alerts_commands_logs.sql` – alerty, polecenia, logi). Realizacja zasad 1–4:
+    `20261116220000_alerts_commands_logs.sql` – alerty, polecenia, logi; 2026-11-17 `20261117120000_readings_feed.sql` –
+    kopia odczytów dla lokalnego panelu, zasada 15). Realizacja zasad 1–4:
     - **Schemat `glebosaurus`** (Data API go nie wystawia, RLS na każdej tabeli bez żadnych zasad): `agents` (skrót
       tokenu, `can_send_mail`, `sender_priority`, sygnał życia), `enrollment_codes`, `settings` (jeden wiersz; czas lokalny
       raportów – `time_zone`, domyślnie Europe/Warsaw; `config_version` rośnie przy każdej zmianie ustawień i czujników),
@@ -508,10 +510,10 @@ Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → S
       `leases` (wiersz zostaje po oddaniu, więc epoka tylko rośnie), `mail_outbox`, `alerts` (jeden otwarty na czujnik i
       rodzaj, jak w SQLite; początek epizodu liczy baza), `commands`, `agent_logs`, `environment` (znacznik bazy próbnej)
       i `schema_migrations`.
-    - **API agentów** – 18 funkcji `public.*` `security definer` z pustym `search_path`, wykonywalnych tylko przez `anon`:
+    - **API agentów** – 19 funkcji `public.*` `security definer` z pustym `search_path`, wykonywalnych tylko przez `anon`:
       `enroll`, `get_config`, `agent_sync`, `lease_claim`, `lease_release`, `mail_claim`, `mail_sent`, `mail_abandon`,
-      `mail_credentials`, `readings_range`, `alert_list`, `alert_open`, `alert_resolve`, `alert_notified`,
-      `command_create`, `command_done`, `log_put`, `log_get`. Nieznany albo unieważniony token → SQLSTATE 28000 (Data API:
+      `mail_credentials`, `readings_range`, `readings_feed` (od 2026-11-17), `alert_list`, `alert_open`, `alert_resolve`,
+      `alert_notified`, `command_create`, `command_done`, `log_put`, `log_get`. Nieznany albo unieważniony token → SQLSTATE 28000 (Data API:
       403); czynność zastrzeżona dla obecnego nadawcy bez blokady z aktualną epoką → 42501; błędne dane → 22023 (400). Czasy z agenta są względne (`heardSecondsAgo`), bo jego zegar może się rozjechać z bazą; odczyty mają
       własny czas, a baza odrzuca te z przyszłości (ponad 10 min), sprzed 2020 i spoza zakresów – z powodem w odpowiedzi,
       żeby agent ich nie ponawiał. `agent_sync` najpierw oddaje, potem bierze dzierżawy w stałej kolejności (bez
@@ -702,9 +704,9 @@ Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → S
       odświeżenie konfiguracji przy nowej wersji i rozdział poleceń: zbieracz, potem nadawca; nieobsługiwane (np. zdalne
       `pair`) wygasają z ostrzeżeniem w dzienniku. Zatrzymanie: zbieracz i nadawca kończą bieżący krok, potem ostatnia
       synchronizacja (najwyżej 30 s) wysyła ostatnie odczyty i oddaje dzierżawy i blokadę. Brak tokenu, token odrzucony
-      albo brak konfiguracji (ani chmury, ani kopii) – czytelny błąd i kod 1. Panel WWW w trybie chmurowym jeszcze nie
-      działa (ostrzeżenie w dzienniku). **Prawdziwy `run` niesprawdzony:** na bestia5 działa usługa, a drugi monitor na
-      tym samym koncie nie wystartuje (kod 4) – próba na żywo wymaga zatrzymania usługi przez użytkownika.
+      albo brak konfiguracji (ani chmury, ani kopii) – czytelny błąd i kod 1. **Prawdziwy `run` niesprawdzony:** na
+      bestia5 działa usługa, a drugi monitor na tym samym koncie nie wystartuje (kod 4) – próba na żywo wymaga zatrzymania
+      usługi przez użytkownika.
     - **Testy** (w CI): sekcja `cloud` (bez czujników, odrzucenie poczty, czujników, złego adresu i klucza tajnego),
       token (DPAPI na Windows, 600 na Linuksie, obcy plik odrzucony), rozdział poleceń po synchronizacji i pełny bieg
       `CloudRuntime` na prawdziwych zegarach (dzierżawa słyszanego czujnika → odczyt → wysyłka → oddanie przy
@@ -729,7 +731,58 @@ Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → S
       kluczami, ustawienia, odbiorców, a z blokadą hasło i adres strażnika; powtórka bez dubli) i prawdziwe CLI (plan,
       `--confirm`, brak `--admin`, agent z kodem). **Na prawdziwym projekcie jeszcze niczego nie uruchomiono** – to decyzja
       użytkownika.
-    - **Zostały:** `cloud backup`, panel WWW w trybie chmurowym, prawdziwy `run` i przejście usługi na bestia5.
+    - **Panel WWW w trybie chmurowym** (2026-11-17; ten sam panel co w zasadzie 11 – logowanie, HTTPS, strony, wykresy):
+      - **Kopia odczytów wszystkich agentów** (`CloudReadingMirror`, tylko z sekcją `web`): agent pokazuje to, co ma w
+        lokalnej bazie, więc dociąga z chmury co 2 min odczyty przyjęte po ostatnim znanym numerze (`readings_feed`, paczki
+        po 5000) i zapisuje je w tej samej tabeli jako już przyjęte (`sync_state` = 1 – nie wracają do bufora wysyłki;
+        własnych nie zmienia), z numerem w tabeli `cloud_feed` (osobno dla każdego projektu; zapis jedną transakcją).
+        Odczyty starsze niż lokalna retencja pomija. Dzięki temu pulpit, wykresy całej historii i strona czujnika pokazują
+        pomiary wszystkich agentów – także bez sieci, z tym, co zdążyło przyjść – a zbieracz nie czyta czujnika, który inny
+        agent przeczytał przed chwilą (odstęp liczy z najnowszego odczytu w bazie).
+      - **Dlaczego numer, nie czas pomiaru:** odczyty przychodzą z opóźnieniem (agent bez sieci, zaległe pomiary z pamięci
+        czujnika), więc okno po czasie pomiaru gubiłoby je. Migracja dodaje do `readings` numer kolejny (`seq`, tożsamość) i
+        chwilę przyjęcia (`received_at`). Numer widać dopiero po zatwierdzeniu transakcji, a niższy może się pojawić później
+        niż wyższy, więc `readings_feed` zwraca tylko wiersze „ustalone”: przyjęte co najmniej 30 s temu i poniżej
+        najniższego widocznego wiersza nieustalonego (bariera). Wiersze wstawia tylko `agent_sync` – jedno wywołanie Data
+        API z limitem czasu instrukcji ról API (kilka sekund) – więc niewidoczny jeszcze wiersz o niższym numerze należy do
+        transakcji sprzed chwili, a wtedy wszystkie wyższe są nieustalone i stoją za barierą.
+      - **Status** (`CloudPanel`): konfiguracja z chmury, migawka zbieracza (ten sam kształt co `MonitorEngine.State`:
+        próby, ponowienia, sygnał, trwający odczyt), alerty ze wspólnego stanu w chmurze (`alert_list`, najwyżej co 30 s;
+        bez sieci – ostatnie znane) i obraz z ostatniej synchronizacji (`CloudSyncState.View`): kto ma dzierżawę każdego
+        czujnika i do kiedy, kto poza tym agentem słyszy go najlepiej, kto trzyma blokadę nadawcy, lista agentów z ostatnim
+        kontaktem i liczbą czujników. Poczta: odbiorcy z chmury (tylko u kandydatów na nadawcę) i wyniki wysyłek tego agenta
+        (`NotifierEngine.MailState`). Sekretów w statusie nie ma (test).
+      - **Akcje przez chmurę:** „Odczytaj teraz” → `command_create('read_now')` dla każdego czujnika – chmura kieruje je do
+        właściciela dzierżawy (może nim być ten agent – synchronizacja jest wtedy budzona); „Wyślij raport teraz” →
+        `report_now` do obecnego nadawcy. Ten sam czujnik i raport najwyżej raz na minutę (liczy chmura); zlecony odczyt
+        „czeka” w panelu, dopóki nie przyjdzie nowszy odczyt (własny albo z kopii), najwyżej 3 min. Chmura niedostępna –
+        stan „chmura niedostępna” zamiast zlecenia.
+      - **Strona:** przy każdym czujniku „Czyta ten agent / agent X / żaden agent”, karta „Chmura i agenci”, nadawca maili w
+        karcie poczty, baner przy braku synchronizacji, odrzuconym tokenie i pracy na kopii konfiguracji. Panel startuje
+        po wczytaniu konfiguracji (`CloudRuntime.Loaded`).
+      - **Sprawdzone 2026-11-17:** testy (kopia w SQLite, pętla kopii, status, akcje, migawka zbieracza); `readings_feed` na
+        próbnym projekcie (ustalone, bariera, paczki, błędne argumenty) i od końca do końca przez Data API (odczyty agenta A
+        w bazie agenta B po ~33 s, bez ponownego wysłania); strona w przeglądarce na programie podglądu (prawdziwy
+        `CloudPanel`, atrapa chmury): pulpit, strona czujnika, odczyt i raport na żądanie, widok 375 px, bez błędów CSP i
+        konsoli. Na prawdziwym agencie – jeszcze nie.
+    - **Kopia zapasowa chmury** (2026-11-17; `CloudBackup` w `Glebosaurus.Cloud.Admin`): `glebosaurus cloud backup --admin
+      PLIK [--out KATALOG] [--keep N]` (tylko czyta bazę, więc bez `--confirm`; domyślnie `backups/` obok pliku
+      administratora) i codziennie w `run` z sekcją `cloud.backup` (`adminFile`, `directory`, `keep`; `DailyCloudBackup`:
+      raz na dzień kalendarzowy czasu urządzenia, przy pierwszej okazji, nie wcześniej niż 10 min po starcie, sprawdzane
+      co godzinę; porażka – kolejna próba za godzinę; plik administratora musi wskazywać ten sam projekt co `cloud.url`,
+      klucz tajny w nim to ostrzeżenie – wystarczy adres i hasło bazy). Zrzut bez `pg_dump`: jedna transakcja `REPEATABLE
+      READ READ ONLY` (wszystko z jednej chwili), każda tabela schematu `glebosaurus` przez `COPY … TO STDOUT (CSV z
+      nagłówkiem)` – bez `agent_logs` (diagnostyka z kilku dni, do ~100 MB) – plus `manifest.json` (projekt, czas, wersja
+      programu, migracje z sumami, liczby wierszy) i `secrets.json` z odszyfrowanymi sekretami `glebosaurus:*` z
+      `vault.decrypted_secrets` (rola `postgres` je czyta – sprawdzone). Plik `glebosaurus-backup-<projekt>-<czas
+      UTC>.zip`, zapis atomowy (plik tymczasowy, potem zmiana nazwy), na Linuksie prawa 600 od utworzenia; zostaje `keep`
+      najnowszych kopii tego projektu. Kopia jest sekretem jak plik administratora – decyzja przy implementacji: bez
+      szyfrowania, bo leży obok pliku z hasłem bazy, które i tak otwiera wszystkie sekrety; poza komputer – tylko w
+      zaszyfrowane miejsce. **Sprawdzone 2026-11-17** na próbnym projekcie: test (wszystkie tabele, liczby wierszy,
+      migracje, odszyfrowany klucz Tuya, brak `agent_logs` i pliku tymczasowego) i prawdziwe CLI (17 KB, 12 tabel, 34
+      sekrety); dzienny rytm i retencja w testach na ręcznym czasie. **Odtwarzania z kopii jeszcze nie ma** (ROADMAP,
+      faza 4: kopia zapasowa i próba odtworzenia).
+    - **Zostały:** prawdziwy `run` i przejście usługi na bestia5 (2.1.5).
 
 ## Struktura repozytorium
 
@@ -742,7 +795,7 @@ src/Glebosaurus.Web       lokalny panel diagnostyczny (Kestrel, HTTPS, hasło; p
 src/Glebosaurus.Agent     CLI/monitor: run, stop, pair, status, report, mail-test, mail-preview, send-log, web-password, scan, read, listen (Shiny; net10.0 + net10.0-windows10.0.19041.0)
 src/Glebosaurus.Service   usługa Windows bez okna (glebosaurus-service.exe): nadzór monitora, sprawdzanie wydań, przekazanie aktualizacji skryptowi
 src/Glebosaurus.Cloud     klient chmury dla agentów: funkcje SQL przez Data API (HttpClient, bez Npgsql) – ICloudApi z Core
-src/Glebosaurus.Cloud.Admin  narzędzia właściciela chmury: połączenie z bazą Supabase (Npgsql, pooler sesji, VerifyFull), migracje
+src/Glebosaurus.Cloud.Admin  narzędzia właściciela chmury: połączenie z bazą Supabase (Npgsql, pooler sesji, VerifyFull), migracje, import, agenci, kopia zapasowa
 supabase/migrations/      schemat i funkcje SQL chmury (zasada 13), wbudowane w Glebosaurus.Cloud.Admin
 supabase/prod-ca-2021.crt certyfikat główny Supabase (publiczny, do 2031-04-26), wbudowany w Glebosaurus.Cloud.Admin
 tests/                    testy jednostkowe: protokół i sesja na atrapie czujnika; alerty, raporty, magazyn, silnik na atrapach;

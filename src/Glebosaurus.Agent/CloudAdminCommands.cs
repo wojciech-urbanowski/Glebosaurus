@@ -7,9 +7,9 @@ using Npgsql;
 namespace Glebosaurus.Agent;
 
 /// <summary>
-/// Narzędzia właściciela chmury (ARCHITEKTURA.md, zasada 15): migracje schematu, import konfiguracji trybu samodzielnego i
-/// agenci z kodami rejestracji. Łączą się z bazą hasłem bazy z pliku administratora (pooler sesji, VerifyFull). Bez
-/// --confirm każde polecenie tylko pokazuje, co zrobi.
+/// Narzędzia właściciela chmury (ARCHITEKTURA.md, zasada 15): migracje schematu, import konfiguracji trybu samodzielnego,
+/// agenci z kodami rejestracji i kopia zapasowa. Łączą się z bazą hasłem bazy z pliku administratora (pooler sesji,
+/// VerifyFull). Bez --confirm każde polecenie zmieniające chmurę tylko pokazuje, co zrobi (kopia tylko czyta).
 /// </summary>
 internal static class CloudAdminCommands
 {
@@ -18,7 +18,8 @@ internal static class CloudAdminCommands
         "migrate" => await MigrateAsync(options, cancellationToken),
         "import" => await ImportAsync(options, cancellationToken),
         "agent" => await AgentAsync(options, cancellationToken),
-        _ => throw new ArgumentException("Podaj polecenie: glebosaurus cloud migrate|import|agent --admin PLIK (zob. --help).")
+        "backup" => await BackupAsync(options, cancellationToken),
+        _ => throw new ArgumentException("Podaj polecenie: glebosaurus cloud migrate|import|agent|backup --admin PLIK (zob. --help).")
     };
 
     private static (CloudAdminSettings Settings, NpgsqlDataSource Data) Open(CliOptions options)
@@ -127,6 +128,28 @@ internal static class CloudAdminCommands
         var code = await CloudAgents.CreateWithCodeAsync(data, name, options.SenderPriority, cancellationToken);
         Console.WriteLine($"Kod rejestracji (jednorazowy, ważny 24 h): {code}");
         Console.WriteLine($"Na urządzeniu agenta: glebosaurus enroll --code {code}   (albo bez --code – zapyta o kod)");
+        return ExitCodes.Success;
+    }
+
+    private static async Task<int> BackupAsync(CliOptions options, CancellationToken cancellationToken)
+    {
+        var (settings, data) = Open(options);
+        await using var _ = data;
+        var status = await MigrationRunner.StatusAsync(data, Migration.Embedded(), cancellationToken);
+        if (status.Applied.Count == 0)
+        {
+            Console.Error.WriteLine("W chmurze nie ma schematu Glebosaurusa – nie ma czego kopiować.");
+            return ExitCodes.Error;
+        }
+        var directory = Path.GetFullPath(options.Output ?? Path.Combine(Path.GetDirectoryName(Path.GetFullPath(options.Admin!))!, "backups"));
+        var result = await CloudBackup.CreateAsync(data, settings.ProjectRef, directory, TimeProvider.System, cancellationToken);
+        var removed = CloudBackup.Prune(directory, settings.ProjectRef, options.Keep ?? 14);
+        Console.WriteLine($"Kopia: {result.Path} ({result.SizeBytes / 1024} KB).");
+        Console.WriteLine($"  tabele: {string.Join(", ", result.Tables.Select(t => $"{t.Key} {t.Value}"))}");
+        Console.WriteLine($"  sekrety z Vault (odszyfrowane, wartości nie są wypisywane): {result.Secrets}");
+        Console.WriteLine($"  pominięte: {string.Join(", ", CloudBackup.SkippedTables)} (dzienniki agentów)");
+        if (removed.Count > 0) Console.WriteLine($"  usunięte starsze kopie: {removed.Count}");
+        Console.WriteLine("Plik zawiera klucze Tuya i hasło Gmaila – trzymaj go jak cloud-admin.json.");
         return ExitCodes.Success;
     }
 

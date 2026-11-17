@@ -13,7 +13,11 @@ public sealed record MonitorHostInfo(string BleBackend, string ConfigPath, strin
 /// sekrety (klucz lokalny i deviceId czujnika, hasło aplikacji Gmail) nie mają którędy wyjść.
 /// </summary>
 public sealed record MonitorStatus(
-    MonitorSummary Monitor, IReadOnlyList<SensorStatus> Sensors, IReadOnlyList<AlertStatus> Alerts, MailStatus Mail, ReportsStatus Reports);
+    MonitorSummary Monitor, IReadOnlyList<SensorStatus> Sensors, IReadOnlyList<AlertStatus> Alerts, MailStatus Mail, ReportsStatus Reports)
+{
+    /// <summary>Tryb chmurowy: synchronizacja, agenci, nadawca, kopia odczytów; null w trybie samodzielnym.</summary>
+    public Glebosaurus.Core.Cloud.CloudStatus? Cloud { get; init; }
+}
 
 /// <param name="ReadingNow">Nazwy czujników, których odczyt właśnie trwa.</param>
 public sealed record MonitorSummary(
@@ -40,7 +44,21 @@ public sealed record SensorStatus(
     ReadingStatus? Latest, string? MoistureTone, bool BatteryLow, DateTimeOffset? NextReadAt, bool ReadingNow,
     DateTimeOffset? LastAttemptAt, string? LastResult, string? LastResultText, int Failures, DateTimeOffset? RetryAt,
     int? LastSignalDbm, DateTimeOffset? LastSignalAt, IReadOnlyList<string> OpenAlerts,
-    bool ReadRequested, DateTimeOffset? ReadOnRequestFrom);
+    bool ReadRequested, DateTimeOffset? ReadOnRequestFrom)
+{
+    // Tryb chmurowy (null w samodzielnym): kto ma dzierżawę czujnika i kto poza tym agentem słyszy go najlepiej.
+
+    /// <summary>Agent z dzierżawą (tylko on czyta czujnik); null – nikt.</summary>
+    public string? Holder { get; init; }
+
+    public bool HolderIsMe { get; init; }
+
+    public DateTimeOffset? HolderUntil { get; init; }
+
+    public string? BestOtherAgent { get; init; }
+
+    public int? BestOtherRssi { get; init; }
+}
 
 public sealed record AlertStatus(
     long Id, string SensorId, string SensorName, string Kind, string KindText, string Detail, DateTimeOffset OpenedAt, DateTimeOffset? LastNotifiedAt);
@@ -61,11 +79,12 @@ public sealed record ReportOnRequestStatus(bool Available, bool Requested, DateT
 
 public static class MonitorStatusBuilder
 {
+    /// <param name="openAlerts">Otwarte alerty, gdy nie z lokalnej bazy (tryb chmurowy – wspólny stan w chmurze).</param>
     public static async Task<MonitorStatus> BuildAsync(
         AgentConfig config, IMonitorStore store, MonitorRuntimeState state, MonitorHostInfo host,
-        DateTimeOffset now, TimeZoneInfo zone, CancellationToken cancellationToken)
+        DateTimeOffset now, TimeZoneInfo zone, CancellationToken cancellationToken, IReadOnlyList<AlertRecord>? openAlerts = null)
     {
-        var open = await store.GetOpenAlertsAsync(cancellationToken);
+        var open = openAlerts ?? await store.GetOpenAlertsAsync(cancellationToken);
         var names = config.Sensors.ToDictionary(s => s.Id, s => s.Name, StringComparer.Ordinal);
 
         var sensors = new List<SensorStatus>();

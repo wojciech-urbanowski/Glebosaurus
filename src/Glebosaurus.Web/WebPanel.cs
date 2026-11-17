@@ -37,11 +37,13 @@ public sealed record WebPanelOptions
 
     public required ILogArchive Logs { get; init; }
 
-    /// <summary>Zlecenie odczytu poza harmonogramem (null = wszystkie czujniki) – w agencie <see cref="MonitorEngine.RequestRead"/>.</summary>
-    public required Func<IReadOnlyCollection<string>?, ReadRequestResult> RequestRead { get; init; }
+    /// <summary>Zlecenie odczytu poza harmonogramem (null = wszystkie czujniki) – w agencie <see cref="MonitorEngine.RequestRead"/>
+    /// albo w trybie chmurowym polecenie przez chmurę (<c>CloudPanel.RequestReadAsync</c>).</summary>
+    public required Func<IReadOnlyCollection<string>?, CancellationToken, Task<ReadRequestResult>> RequestRead { get; init; }
 
-    /// <summary>Zlecenie raportu mailowego poza harmonogramem (prawdziwy mail) – w agencie <see cref="MonitorEngine.RequestReport"/>.</summary>
-    public required Func<ReportRequestResult> RequestReport { get; init; }
+    /// <summary>Zlecenie raportu mailowego poza harmonogramem (prawdziwy mail) – w agencie <see cref="MonitorEngine.RequestReport"/>
+    /// albo w trybie chmurowym polecenie dla nadawcy (<c>CloudPanel.RequestReportAsync</c>).</summary>
+    public required Func<CancellationToken, Task<ReportRequestResult>> RequestReport { get; init; }
 
     public TimeProvider Clock { get; init; } = TimeProvider.System;
     public TimeZoneInfo Zone { get; init; } = TimeZoneInfo.Local;

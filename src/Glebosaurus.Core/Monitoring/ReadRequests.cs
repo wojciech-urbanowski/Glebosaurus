@@ -16,7 +16,10 @@ public enum ReadRequestStatus
     TooSoon,
 
     /// <summary>Nie ma takiego czujnika w konfiguracji.</summary>
-    Unknown
+    Unknown,
+
+    /// <summary>Tryb chmurowy: polecenia nie udało się zostawić w chmurze (brak sieci, chmura niedostępna).</summary>
+    Unavailable
 }
 
 /// <param name="AvailableAt">Przy <see cref="ReadRequestStatus.TooSoon"/>: od kiedy można zlecić odczyt.</param>

@@ -105,6 +105,17 @@ public sealed class NotifierEngine(
     private bool smtpHealthy = true;
     private bool warnedNoPassword, warnedNoRecipients, warnedBadPingUrl;
     private volatile bool busy;
+    private volatile MailRuntimeState mailState = MailRuntimeState.Unused;
+
+    /// <summary>Poczta tego agenta jako nadawcy (od startu): ostatnia wysyłka, ostatni błąd, przerwa po błędzie – dla panelu.</summary>
+    public MailRuntimeState MailState
+    {
+        get
+        {
+            var current = mailState;
+            return current.RetryAt is { } retry && retry <= clock.GetUtcNow() ? current with { RetryAt = null } : current;
+        }
+    }
 
     /// <summary>true w trakcie cyklu wysyłki – wtedy blokady nie wolno oddać (<see cref="CloudSync.NotifierSafePoint"/>).</summary>
     public bool Busy => busy;
@@ -526,6 +537,7 @@ public sealed class NotifierEngine(
             await AbandonAsync(claimed, cancellationToken);
             mailRetryAt = now + settings.MailRetryDelay;
             smtpHealthy = false;
+            mailState = mailState with { LastError = e.Message, LastErrorAt = now, RetryAt = mailRetryAt };
             logger.LogWarning("Nie udało się wysłać maila „{Subject}”: {Error}; ponowię za {Minutes} min.", message.Subject, e.Message,
                 settings.MailRetryDelay.TotalMinutes);
             return MailOutcome.Failed;
@@ -535,11 +547,13 @@ public sealed class NotifierEngine(
             foreach (var key in claimed) settledKeys.Add(key);
             mailRetryAt = now + settings.MailRetryDelay;
             smtpHealthy = false;
+            mailState = mailState with { LastError = e.Message, LastErrorAt = now, RetryAt = mailRetryAt };
             logger.LogError(e, "Wysyłka maila „{Subject}” przerwana w trakcie – mógł dojść albo nie; nie ponawiam, żeby nie było duplikatu.", message.Subject);
             return MailOutcome.Uncertain;
         }
 
         smtpHealthy = true;
+        mailState = mailState with { LastSentAt = clock.GetUtcNow(), RetryAt = null };
         foreach (var key in claimed)
         {
             settledKeys.Add(key);

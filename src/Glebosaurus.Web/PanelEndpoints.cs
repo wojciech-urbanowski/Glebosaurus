@@ -69,33 +69,35 @@ internal sealed class PanelEndpoints(WebPanelOptions options, ILogger logger)
         app.MapGet("/api/sensors/{id}/series", ReadSeriesAsync);
         app.MapGet("/api/log", ReadLogAsync);
 
-        app.MapPost("/api/sensors/{id}/read", (string id, HttpContext context) =>
+        app.MapPost("/api/sensors/{id}/read", async (string id, HttpContext context) =>
         {
-            var result = RequestRead(context, [id]);
+            var result = await RequestReadAsync(context, [id]);
             return result.Items is [{ Status: ReadRequestStatus.Unknown }] ? Results.NotFound() : Results.Json(result, Json);
         });
-        app.MapPost("/api/read-all", (HttpContext context) => Results.Json(RequestRead(context, null), Json));
-        app.MapPost("/api/report", (HttpContext context) => Results.Json(RequestReport(context), Json));
+        // Rzutowanie na Delegate: lambda z samym HttpContext pasowałaby do RequestDelegate i wynik (IResult) by przepadł.
+        app.MapPost("/api/read-all", (Delegate)(async (HttpContext context) => Results.Json(await RequestReadAsync(context, null), Json)));
+        app.MapPost("/api/report", (Delegate)(async (HttpContext context) => Results.Json(await RequestReportAsync(context), Json)));
     }
 
-    /// <summary>Zleca silnikowi raport mailowy (on pilnuje kolejki i odstępu) i odnotowuje, kto to zrobił.</summary>
-    private ReportRequestResult RequestReport(HttpContext context)
+    /// <summary>Zleca raport mailowy (silnik albo chmura pilnuje kolejki i odstępu) i odnotowuje, kto to zrobił.</summary>
+    private async Task<ReportRequestResult> RequestReportAsync(HttpContext context)
     {
-        var result = options.RequestReport();
+        var result = await options.RequestReport(context.RequestAborted);
         logger.LogInformation("Panel WWW: raport na żądanie z {Address} – {Status}.", Client(context), result.Status switch
         {
             ReportRequestStatus.Queued => "zlecony",
             ReportRequestStatus.AlreadyQueued => "już czekał",
             ReportRequestStatus.TooSoon => "za wcześnie",
+            ReportRequestStatus.Unavailable => "chmura niedostępna",
             _ => "poczta nieskonfigurowana"
         });
         return result;
     }
 
-    /// <summary>Zleca odczyt na żądanie silnikowi (on pilnuje kolejki i odstępu dla baterii) i odnotowuje, kto to zrobił.</summary>
-    private ReadRequestResult RequestRead(HttpContext context, IReadOnlyCollection<string>? sensorIds)
+    /// <summary>Zleca odczyt na żądanie (silnik albo chmura pilnuje kolejki i odstępu dla baterii) i odnotowuje, kto to zrobił.</summary>
+    private async Task<ReadRequestResult> RequestReadAsync(HttpContext context, IReadOnlyCollection<string>? sensorIds)
     {
-        var result = options.RequestRead(sensorIds);
+        var result = await options.RequestRead(sensorIds, context.RequestAborted);
         logger.LogInformation("Panel WWW: odczyt na żądanie z {Address}: {Items}.", Client(context),
             string.Join(", ", result.Items.Select(i => $"{i.SensorName ?? i.SensorId} – {StatusText(i.Status)}")));
         return result;
@@ -107,6 +109,7 @@ internal sealed class PanelEndpoints(WebPanelOptions options, ILogger logger)
         ReadRequestStatus.AlreadyQueued => "już czekał",
         ReadRequestStatus.InProgress => "właśnie trwa",
         ReadRequestStatus.TooSoon => "za wcześnie",
+        ReadRequestStatus.Unavailable => "chmura niedostępna",
         _ => "nieznany czujnik"
     };
 

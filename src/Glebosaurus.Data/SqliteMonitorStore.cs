@@ -9,9 +9,10 @@ namespace Glebosaurus.Data;
 /// <summary>
 /// Magazyn w pliku SQLite z trybem WAL. Czasy zapisane jako unix-milisekundy UTC, temperatura jako dziesiąte części
 /// stopnia (liczby całkowite zamiast zmiennoprzecinkowych). Każda operacja otwiera krótkie połączenie. W trybie chmurowym
-/// jest też buforem odczytów do wysłania (<see cref="IReadingOutbox"/>, kolumna <c>sync_state</c>).
+/// jest też buforem odczytów do wysłania (<see cref="IReadingOutbox"/>, kolumna <c>sync_state</c>) i kopią odczytów innych
+/// agentów (<see cref="IReadingMirrorStore"/>, tabela <c>cloud_feed</c> z numerem ostatniego odczytu z chmury).
 /// </summary>
-public sealed class SqliteMonitorStore(string databasePath) : IMonitorStore, IReadingOutbox
+public sealed class SqliteMonitorStore(string databasePath) : IMonitorStore, IReadingOutbox, IReadingMirrorStore
 {
     private const int SchemaVersion = 1;
 
@@ -37,6 +38,9 @@ public sealed class SqliteMonitorStore(string databasePath) : IMonitorStore, IRe
             throw new InvalidOperationException($"Baza {databasePath} pochodzi z nowszej wersji programu (schemat {version}).");
         if (version < SchemaVersion) await CreateSchemaAsync(connection, cancellationToken);
         await EnsureSyncStateAsync(connection, cancellationToken);
+        // Kopia odczytów z chmury (faza 2.1.4): nowa tabela, której wersja 0.1.x nie zna i nie rusza – user_version bez zmian.
+        await ExecuteAsync(connection, "CREATE TABLE IF NOT EXISTS cloud_feed (source TEXT PRIMARY KEY, last_seq INTEGER NOT NULL);",
+            cancellationToken);
     }
 
     /// <summary>
@@ -224,6 +228,42 @@ public sealed class SqliteMonitorStore(string databasePath) : IMonitorStore, IRe
                 await ExecuteAsync(connection, "UPDATE readings SET sync_state = $state WHERE sensor_id = $s AND at = $at;", cancellationToken,
                     transaction, ("$state", state), ("$s", reading.SensorId), ("$at", reading.At.ToUnixTimeMilliseconds()));
         await transaction.CommitAsync(cancellationToken);
+    }
+
+    public async Task<long?> GetFeedCursorAsync(string source, CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = Command(connection, "SELECT last_seq FROM cloud_feed WHERE source = $src;", ("$src", source));
+        return await command.ExecuteScalarAsync(cancellationToken) is long cursor ? cursor : null;
+    }
+
+    public async Task<int> AddFromCloudAsync(string source, IReadOnlyCollection<StoredReading> readings, long cursor,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
+        var added = 0;
+        await using (var insert = Command(connection, $"""
+            INSERT OR IGNORE INTO readings (sensor_id, at, moisture, temp_tenths, battery, battery_state, sync_state)
+            VALUES ($s, $at, $m, $t, $b, $bs, {Accepted});
+            """, ("$s", null), ("$at", null), ("$m", null), ("$t", null), ("$b", null), ("$bs", null)))
+        {
+            insert.Transaction = transaction;
+            foreach (var reading in readings)
+            {
+                insert.Parameters["$s"].Value = reading.SensorId;
+                insert.Parameters["$at"].Value = reading.At.ToUnixTimeMilliseconds();
+                insert.Parameters["$m"].Value = (object?)reading.MoisturePercent ?? DBNull.Value;
+                insert.Parameters["$t"].Value = reading.SoilTemperatureCelsius is { } t ? (int)Math.Round(t * 10m, MidpointRounding.AwayFromZero) : DBNull.Value;
+                insert.Parameters["$b"].Value = (object?)reading.BatteryPercent ?? DBNull.Value;
+                insert.Parameters["$bs"].Value = (object?)reading.BatteryState ?? DBNull.Value;
+                added += await insert.ExecuteNonQueryAsync(cancellationToken);
+            }
+        }
+        await ExecuteAsync(connection, "INSERT OR REPLACE INTO cloud_feed (source, last_seq) VALUES ($src, $seq);", cancellationToken, transaction,
+            ("$src", source), ("$seq", cursor));
+        await transaction.CommitAsync(cancellationToken);
+        return added;
     }
 
     public async Task PurgeAsync(DateTimeOffset olderThan, CancellationToken cancellationToken)

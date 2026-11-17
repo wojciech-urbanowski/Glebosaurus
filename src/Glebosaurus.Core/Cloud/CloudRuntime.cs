@@ -5,8 +5,9 @@ namespace Glebosaurus.Core.Cloud;
 /// <summary>
 /// Agent w trybie chmurowym w jednym procesie (ARCHITEKTURA.md, zasada 15): konfiguracja z chmury (albo z kopii), pętla
 /// synchronizacji, zbieracz i nadawca – każde we własnej pętli. Po każdej udanej synchronizacji: odświeżenie konfiguracji
-/// przy nowej wersji i rozdział poleceń (zbieracz, nadawca). Zatrzymanie: zbieracz i nadawca kończą bieżący krok (odczyt
-/// albo wysyłkę), potem ostatnia synchronizacja oddaje dzierżawy i blokadę – inni przejmują je w sekundy.
+/// przy nowej wersji i rozdział poleceń (zbieracz, nadawca). Agent z lokalnym panelem ma jeszcze kopię odczytów wszystkich
+/// agentów (<see cref="CloudReadingMirror"/>). Zatrzymanie: zbieracz i nadawca kończą bieżący krok (odczyt albo wysyłkę),
+/// potem ostatnia synchronizacja oddaje dzierżawy i blokadę – inni przejmują je w sekundy.
 /// </summary>
 public sealed class CloudRuntime
 {
@@ -17,14 +18,17 @@ public sealed class CloudRuntime
     private readonly CloudSync sync;
     private readonly CollectorEngine collector;
     private readonly NotifierEngine notifier;
+    private readonly CloudReadingMirror? mirror;
     private readonly ILogger logger;
 
-    public CloudRuntime(CloudConfigSource configSource, CloudSync sync, CollectorEngine collector, NotifierEngine notifier, ILogger logger)
+    public CloudRuntime(CloudConfigSource configSource, CloudSync sync, CollectorEngine collector, NotifierEngine notifier, ILogger logger,
+        CloudReadingMirror? mirror = null)
     {
         this.configSource = configSource;
         this.sync = sync;
         this.collector = collector;
         this.notifier = notifier;
+        this.mirror = mirror;
         this.logger = logger;
 
         collector.ReadingsStored = sync.Wake;
@@ -35,12 +39,25 @@ public sealed class CloudRuntime
 
     /// <exception cref="InvalidOperationException">Brak konfiguracji (ani chmury, ani kopii).</exception>
     /// <exception cref="CloudApiException">Token odrzucony przy starcie.</exception>
+    /// <summary>Po wczytaniu konfiguracji, zanim ruszą pętle (np. start lokalnego panelu, który bez niej nie ma czego
+    /// pokazać). Błąd trafia do dziennika i nie zatrzymuje agenta.</summary>
+    public Func<CancellationToken, Task>? Loaded { get; set; }
+
     public async Task RunAsync(CancellationToken cancellationToken)
     {
         await configSource.LoadAsync(cancellationToken);
+        if (Loaded is { } loaded)
+        {
+            try { await loaded(cancellationToken); }
+            catch (Exception e) when (e is not OperationCanceledException)
+            {
+                logger.LogError(e, "Start po wczytaniu konfiguracji (panel) nie powiódł się – agent pracuje dalej.");
+            }
+        }
         using var loops = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var collecting = collector.RunAsync(loops.Token);
         var notifying = notifier.RunAsync(loops.Token);
+        var mirroring = mirror?.RunAsync(loops.Token) ?? Task.CompletedTask;
         try
         {
             await sync.RunAsync(cancellationToken);
@@ -59,6 +76,7 @@ public sealed class CloudRuntime
             await loops.CancelAsync();
             await WaitQuietlyAsync(collecting, "zbieracz");
             await WaitQuietlyAsync(notifying, "nadawca");
+            await WaitQuietlyAsync(mirroring, "kopia odczytów");
             using var timeout = new CancellationTokenSource(ShutdownTimeout);
             try { await sync.ShutdownAsync(timeout.Token); }
             catch (Exception e) when (e is OperationCanceledException or CloudApiException)

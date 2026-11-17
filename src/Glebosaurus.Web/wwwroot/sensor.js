@@ -4,7 +4,7 @@
 // przez monitor do szerokości wykresu. Gdy okno kończy się „teraz”, nowy odczyt przesuwa je i odświeża dane.
 
 import {
-  $, h, now, syncClock, when, ago, until, percent, celsius, dbm, plural, minutesText, hoursText, kv, api, sensorUrl,
+  $, h, now, syncClock, setCloudMode, isCloudMode, when, ago, until, percent, celsius, dbm, plural, minutesText, hoursText, kv, api, sensorUrl,
   fetchSeries, dateFmt, requestRead, readButton, sensorAccent, sensorBadges, sensorMetrics, sensorLines, alertCard,
   buildLogDays, loadLog
 } from './common.js';
@@ -166,7 +166,7 @@ function renderHeader(status) {
   const m = status.monitor;
   document.title = `${sensor.name} – ${m.name} – Glebosaurus`;
   $('sensor-name').textContent = sensor.name;
-  $('sensor-line').textContent = `Monitor ${m.name} · odczyt co ${minutesText(sensor.readIntervalMinutes)}`;
+  $('sensor-line').textContent = `${status.cloud ? 'Agent' : 'Monitor'} ${m.name} · odczyt co ${minutesText(sensor.readIntervalMinutes)}`;
   $('footer').textContent = `Glebosaurus ${m.version} · panel diagnostyczny · odświeżono ${when(m.now, true)}`;
 
   const pick = $('sensor-pick');
@@ -202,12 +202,17 @@ function renderDiagnostics() {
   if (!sensor) return;
   const card = h('div', 'card');
   card.append(kv([
-    ['Ostatnia próba', sensor.lastAttemptAt ? `${when(sensor.lastAttemptAt)} (${ago(sensor.lastAttemptAt)}) – ${sensor.lastResultText}` : 'od startu monitora brak'],
+    ['Dzierżawa', isCloudMode()
+      ? (sensor.holder ? `${sensor.holder}${sensor.holderIsMe ? ' (ten agent)' : ''} do ${when(sensor.holderUntil, true)}` : 'nikt – czujnik czeka na agenta, który go usłyszy')
+      : null],
+    ['Ostatnia próba', sensor.lastAttemptAt ? `${when(sensor.lastAttemptAt)} (${ago(sensor.lastAttemptAt)}) – ${sensor.lastResultText}`
+      : isCloudMode() ? 'ten agent nie czytał go od startu' : 'od startu monitora brak'],
     ['Nieudane próby z rzędu', String(sensor.failures)],
     ['Ponowienie', sensor.retryAt ? until(sensor.retryAt) : null],
     ['Następny odczyt', until(sensor.nextReadAt)],
     ['Sygnał', sensor.lastSignalDbm !== null && sensor.lastSignalDbm !== undefined ? `${dbm(sensor.lastSignalDbm)} (${ago(sensor.lastSignalAt)})` : 'brak pomiaru od startu monitora'],
-    ['Odczyt na żądanie', sensor.readRequested ? 'czeka na najbliższy cykl' : sensor.readOnRequestFrom ? `możliwy od ${when(sensor.readOnRequestFrom, true)}` : 'możliwy'],
+    ['Odczyt na żądanie', sensor.readRequested ? (isCloudMode() ? 'zlecony przez chmurę, czeka na wynik' : 'czeka na najbliższy cykl')
+      : sensor.readOnRequestFrom ? `możliwy od ${when(sensor.readOnRequestFrom, true)}` : 'możliwy'],
     ['Najstarszy odczyt w bazie', first !== null ? `${dateFmt.format(new Date(first))} ${new Date(first).getFullYear()} (${ago(new Date(first).toISOString())})` : loaded ? 'brak odczytów' : null]
   ]));
   $('diagnostics').replaceChildren(card);
@@ -225,7 +230,9 @@ function renderSettings() {
     ['Produkt Tuya', sensor.productId || '–'],
     ['Identyfikator', sensor.id]
   ]));
-  card.append(h('div', 'muted small', 'Zmiana ustawień: edycja pliku konfiguracji i ponowne uruchomienie monitora.'));
+  card.append(h('div', 'muted small', isCloudMode()
+    ? 'Ustawienia czujnika są w chmurze – agent pobiera zmiany sam.'
+    : 'Zmiana ustawień: edycja pliku konfiguracji i ponowne uruchomienie monitora.'));
   $('settings').replaceChildren(card);
 }
 
@@ -289,6 +296,7 @@ async function refresh() {
     return { busy: false, wakeIn: Infinity };
   }
   syncClock(status.monitor.now);
+  setCloudMode(status.cloud);
   sensor = status.sensors.find((s) => s.id === sensorId) || null;
   if (!sensor) {
     $('content').hidden = true;
