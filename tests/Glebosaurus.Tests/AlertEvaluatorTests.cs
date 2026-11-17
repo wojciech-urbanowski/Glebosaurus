@@ -86,4 +86,41 @@ public class AlertEvaluatorTests
         Assert.Contains(AlertEvaluator.Evaluate(sensor, [], Now.AddHours(-7), Now, new HashSet<AlertKind>()), a => a.Kind == AlertKind.SensorSilent);
         Assert.Empty(AlertEvaluator.Evaluate(sensor, [], Now.AddHours(-1), Now, new HashSet<AlertKind>()));
     }
+
+    [Fact]
+    public void DuringGraceSilentAlertIsNotOpenedButAnOpenOneStaysUntilAReading()
+    {
+        var sensor = Fixtures.Sensor(); // silentAfterHours = 6
+        var stale = new[] { Fixtures.Reading("s1", Now.AddHours(-18)) };
+        var none = new HashSet<AlertKind>();
+        var open = new HashSet<AlertKind> { AlertKind.SensorSilent };
+
+        Assert.DoesNotContain(AlertEvaluator.Evaluate(sensor, stale, Fixtures.T0, Now, none, holdSilent: true), a => a.Kind == AlertKind.SensorSilent);
+        Assert.Contains(AlertEvaluator.Evaluate(sensor, stale, Fixtures.T0, Now, open, holdSilent: true), a => a.Kind == AlertKind.SensorSilent);
+
+        var fresh = new[] { Fixtures.Reading("s1", Now.AddMinutes(-1)) };
+        Assert.DoesNotContain(AlertEvaluator.Evaluate(sensor, fresh, Fixtures.T0, Now, open, holdSilent: true), a => a.Kind == AlertKind.SensorSilent);
+    }
+
+    [Fact]
+    public void GraceHoldsAfterStartAndAgainAfterAPause()
+    {
+        var grace = new SilenceGrace();
+        var start = Fixtures.T0;
+
+        Assert.Null(grace.Observe(start));
+        Assert.True(grace.Holds(start + TimeSpan.FromMinutes(29)));
+        Assert.False(grace.Holds(start + TimeSpan.FromMinutes(30)));
+
+        // Zwykła praca: przeliczenia co kilka minut (nawet dokładnie co 10 min) – bez przerwy.
+        var t = start;
+        for (var i = 0; i < 6; i++) Assert.Null(grace.Observe(t += TimeSpan.FromMinutes(10)));
+        Assert.False(grace.Holds(t));
+
+        // Uśpienie na 8 h: nowy okres ochronny od wybudzenia.
+        var woke = t + TimeSpan.FromHours(8);
+        Assert.Equal(TimeSpan.FromHours(8), grace.Observe(woke));
+        Assert.True(grace.Holds(woke + TimeSpan.FromMinutes(29)));
+        Assert.False(grace.Holds(woke + SilenceGrace.DefaultGrace));
+    }
 }

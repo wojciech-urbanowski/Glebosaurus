@@ -8,14 +8,14 @@ Dokumenty: [docs/ARCHITEKTURA.md](docs/ARCHITEKTURA.md) – projekt i fakty zmie
 
 ## Stan
 
-Zrobione i sprawdzone na sprzęcie (Windows 11, prawdziwy czujnik): protokół Tuya BLE z lokalnym parowaniem bez konta Tuya,
-monitor (odczyty, SQLite, alerty, raport HTML, czyste zatrzymanie), polecenie `pair`. Gotowe w kodzie, **ale jeszcze
-niesprawdzone**: praca na Raspberry Pi. Wysyłka maili przez Gmail i ich wygląd na telefonie są sprawdzone (2026-11-13). Praca w tle na Windows: od wersji 0.1.0
-(2026-11-15) usługa na koncie użytkownika (zadanie Harmonogramu przy zalogowaniu, bez okna), instalowana skryptem i sama
-aktualizująca się z wydań na GitHubie – patrz „Windows: instalacja jako usługa”. Chmura z interfejsem WWW to kolejne fazy –
-patrz [ROADMAP](docs/ROADMAP.md). Lokalny panel diagnostyczny w
-przeglądarce (HTTPS, sieć lokalna, hasło; pulpit z wykresem ostatnich 3 dób przy każdym czujniku, strona czujnika z pełną
-historią, odczyt czujników i raport mailowy na żądanie) działa od 2026-11-14 – patrz „Panel WWW” niżej.
+Wersja 0.1.1. **Tryb samodzielny działa na co dzień** na Windows 11 z prawdziwymi czujnikami – od 2026-11-15 jako usługa na
+koncie użytkownika (zadanie Harmonogramu przy zalogowaniu, bez okna), instalowana skryptem i sama aktualizująca się z wydań
+na GitHubie (patrz „Windows: instalacja jako usługa”): protokół Tuya BLE z lokalnym parowaniem bez konta Tuya (`pair`),
+odczyty do SQLite, alerty, raporty z wykresem i log administratora mailem przez Gmail (wygląd pod telefon), lokalny panel
+diagnostyczny w przeglądarce (HTTPS, sieć lokalna, hasło; wykresy, odczyt i raport na żądanie – patrz „Panel WWW”).
+**Tryb chmurowy** (Supabase, wielu agentów – faza 2) jest w kodzie i testach, ale jeszcze nie w użyciu ani w wydaniu.
+**Niesprawdzone:** Raspberry Pi, kalibracja wilgotności. Co zrobione, co zostało i w jakiej kolejności:
+[ROADMAP](docs/ROADMAP.md), „Stan w skrócie”.
 
 | Projekt | Rola |
 |---|---|
@@ -192,8 +192,9 @@ zależy od ułożenia czujnika (ok. 14 dB różnicy w tej samej skrzynce), nie o
 dla każdego urządzenia, więc pozycję czujnika można dobrać na żywo (patrz docs/ARCHITEKTURA.md, „Zasięg Cisy”).
 
 Alerty: „czas podlać” (wilgotność poniżej progu przez kilka odczytów z rzędu, wygasa dopiero powyżej progu wygaszenia),
-„słaba bateria”, „brak odczytów”. Mail o nowych alertach idzie od razu (kilka naraz w jednej wiadomości), przypomnienie co
-`reminderHours`. Raporty o porach z `reports.times`; spóźniony raport jest nadrabiany do `catchUpHours`.
+„słaba bateria”, „brak odczytów” (żadnego udanego odczytu dłużej niż `silentAfterHours`, domyślnie 6 h – liczone też za czas,
+gdy komputer był wyłączony; po starcie i po uśpieniu monitor ma jednak 30 min na odczyty, zanim taki alert otworzy). Mail o
+nowych alertach idzie od razu (kilka naraz w jednej wiadomości), przypomnienie co `reminderHours`. Raporty o porach z `reports.times`; spóźniony raport jest nadrabiany do `catchUpHours`.
 Wilgotność z tańszych czujników wymaga kalibracji – domyślne progi (25% / 35%) są tylko punktem wyjścia.
 
 ### Maile (alerty i raporty)

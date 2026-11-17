@@ -36,6 +36,7 @@ public sealed class MonitorEngine(
     private readonly Dictionary<string, Attempt> attempts = [];
     private readonly Dictionary<string, (int Dbm, DateTimeOffset At)> lastSignal = [];
     private readonly HashSet<long> warnedNoMail = [];
+    private readonly SilenceGrace silenceGrace = new();
     private DateTimeOffset startedAt;
     private DateTimeOffset mailRetryAt = DateTimeOffset.MinValue;
     private DateTimeOffset nextPurgeAt = DateTimeOffset.MinValue;
@@ -362,12 +363,16 @@ public sealed class MonitorEngine(
     private async Task EvaluateAlertsAsync(CancellationToken cancellationToken)
     {
         var now = clock.GetUtcNow();
+        if (silenceGrace.Observe(now) is { } pause)
+            logger.LogInformation("Przerwa w pracy monitora: {Minutes} min (np. uśpienie komputera) – nowe alerty „brak odczytów” wstrzymane na {Grace} min.",
+                (int)pause.TotalMinutes, (int)silenceGrace.Grace.TotalMinutes);
+        var holdSilent = silenceGrace.Holds(now);
         var open = await store.GetOpenAlertsAsync(cancellationToken);
         foreach (var sensor in config.Sensors)
         {
             var recent = await store.GetRecentAsync(sensor.Id, Math.Max(sensor.ConsecutiveReadings, 2) + 1, cancellationToken);
             var openForSensor = open.Where(a => a.SensorId == sensor.Id).ToDictionary(a => a.Kind);
-            var desired = AlertEvaluator.Evaluate(sensor, recent, startedAt, now, openForSensor.Keys.ToHashSet());
+            var desired = AlertEvaluator.Evaluate(sensor, recent, startedAt, now, openForSensor.Keys.ToHashSet(), holdSilent);
 
             foreach (var alert in desired.Where(d => !openForSensor.ContainsKey(d.Kind)))
             {

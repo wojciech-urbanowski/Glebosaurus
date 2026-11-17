@@ -232,6 +232,31 @@ public sealed class NotifierTests
     }
 
     [Fact]
+    public async Task SilentSensor_WaitsForTheGraceAfterNotifierStart()
+    {
+        config = Config(canSendMail: true, silentAfterHours: 6);
+        Lock();
+        api.CloudReadings.Add(Fixtures.Reading("s1", Morning.AddHours(-8))); // nadawca (i zbieracze) wstają po nocy
+        var engine = Engine();
+
+        await engine.CycleAsync(Ct);
+        for (var i = 0; i < 5; i++)
+        {
+            Advance(TimeSpan.FromMinutes(5));
+            await engine.CycleAsync(Ct);
+        }
+        Assert.Empty(api.Alerts);                       // 25 min – zbieracze mają czas na odczyty
+        Assert.Empty(mail.Sent);
+
+        Advance(TimeSpan.FromMinutes(6));
+        await engine.CycleAsync(Ct);
+
+        var alert = Assert.Single(api.Alerts);          // s2 bez odczytów liczy się od startu nadawcy – jeszcze nie
+        Assert.Equal((AlertKind.SensorSilent, "s1"), (alert.Kind, alert.Sensor));
+        Assert.Single(mail.Sent);
+    }
+
+    [Fact]
     public async Task SilentAgent_IsReportedOncePerEpisode()
     {
         Lock();

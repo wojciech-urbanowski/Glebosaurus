@@ -128,41 +128,22 @@ dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self
 
 ## Stan
 
-Zrobione: spike sprzętowy i faza 1 (lokalny monitor, parowanie), szablony maili pod telefon z konfigurowalnymi odbiorcami
-(konto nadawcy i odbiorca są w `local/glebosaurus.config.json`); 2026-11-13 wysłano 3 prawdziwe maile próbne i Gmail je
-przyjął. Układ i kolorystykę maili (kwadratowe, pastelowe) zatwierdził użytkownik na telefonie – nie zmieniaj ich bez prośby. Log techniczny dla administratora (osobny adres, pierwszy przebieg dnia wysyła
-dziennik z poprzedniego dnia z załącznikiem, retencja dzienników 7 dni) jest w kodzie i testach; 2026-11-13 `send-log` wysłał prawdziwy dziennik (Gmail przyjął),
-2026-11-14 `run` wysłał go sam w pierwszym przebiegu dnia (restart nie powtórzył). Niesprawdzone: czyszczenie starych plików na żywo.
-Panel WWW (decyzje użytkownika 2026-11-14: HTTPS, hasło, na razie bez edycji konfiguracji; odczyt na żądanie dodany tego samego dnia) działa na żywo:
-2026-11-14 hasło ustawione (`local/glebosaurus-web.password`, sekcja `web` w `local/glebosaurus.config.json`), `run` z panelem,
-użytkownik zalogował się w przeglądarce i zlecał odczyty na żądanie. Raport na żądanie z panelu (2026-11-14) sprawdzony w testach,
-w podglądzie i na żywo: raport zlecony z panelu doszedł (czekał ok. 78 s na odczyty cyklu). Nasłuch BLE na przemian z odczytem i okno skanu 60 s
-sprawdzone na żywo tego dnia. Wykresy i strona czujnika (2026-11-14) sprawdzone w testach i w przeglądarce na programie podglądu z danymi próbnymi; na
-prawdziwym monitorze jeszcze nie. 2026-11-14 `run` sam wysłał prawdziwy mail o alercie (słaba bateria). Prototyp wykresu w raporcie mailowym
-(`MailChart`, sam HTML, kolumny po 2 godz., temperatura jako blady zakres, budżet 90 KB) jest od 2026-11-14 w każdym raporcie (`SnapshotBuilder` dociąga odczyty z 75 h); pierwszą
-wersję użytkownik obejrzał na telefonie i poprawił (2 godz., temperatura jako zakres). Niesprawdzone:
-wejście z telefonu (reguła Zapory), prawdziwy raport z `run`,
-Raspberry Pi, kalibracja wilgotności. Następne kroki: patrz [docs/ROADMAP.md](docs/ROADMAP.md).
+Pełny obraz – co działa, co zostało, w jakiej kolejności, co niesprawdzone i co czeka na użytkownika – jest w
+[docs/ROADMAP.md](docs/ROADMAP.md), „Stan w skrócie”; daty i szczegóły sprawdzeń – w ARCHITEKTURA.md. Tu tylko to, co
+trzeba wiedzieć przed każdą pracą:
 
-Faza 2 (plan z 2026-11-16 w ROADMAP): konta gotowe – projekt Supabase (darmowy, Frankfurt) i sprawdzenie healthchecks.io
-założył użytkownik, połączenie sprawdzone z bestia5 (ARCHITEKTURA.md, zasady 2 i 10); dane dostępowe w
-`local/cloud-admin.json`. Konto Gmail nadawcy zostaje (jest już osobne). Funkcje SQL testujemy na drugim, próbnym
-projekcie `glebosaurus-test` (decyzja 2026-11-16, bez Dockera; założony i sprawdzony tego dnia). Schemat i funkcje SQL
-(2.1.2: dzierżawy, blokada nadawcy, kolejka maili, alerty, polecenia, logi agentów w tabeli zamiast Storage) zrobione
-2026-11-16 i zielone na próbnym projekcie; prawdziwy projekt jest jeszcze bez schematu. Core (2.1.3): kawałki (a) – protokół,
-klient HTTP, księga dzierżaw i zasady przydziału, (b) – bufor odczytów i pętla synchronizacji, (c) – konfiguracja z
-chmury z chronioną kopią, (d) – zbieracz (pełny nasłuch w radiu Shiny niesprawdzony na sprzęcie) – i (e) – nadawca –
-zrobione 2026-11-16, krok 2.1.3 skończony; log administratora – osobny mail od każdego agenta (decyzja użytkownika).
-Agent (2.1.4, ARCHITEKTURA.md, zasada 15): sekcja `cloud`, `enroll` (sprawdzony przez CLI na próbnym projekcie),
-`CloudRuntime` i `run` w trybie chmurowym (tylko w testach – prawdziwy `run` na bestia5 wymaga zatrzymania usługi, na
-prośbę użytkownika), „agent milczy” w `mail-preview`, `cloud migrate`/`import`/`agent` (sprawdzone na próbnym projekcie,
-także przez CLI). Zostały `cloud backup`, panel w trybie chmurowym i przejście usługi; prawdziwy projekt nadal bez schematu
-i prawdziwego maila w trybie chmurowym jeszcze nie było.
-
-Usługa Windows (2026-11-15): wydanie **0.1.0** opublikowane przez Actions (repo publiczne), a na bestia5 zainstalowane z
-GitHuba skryptem z `-ImportFrom local -NoStart`: program w `%LOCALAPPDATA%\Glebosaurus\app`, **kopia** danych z `local/` w
-`…\Glebosaurus\data`, zadanie „Glebosaurus” przy zalogowaniu. Od tej chwili prawdziwym monitorem jest usługa; `local/` zostaje
-do prób, a `run` z niego nie wystartuje obok usługi (kod 4). Sprawdzone na żywo: start z Harmonogramu (Zapora zatwierdzona
-dla stałej ścieżki `app\glebosaurus.exe`), o północy sama wysłała log administratora, a 2026-11-16 00:06 pierwsza
-samoaktualizacja z GitHuba 0.1.0 → 0.1.1 (ok. 15 s, bez nowego pytania Zapory). Niesprawdzone: strażnik co godzinę, uśpienie
-i wybudzenie, wylogowanie w trakcie odczytu, aktualizacja o 03:30 na prawdziwym wydaniu.
+- **Prawdziwym monitorem jest usługa na bestia5** (wersja 0.1.1, od 2026-11-15): program w `%LOCALAPPDATA%\Glebosaurus\app`,
+  **kopia** danych z `local/` w `…\Glebosaurus\data`, zadanie „Glebosaurus” przy zalogowaniu, Zapora zatwierdzona dla
+  stałej ścieżki `app\glebosaurus.exe`, samoaktualizacja z GitHuba sprawdzona (0.1.0 → 0.1.1). Pracuje w trybie
+  samodzielnym z prawdziwą pocztą (konto nadawcy i odbiorca w `local/glebosaurus.config.json`). `local/` zostaje do prób,
+  a `run` z niego nie wystartuje obok usługi (kod 4).
+- **Zatwierdzone przez użytkownika – nie zmieniaj bez prośby:** układ i kolorystyka maili (kwadratowe, pastelowe, pod
+  telefon), wykres w raporcie (`MailChart`: kolumny po 2 godz., temperatura jako blady zakres), panel WWW bez edycji
+  konfiguracji (pełny edytor – faza 3c), log administratora w trybie chmurowym jako osobny mail od każdego agenta.
+- **Faza 2.1 (chmura):** konta i oba projekty Supabase oraz healthchecks.io gotowe, schemat SQL (2.1.2) i Core (2.1.3)
+  skończone, agent (2.1.4) bez `cloud backup` i panelu w trybie chmurowym. **Prawdziwy projekt Supabase jest bez
+  schematu**, wydanie 0.1.1 nie ma trybu chmurowego, a maila w tym trybie jeszcze nie było; przejście usługi (2.1.5) –
+  tylko na prośbę użytkownika.
+- **Z pracy usługi (2026-11-17):** czujniki przy wejściu prawie poza zasięgiem bestia5 (ROADMAP, „Do zbadania”); fałszywe
+  alerty „brak odczytów” po wyłączeniu komputera poprawione w kodzie (`SilenceGrace`, ARCHITEKTURA.md, zasada 9) – na
+  bestia5 dopiero z następnym wydaniem.

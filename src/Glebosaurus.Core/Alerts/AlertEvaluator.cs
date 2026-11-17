@@ -17,9 +17,13 @@ public static class AlertEvaluator
 
     /// <param name="recentNewestFirst">Ostatnie udane odczyty, od najnowszego.</param>
     /// <param name="silentReference">Punkt odniesienia dla „brak odczytów”, gdy czujnik nie miał jeszcze żadnego odczytu (np. start monitora).</param>
+    /// <param name="holdSilent">
+    /// Okres ochronny po starcie albo przerwie monitora (<see cref="SilenceGrace"/>): nowego alertu „brak odczytów” nie
+    /// otwiera, a otwarty zostaje, dopóki cisza trwa – bez zamykania i ponownego otwierania (drugiego maila).
+    /// </param>
     public static IReadOnlyList<DesiredAlert> Evaluate(
         SensorConfig sensor, IReadOnlyList<StoredReading> recentNewestFirst, DateTimeOffset silentReference,
-        DateTimeOffset now, IReadOnlySet<AlertKind> open)
+        DateTimeOffset now, IReadOnlySet<AlertKind> open, bool holdSilent = false)
     {
         var desired = new List<DesiredAlert>();
 
@@ -43,7 +47,7 @@ public static class AlertEvaluator
 
         var reference = recentNewestFirst.FirstOrDefault()?.At ?? silentReference;
         var silentFor = now - reference;
-        if (silentFor > TimeSpan.FromHours(sensor.SilentAfterHours))
+        if (silentFor > TimeSpan.FromHours(sensor.SilentAfterHours) && (!holdSilent || open.Contains(AlertKind.SensorSilent)))
             desired.Add(new(AlertKind.SensorSilent, $"brak udanego odczytu od {Describe(silentFor)}"));
 
         return desired;

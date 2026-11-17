@@ -89,6 +89,7 @@ public sealed class NotifierEngine(
     private readonly HashSet<string> settledKeys = new(StringComparer.Ordinal);
     private readonly Dictionary<string, List<StoredReading>> readings = new(StringComparer.Ordinal);
     private TaskCompletionSource wakeSignal = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly SilenceGrace silenceGrace = new();
     private DateTimeOffset startedAt;
     private MailCredentials? credentials;
     private IMailGateway? gateway;
@@ -270,12 +271,17 @@ public sealed class NotifierEngine(
     private async Task EvaluateAlertsAsync(CloudAgentConfig current, long epoch, CancellationToken cancellationToken)
     {
         var now = clock.GetUtcNow();
+        // Po starcie i po przerwie (uśpienie, długo bez blokady) zbieracze dostają czas na odczyty, zanim cisza da alert.
+        if (silenceGrace.Observe(now) is { } pause)
+            logger.LogInformation("Nadawca: przerwa w przeliczaniu alertów {Minutes} min – nowe alerty „brak odczytów” wstrzymane na {Grace} min.",
+                (int)pause.TotalMinutes, (int)silenceGrace.Grace.TotalMinutes);
+        var holdSilent = silenceGrace.Holds(now);
         var open = await api.AlertListAsync(cancellationToken);
         foreach (var sensor in current.Config.Sensors)
         {
             var openForSensor = open.Where(a => a.Sensor == sensor.Id).ToDictionary(a => a.Kind);
             var desired = AlertEvaluator.Evaluate(sensor, Recent(sensor.Id, Math.Max(sensor.ConsecutiveReadings, 2) + 1), startedAt, now,
-                openForSensor.Keys.ToHashSet());
+                openForSensor.Keys.ToHashSet(), holdSilent);
             foreach (var alert in desired.Where(d => !openForSensor.ContainsKey(d.Kind)))
                 if ((await api.AlertOpenAsync(epoch, sensor.Id, alert.Kind, alert.Detail, cancellationToken)).Created)
                     logger.LogWarning("Alert otwarty: {Sensor} – {Kind}: {Detail}", sensor.Name, MailTemplates.KindText(alert.Kind), alert.Detail);

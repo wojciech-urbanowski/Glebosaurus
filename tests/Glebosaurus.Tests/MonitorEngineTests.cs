@@ -21,7 +21,7 @@ public class MonitorEngineTests
         public FakeLogArchive Logs { get; } = new();
         public CapturingLogger Log { get; } = new();
         public ManualTimeProvider Clock { get; }
-        public MonitorEngine Engine { get; }
+        public MonitorEngine Engine { get; private set; }
         public SqliteMonitorStore Store => db.Store;
 
         public Harness(AgentConfig? config = null, DateTimeOffset? start = null)
@@ -34,6 +34,24 @@ public class MonitorEngineTests
         public async Task CycleAfter(TimeSpan delay)
         {
             Clock.Advance(delay);
+            await Engine.CycleAsync(Ct);
+        }
+
+        /// <summary>
+        /// Monitor pracuje bez przerw: cykl co kilka minut, jak naprawdę. Przeskok zegara o więcej niż 10 min między cyklami
+        /// to dla silnika przestój (uśpienie komputera), po którym alert „brak odczytów” czeka (SilenceGrace).
+        /// </summary>
+        public async Task RunFor(TimeSpan total)
+        {
+            var step = TimeSpan.FromMinutes(5);
+            for (var passed = TimeSpan.Zero; passed < total; passed += step) await CycleAfter(step);
+        }
+
+        /// <summary>Komputer wyłączony na <paramref name="downtime"/>, potem nowy proces monitora na tej samej bazie i pierwszy cykl.</summary>
+        public async Task RestartAfter(TimeSpan downtime)
+        {
+            Clock.Advance(downtime);
+            Engine = Engines.Create(Config, db.Store, Reader, Mail, Clock, Logs, Log);
             await Engine.CycleAsync(Ct);
         }
 
@@ -344,14 +362,86 @@ public class MonitorEngineTests
         h.Reader.Script = sensor => new(sensor, null, SensorReadFailure.Error, "brak odpowiedzi");
 
         await h.Engine.CycleAsync(Ct);                  // start monitora = punkt odniesienia dla czujnika bez odczytów
-        for (var hour = 1; hour <= 5; hour++) await h.CycleAfter(TimeSpan.FromHours(1));
+        await h.RunFor(TimeSpan.FromHours(5));
         Assert.Empty(await h.Store.GetOpenAlertsAsync(Ct)); // 5 h < progu 6 h
 
-        await h.CycleAfter(TimeSpan.FromHours(2));      // 7 h od startu
+        await h.RunFor(TimeSpan.FromHours(2));          // 7 h od startu
 
         var alert = Assert.Single(await h.Store.GetOpenAlertsAsync(Ct));
         Assert.Equal(AlertKind.SensorSilent, alert.Kind);
         Assert.Contains("brak odczytów", Assert.Single(h.Mail.Sent).Subject);
+    }
+
+    private static SensorReadOutcome NotFound(SensorConfig sensor) => new(sensor, null, SensorReadFailure.NotFound);
+
+    [Fact]
+    public async Task AfterLongDowntimeTheSilentAlertWaitsUntilTheMonitorHadTimeToRead()
+    {
+        using var h = new Harness();
+        await h.Engine.CycleAsync(Ct);                  // odczyt o T0, potem komputer wyłączony (bestia5, 2026-11-17)
+        h.Reader.Script = NotFound;
+
+        await h.RestartAfter(TimeSpan.FromHours(18));   // cisza 18 h > 6 h, ale monitor dopiero wstał
+        await h.RunFor(TimeSpan.FromMinutes(25));
+        Assert.Empty(await h.Store.GetOpenAlertsAsync(Ct));
+        Assert.Empty(h.Mail.Sent);
+
+        await h.RunFor(TimeSpan.FromMinutes(10));       // okres ochronny (30 min) minął, czujnika dalej nie ma
+
+        var alert = Assert.Single(await h.Store.GetOpenAlertsAsync(Ct));
+        Assert.Equal(AlertKind.SensorSilent, alert.Kind);
+        Assert.Contains("18 h", alert.Detail);
+        Assert.Single(h.Mail.Sent);
+    }
+
+    [Fact]
+    public async Task SensorReadSoonAfterRestartRaisesNoSilentAlertAtAll()
+    {
+        using var h = new Harness();
+        await h.Engine.CycleAsync(Ct);
+        h.Reader.Script = NotFound;
+
+        await h.RestartAfter(TimeSpan.FromHours(18));   // pierwsze okno nasłuchu po starcie – nie znaleziono
+        h.Reader.Script = sensor => Fixtures.Ok(sensor, 50);
+        await h.RunFor(TimeSpan.FromHours(1));          // ponowienie po minucie się udaje
+
+        Assert.True((await h.Store.GetLatestAsync("s1", Ct))!.At > Fixtures.T0 + TimeSpan.FromHours(18));
+        Assert.Empty(await h.Store.GetOpenAlertsAsync(Ct));
+        Assert.Empty(h.Mail.Sent);
+    }
+
+    [Fact]
+    public async Task LongPauseOfARunningMonitorStartsTheGraceAgain()
+    {
+        using var h = new Harness();
+        await h.Engine.CycleAsync(Ct);
+        await h.RunFor(TimeSpan.FromMinutes(40));       // okres ochronny po starcie dawno minął
+        h.Reader.Script = NotFound;
+
+        await h.CycleAfter(TimeSpan.FromHours(8));      // uśpienie komputera: ten sam proces, 8 h bez cyklu
+        Assert.Empty(await h.Store.GetOpenAlertsAsync(Ct));
+        Assert.Contains(h.Log.Entries, e => e.Message.StartsWith("Przerwa w pracy monitora: 480 min", StringComparison.Ordinal));
+
+        await h.RunFor(TimeSpan.FromMinutes(35));
+        Assert.Equal(AlertKind.SensorSilent, Assert.Single(await h.Store.GetOpenAlertsAsync(Ct)).Kind);
+    }
+
+    [Fact]
+    public async Task OpenSilentAlertStaysOpenThroughTheGraceAfterRestart()
+    {
+        using var h = new Harness();
+        await h.Engine.CycleAsync(Ct);
+        h.Reader.Script = NotFound;
+        await h.RunFor(TimeSpan.FromHours(7));
+        var alert = Assert.Single(await h.Store.GetOpenAlertsAsync(Ct));
+        Assert.Single(h.Mail.Sent);
+
+        await h.RestartAfter(TimeSpan.FromHours(1));
+        await h.RunFor(TimeSpan.FromMinutes(40));
+
+        Assert.Equal(alert.Id, Assert.Single(await h.Store.GetOpenAlertsAsync(Ct)).Id); // ten sam alert – bez zamknięcia i drugiego maila
+        Assert.Single(h.Mail.Sent);
+        Assert.DoesNotContain(h.Log.Entries, e => e.Message.StartsWith("Alert zamknięty", StringComparison.Ordinal));
     }
 
     [Fact]
