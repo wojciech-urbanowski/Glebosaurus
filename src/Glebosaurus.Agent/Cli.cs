@@ -20,7 +20,7 @@ internal sealed record CliOptions(
     string Command, int? Seconds, int Timeout, string? Credentials, string? Config, string? Output, bool Verbose, bool Quiet,
     int? Minutes, bool ConfirmBind, string? Id, string? Name, string? Mac, int? Linger, bool Samples, string? Date, string? StopEvent,
     string? Code = null, string? Subcommand = null, string? Admin = null, bool Confirm = false, int? SenderPriority = null, string? TimeZone = null,
-    int? Keep = null);
+    int? Keep = null, bool Revoke = false);
 
 internal static class Cli
 {
@@ -71,6 +71,10 @@ internal static class Cli
           glebosaurus cloud agent --admin PLIK [--name NAZWA [--sender-priority N] --confirm]
               Bez --name: lista agentów. Z --name i --confirm: tworzy agenta (z --sender-priority 1–9 – kandydat na
               nadawcę, 1 najważniejszy; bez – tylko zbiera) i wypisuje jednorazowy kod rejestracji (24 h) do enroll.
+              Istniejącemu agentowi zmienia rolę – działający agent przejmuje ją w ciągu ok. minuty, bez enroll.
+          glebosaurus cloud agent --admin PLIK --name NAZWA --revoke [--confirm]
+              Odcina agenta (zgubione urządzenie, wyciek tokenu): unieważnia token od razu i kasuje jego niewykorzystane
+              kody rejestracji. Agent zostaje na liście; z powrotem – nowy kod (polecenie wyżej), enroll i restart agenta.
           glebosaurus cloud backup --admin PLIK [--out KATALOG] [--keep N]
               Kopia zapasowa chmury teraz (darmowy plan Supabase jej nie robi): tabele i odszyfrowane sekrety z Vault w
               jednym pliku ZIP (domyślnie katalog backups/ obok pliku administratora), zostawia N najnowszych (domyślnie 14).
@@ -154,7 +158,7 @@ internal static class Cli
         string? credentials = null, config = null, output = null, id = null, name = null, mac = null, date = null, stopEvent = null, code = null;
         string? admin = null, timeZone = null;
         int? senderPriority = null, keep = null;
-        bool verbose = false, quiet = false, confirmBind = false, samples = false, confirm = false;
+        bool verbose = false, quiet = false, confirmBind = false, samples = false, confirm = false, revoke = false;
         for (var i = (hasCommand ? 1 : 0) + (subcommand is null ? 0 : 1); i < args.Length; i++)
         {
             switch (args[i])
@@ -179,6 +183,7 @@ internal static class Cli
                 case "--code": code = Value(args, ++i, "--code"); break;
                 case "--admin": admin = Value(args, ++i, "--admin"); break;
                 case "--confirm": confirm = true; break;
+                case "--revoke": revoke = true; break;
                 case "--sender-priority": senderPriority = Number(args, ++i, "--sender-priority", 9); break;
                 case "--time-zone": timeZone = Value(args, ++i, "--time-zone"); break;
                 case "--keep": keep = Number(args, ++i, "--keep", 365); break;
@@ -188,7 +193,7 @@ internal static class Cli
             }
         }
         return new(command, seconds, timeout, credentials, config, output, verbose, quiet, minutes, confirmBind, id, name, mac, linger, samples, date, stopEvent, code,
-            subcommand, admin, confirm, senderPriority, timeZone, keep);
+            subcommand, admin, confirm, senderPriority, timeZone, keep, revoke);
     }
 
     private static string Value(string[] args, int index, string flag) =>

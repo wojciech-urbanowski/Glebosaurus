@@ -272,4 +272,34 @@ public sealed class CloudConfigTests : IDisposable
         Assert.True(await source.RefreshAsync(4, Ct));
         Assert.Equal(4, source.Current!.Version);
     }
+
+    [Fact]
+    public async Task Source_RoleChangedInCloud_RefreshesWithoutNewVersion()
+    {
+        // Zmiana roli agenta w chmurze nie podnosi wersji konfiguracji – agent widzi ją w odpowiedzi agent_sync.
+        var (source, api, cache) = Source();
+        await source.LoadAsync(Ct);
+        Assert.Null(source.Current!.Mail);
+
+        Assert.False(await source.RefreshAsync(3, new AgentIdentity("bestia5", false, null), Ct));   // ta sama rola
+        Assert.Equal(1, api.ConfigCalls);
+
+        api.Config = Config(canSendMail: true);   // awans na nadawcę, wersja dalej 3
+        Assert.True(await source.RefreshAsync(3, new AgentIdentity("bestia5", true, 2), Ct));
+        Assert.True(source.Current!.Agent.CanSendMail);
+        Assert.NotNull(source.Current.Mail);
+        Assert.True((await cache.LoadAsync(Ct))!.Config.Agent.CanSendMail);
+        Assert.False(await source.RefreshAsync(3, new AgentIdentity("bestia5", true, 2), Ct));   // drugi raz nie pobiera
+        Assert.Equal(2, api.ConfigCalls);
+
+        api.Config = Config(canSendMail: true) with { Agent = new AgentIdentity("bestia5", true, 1) };   // sam priorytet
+        Assert.True(await source.RefreshAsync(3, new AgentIdentity("bestia5", true, 1), Ct));
+        Assert.Equal(1, source.Current!.Agent.SenderPriority);
+
+        api.Config = Config();   // z powrotem tylko zbieracz
+        Assert.True(await source.RefreshAsync(3, new AgentIdentity("bestia5", false, null), Ct));
+        Assert.False(source.Current!.Agent.CanSendMail);
+        Assert.Null(source.Current.Mail);
+        Assert.Equal(4, api.ConfigCalls);
+    }
 }

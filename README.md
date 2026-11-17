@@ -327,6 +327,15 @@ glebosaurus cloud import --admin local/cloud-admin.json --config local/glebosaur
 glebosaurus cloud agent --admin local/cloud-admin.json --name bestia5 --sender-priority 2 --confirm   # wypisze kod
 ```
 
+Ten sam `cloud agent` z nazwą istniejącego agenta zmienia jego rolę (np. `--sender-priority 1` – główny nadawca; bez
+`--sender-priority` – tylko zbiera); działający agent przejmuje ją w ciągu ok. minuty, bez ponownej rejestracji. Zgubione
+urządzenie albo wyciek tokenu – odcięcie agenta (token przestaje działać od razu, jego niewykorzystane kody przepadają;
+czujniki przejmą inni po wygaśnięciu dzierżaw, najwyżej ok. 32 min):
+
+```powershell
+glebosaurus cloud agent --admin local/cloud-admin.json --name bestia5 --revoke --confirm   # z powrotem: nowy kod, enroll, restart
+```
+
 `cloud import` przenosi ustawienia, odbiorców, czujniki z kluczami Tuya, hasło Gmaila i adres sygnału healthchecks.io
 (sekretów nie wypisuje; nic w chmurze nie usuwa, powtórzony – nadpisuje). Historii odczytów nie przenosi: wysyła ją sam agent
 w trybie chmurowym ze swojej bazy. Na urządzeniu agenta plik konfiguracji ma sekcję `cloud` zamiast `sensors` i `mail` (wzór:

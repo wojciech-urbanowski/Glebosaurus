@@ -222,6 +222,48 @@ public static partial class CloudAgents
         return code;
     }
 
+    /// <summary>
+    /// Odcina agenta od chmury (zgubione albo skradzione urządzenie, wyciek tokenu): unieważnia token od razu i kasuje
+    /// ważne, niewykorzystane kody rejestracji tego agenta (kod mógł wyciec razem z urządzeniem albo z ekranu). Agent zostaje na
+    /// liście z rolą – nowy kod (<see cref="CreateWithCodeAsync"/>) i <c>enroll</c> dopuszczają go z powrotem. Dzierżaw nie
+    /// zabiera: wygasają same (czujniki po ok. 32 min, blokada nadawcy po ok. 7 min), tak jak przy nagłym zniknięciu.
+    /// </summary>
+    /// <exception cref="ArgumentException">Nie ma takiego agenta.</exception>
+    public static async Task<CloudAgentRevocation> RevokeAsync(NpgsqlDataSource dataSource, string name, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        bool hadToken;
+        await using (var find = new NpgsqlCommand("select token_hash is not null from glebosaurus.agents where name = @n for update", connection, transaction))
+        {
+            find.Parameters.AddWithValue("n", name);
+            hadToken = await find.ExecuteScalarAsync(cancellationToken) is bool enrolled
+                ? enrolled
+                : throw new ArgumentException($"W chmurze nie ma agenta „{name}” (lista: glebosaurus cloud agent --admin PLIK).");
+        }
+        await using (var revoke = new NpgsqlCommand("select glebosaurus.admin_agent_revoke(@n)", connection, transaction))
+        {
+            revoke.Parameters.AddWithValue("n", name);
+            await revoke.ExecuteNonQueryAsync(cancellationToken);
+        }
+        int cancelledCodes;
+        await using (var codes = new NpgsqlCommand("""
+            delete from glebosaurus.enrollment_codes
+             where used_at is null and expires_at > glebosaurus.clock()
+               and agent_id = (select id from glebosaurus.agents where name = @n)
+            """, connection, transaction))
+        {
+            codes.Parameters.AddWithValue("n", name);
+            cancelledCodes = await codes.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await transaction.CommitAsync(cancellationToken);
+        return new(hadToken, cancelledCodes);
+    }
+
     [GeneratedRegex("^[a-z0-9][a-z0-9_-]{0,39}$")]
     private static partial Regex AgentName();
 }
+
+/// <summary>Wynik <see cref="CloudAgents.RevokeAsync"/>: czy agent miał ważny token i ile ważnych, niewykorzystanych kodów
+/// rejestracji skasowano.</summary>
+public sealed record CloudAgentRevocation(bool HadToken, int CancelledCodes);

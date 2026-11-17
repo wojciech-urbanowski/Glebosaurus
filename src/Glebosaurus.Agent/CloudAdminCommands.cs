@@ -100,6 +100,8 @@ internal static class CloudAdminCommands
 
     private static async Task<int> AgentAsync(CliOptions options, CancellationToken cancellationToken)
     {
+        if (options.Revoke && options.Name is null) throw new ArgumentException("--revoke wymaga --name NAZWA (którego agenta odciąć).");
+        if (options.Revoke && options.SenderPriority is not null) throw new ArgumentException("--revoke nie zmienia roli – bez --sender-priority.");
         var (_, data) = Open(options);
         await using var _ = data;
         if (!await SchemaReadyAsync(data, cancellationToken)) return ExitCodes.Error;
@@ -116,10 +118,14 @@ internal static class CloudAdminCommands
         }
 
         var current = agents.FirstOrDefault(a => a.Name == name);
+        if (options.Revoke) return await RevokeAsync(data, name, current, options.Confirm, cancellationToken);
         var role = options.SenderPriority is { } priority ? $"zbiera i może wysyłać maile (priorytet {priority})" : "tylko zbiera";
-        Console.WriteLine(current is null
-            ? $"Nowy agent „{name}”: {role}."
-            : $"Agent „{name}” już jest – rola: {role}; nowy kod zastąpi jego token przy rejestracji.");
+        if (current is null) Console.WriteLine($"Nowy agent „{name}”: {role}.");
+        else if (current.Enrolled)
+            Console.WriteLine($"Agent „{name}” już jest – nowa rola: {role}. Działający agent przejmie ją przy najbliższej synchronizacji " +
+                              "(ok. minuty), bez ponownej rejestracji; kod niżej przyda się tylko przy przenosinach na inne urządzenie " +
+                              "(zastąpi obecny token).");
+        else Console.WriteLine($"Agent „{name}” już jest (czeka na enroll) – rola: {role}.");
         if (!options.Confirm)
         {
             Console.WriteLine("Bez --confirm niczego nie zapisuję.");
@@ -128,6 +134,31 @@ internal static class CloudAdminCommands
         var code = await CloudAgents.CreateWithCodeAsync(data, name, options.SenderPriority, cancellationToken);
         Console.WriteLine($"Kod rejestracji (jednorazowy, ważny 24 h): {code}");
         Console.WriteLine($"Na urządzeniu agenta: glebosaurus enroll --code {code}   (albo bez --code – zapyta o kod)");
+        return ExitCodes.Success;
+    }
+
+    private static async Task<int> RevokeAsync(NpgsqlDataSource data, string name, CloudAgentInfo? current, bool confirm,
+        CancellationToken cancellationToken)
+    {
+        if (current is null)
+        {
+            Console.Error.WriteLine($"W chmurze nie ma agenta „{name}” – lista: glebosaurus cloud agent --admin PLIK.");
+            return ExitCodes.Error;
+        }
+        Console.WriteLine(current.Enrolled
+            ? $"Odetnę agenta „{name}”: token przestanie działać od razu (agent zobaczy odmowę przy najbliższej synchronizacji), " +
+              "a jego niewykorzystane kody rejestracji przepadną."
+            : $"Agent „{name}” nie ma ważnego tokenu – skasuję tylko jego niewykorzystane kody rejestracji.");
+        if (current.Enrolled)
+            Console.WriteLine("  Jego czujniki przejmą inni agenci po wygaśnięciu dzierżaw (najwyżej ok. 32 min), blokadę nadawcy – po ok. 7 min.");
+        if (!confirm)
+        {
+            Console.WriteLine("Bez --confirm niczego nie zmieniam.");
+            return ExitCodes.Success;
+        }
+        var result = await CloudAgents.RevokeAsync(data, name, cancellationToken);
+        Console.WriteLine($"Agent „{name}” odcięty: token {(result.HadToken ? "unieważniony" : "– nie było")}, skasowane kody rejestracji: {result.CancelledCodes}.");
+        Console.WriteLine($"Z powrotem: glebosaurus cloud agent --admin PLIK --name {name} [--sender-priority N] --confirm, potem enroll na urządzeniu i restart agenta.");
         return ExitCodes.Success;
     }
 

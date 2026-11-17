@@ -87,10 +87,11 @@ public sealed class CloudRuntime
         }
     }
 
-    /// <summary>Po udanej synchronizacji: nowa konfiguracja (jeśli jest) i polecenia do zbieracza albo nadawcy.</summary>
+    /// <summary>Po udanej synchronizacji: nowa konfiguracja (nowsza wersja albo zmieniona rola agenta) i polecenia do
+    /// zbieracza albo nadawcy.</summary>
     public async Task AfterSyncAsync(CancellationToken cancellationToken)
     {
-        await configSource.RefreshAsync(sync.ConfigVersion, cancellationToken);
+        await configSource.RefreshAsync(sync.ConfigVersion, sync.State.View?.Agent, cancellationToken);
         foreach (var command in sync.TakeNewCommands())
         {
             if (await collector.HandleCommandAsync(command, cancellationToken)) continue;

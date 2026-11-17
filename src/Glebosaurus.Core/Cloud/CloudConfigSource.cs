@@ -62,16 +62,26 @@ public sealed class CloudConfigSource(ICloudApi api, CloudConfigCache cache, Age
         return fallback;
     }
 
+    /// <inheritdoc cref="RefreshAsync(long?, AgentIdentity?, CancellationToken)"/>
+    public Task<bool> RefreshAsync(long? cloudVersion, CancellationToken cancellationToken) => RefreshAsync(cloudVersion, null, cancellationToken);
+
     /// <summary>
-    /// Po synchronizacji: pobiera konfigurację, gdy chmura ma nowszą wersję albo agent pracuje na kopii. Błąd sieci – spróbuje
-    /// przy następnej synchronizacji; zła konfiguracja – zostaje poprzednia.
+    /// Po synchronizacji: pobiera konfigurację, gdy chmura ma nowszą wersję, agent pracuje na kopii albo jego rola w chmurze
+    /// jest inna niż w obecnej konfiguracji. Błąd sieci – spróbuje przy następnej synchronizacji; zła konfiguracja – zostaje
+    /// poprzednia.
     /// </summary>
+    /// <param name="agent">Kim agent jest według tej samej synchronizacji (<c>agent_sync</c>). Zmiana roli albo priorytetu
+    /// nadawcy w chmurze nie podnosi wersji konfiguracji, a od roli zależy, czy nadawca w ogóle pracuje i czy konfiguracja
+    /// ma ustawienia poczty – bez tego awansowany agent brałby blokadę nadawcy i nic nie wysyłał aż do restartu.</param>
     /// <returns>true, gdy konfiguracja się zmieniła.</returns>
-    public async Task<bool> RefreshAsync(long? cloudVersion, CancellationToken cancellationToken)
+    public async Task<bool> RefreshAsync(long? cloudVersion, AgentIdentity? agent, CancellationToken cancellationToken)
     {
         var known = current;
         if (cloudVersion is not { } version || version == rejectedVersion) return false;
-        if (known is { FromCache: false } && version <= known.Version) return false;
+        var roleChanged = agent is not null && known is not null && agent != known.Agent;
+        if (known is { FromCache: false } && version <= known.Version && !roleChanged) return false;
+        if (roleChanged && known is { FromCache: false } && version <= known.Version)
+            logger.LogInformation("Rola agenta w chmurze zmieniła się ({Role}) – pobieram konfigurację.", Describe(agent!));
 
         CloudConfig cloud;
         try { cloud = await api.GetConfigAsync(cancellationToken); }
@@ -108,8 +118,11 @@ public sealed class CloudConfigSource(ICloudApi api, CloudConfigCache cache, Age
     private void Use(CloudAgentConfig config, string origin)
     {
         current = config;
-        logger.LogInformation("Konfiguracja {Origin}: agent {Agent}{Role}, czujników {Count}.", origin, config.Agent.Name,
-            config.Agent.CanSendMail ? $" (nadawca, priorytet {config.Agent.SenderPriority})" : "", config.Config.Sensors.Count);
+        logger.LogInformation("Konfiguracja {Origin}: agent {Agent} ({Role}), czujników {Count}.", origin, config.Agent.Name,
+            Describe(config.Agent), config.Config.Sensors.Count);
         foreach (var warning in config.Warnings) logger.LogWarning("Konfiguracja: {Warning}", warning);
     }
+
+    private static string Describe(AgentIdentity agent) =>
+        agent.CanSendMail ? $"nadawca, priorytet {agent.SenderPriority}" : "zbieracz";
 }

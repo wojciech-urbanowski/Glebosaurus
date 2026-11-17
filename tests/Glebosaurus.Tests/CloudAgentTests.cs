@@ -107,7 +107,8 @@ public sealed class CloudAgentTests : IDisposable
                 Tuya = new TuyaCredentials { Mac = "DC:23:51:CC:03:C9", Uuid = "07aaad78f40b0a74", DeviceId = "1234567890123456789012", LocalKeyHex = "a1b2c3d4e5f6", ProductId = "gvygg3m8" }
             }]);
 
-    private sealed record Parts(CloudRuntime Runtime, FakeCloudApi Api, CloudSync Sync, FakeSensorReader Reader, FakeHearing Hearing, TempStore Store);
+    private sealed record Parts(CloudRuntime Runtime, FakeCloudApi Api, CloudSync Sync, FakeSensorReader Reader, FakeHearing Hearing, TempStore Store,
+        CloudConfigSource Source);
 
     private Parts Build(TimeProvider? time = null, TimeSpan? tick = null)
     {
@@ -130,7 +131,7 @@ public sealed class CloudAgentTests : IDisposable
             api, null, clock, NullLogger.Instance, new CollectorOptions { TickInterval = every });
         var notifier = new NotifierEngine(() => source.Current, api, notifierLock, _ => new FakeMail(), null, () => sync.State, clock,
             NullLogger.Instance, new NotifierOptions { TickInterval = every });
-        return new(new CloudRuntime(source, sync, collector, notifier, NullLogger.Instance), api, sync, reader, hearing, store);
+        return new(new CloudRuntime(source, sync, collector, notifier, NullLogger.Instance), api, sync, reader, hearing, store, source);
     }
 
     [Fact]
@@ -146,6 +147,24 @@ public sealed class CloudAgentTests : IDisposable
 
         Assert.Equal(1, parts.Api.ConfigCalls);
         Assert.Equal(1, Assert.Single(parts.Api.Done).Id);   // release obsłużył zbieracz; report_now czeka u nadawcy; pair – nikt
+    }
+
+    [Fact]
+    public async Task AfterSync_RoleChangedInCloud_RefreshesConfig_WithoutNewVersion()
+    {
+        var parts = Build();
+        using var store = parts.Store;
+        await parts.Sync.SyncOnceAsync(Ct);
+        await parts.Sync.SyncOnceAsync(Ct);
+        Assert.Equal(1, parts.Api.ConfigCalls);   // ta sama wersja i rola – bez pobierania
+
+        // Właściciel robi ze zbieracza nadawcę (cloud agent --name … --sender-priority 2): wersja konfiguracji bez zmian.
+        parts.Api.Identity = new AgentIdentity("bestia5", true, 2);
+        parts.Api.Config = Config(canSendMail: true);
+        await parts.Sync.SyncOnceAsync(Ct);
+
+        Assert.Equal(2, parts.Api.ConfigCalls);
+        Assert.True(parts.Source.Current!.Agent.CanSendMail);   // od tej chwili nadawca pracuje – bez restartu
     }
 
     [Fact]

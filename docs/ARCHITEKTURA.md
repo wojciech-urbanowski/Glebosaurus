@@ -18,7 +18,7 @@ podlewaniu i raporty o stałych porach mailem (Gmail), a konfigurację, alerty i
 | Raspberry Pi (BlueZ przez Shiny) | paczka zbudowana, **niesprawdzone** |
 | Praca w tle na Windows (zadanie Harmonogramu), instalacja i samoaktualizacja z wydań GitHuba | zrobione 2026-11-15 (zasada 7): usługa `glebosaurus-service` bez okna, skrypt `install-windows.ps1`, workflowy CI i wydania; testy logiki w Core. **2026-11-15 na żywo (Windows, katalog próbny, udawane API wydań na loopbacku, monitor z atrapą czujnika):** instalacja z przejęciem konfiguracji, `stop` (1 s), aktualizacja o codziennej porze (monitor zatrzymany czysto, skrypt w tle, nowa usługa wystartowana przez Harmonogram), aktualizacja przy starcie (po wymuszonym powrocie do starszej wersji), zepsute wydanie (zły skrót – stara wersja wraca, próba odłożona o dobę, bez pętli), blokada drugiego monitora (kod 4), odinstalowanie. **2026-11-15 wydanie 0.1.0** opublikowane przez `release.yml` (testy, paczka, próba instalacji w Windows PowerShell 5.1 na runnerze – wszystko zielone; API wydań odpowiada bez logowania) i zainstalowane na bestia5 skryptem pobranym z wydania, z przejęciem `local/` i bez startu. Próba na sucho przejęcia prawdziwych danych wykryła, że `ConvertFrom-Json` z PowerShell 5.1 nie zna komentarzy `//`, a jego komunikat błędu zawiera cały plik z hasłem Gmaila – skrypt czyta teraz konfigurację przez `Read-ConfigJson` i nie wypisuje treści wyjątku. **Na żywo z prawdziwymi danymi:** 2026-11-15 23:56 usługa wystartowana przez Harmonogram (panel WWW ze stałej ścieżki – reguła Zapory zatwierdzona raz; o północy sama wysłała log administratora), a 2026-11-16 00:06 pierwsza samoaktualizacja z GitHuba 0.1.0 → 0.1.1 przy starcie usługi (ok. 15 s: sprawdzenie wydania, skrypt w tle, podmiana `app\`, nowa usługa z Harmonogramu; log administratora się nie powtórzył, Zapora nie pytała ponownie). **Dzienniki usługi 2026-11-16…17:** komputer dwa razy wyłączony w trakcie pracy monitora (nie w trakcie połączenia z czujnikiem; bez wpisu o zatrzymaniu) – po zalogowaniu usługa wystartowała sama, sprawdziła wydania, a pierwszy odczyt dociągnął zaległe pomiary z pamięci czujnika (Zioła: 19 od 22:32 poprzedniego dnia); log administratora za poprzedni dzień wyszedł przy pierwszym przebiegu. Po przerwie ok. 18 h monitor ok. 2 min po starcie otworzył alerty „brak odczytów” – cisza liczy się od ostatniego odczytu w bazie, także za czas przestoju monitora; od 2026-11-17 w kodzie okres ochronny 30 min po starcie i uśpieniu (zasada 9; na bestia5 dopiero z następnym wydaniem). **Niesprawdzone**: strażnik co godzinę, aktualizacja o 03:30 na prawdziwym wydaniu (o 03:30 komputer był dotąd wyłączony), zachowanie po uśpieniu i wybudzeniu, wylogowanie w trakcie odczytu, 7 dni ciągłej pracy |
 | Lokalny panel diagnostyczny WWW (HTTPS, sieć lokalna, hasło; podgląd, odczyt i raport na żądanie) | zrobione w kodzie i testach (2026-11-14, w tym testy na prawdziwym Kestrelu z TLS); `web-password` uruchomione na żywo, a strona obejrzana na prawdziwych danych (kopia bazy, dzienniki, konfiguracja) przez program podglądu na loopbacku, także w widoku telefonu 375 px. **2026-11-14 na żywo (Windows, `run` z prawdziwą konfiguracją):** panel startuje z monitorem, odcisk certyfikatu z dziennika zgadza się z `web-password` i z serwerem (127.0.0.1 i adres LAN), bez logowania 302/401; użytkownik zalogował się w przeglądarce (połączenie przyszło z adresu IPv6 link-local – filtr sieci go przepuścił). Próba wykryła błąd: przy `Referrer-Policy: no-referrer` przeglądarka wysyła z formularza `Origin: null`, a filtr POST odrzucał je jako obcą stronę (403, bez wpisu w dzienniku) – teraz rozstrzyga `Sec-Fetch-Site`, polityka to `same-origin`, odrzucenie trafia do dziennika (testy odtwarzają nagłówki przeglądarki). Wykresy (pulpit: 3 doby; strona czujnika: cała historia) – 2026-11-14 w testach i w przeglądarce na programie podglądu z danymi próbnymi (zasada 11). **Niesprawdzone**: wejście z telefonu w sieci domowej (reguła Zapory), wykresy na prawdziwym monitorze, Raspberry Pi |
-| Chmura Supabase, wielu agentów (dzierżawy czujników, blokada nadawcy) | faza 2 uzgodniona z użytkownikiem 2026-11-16 (zasady 1–4, 10, 12); 2026-11-16: projekty Supabase (prawdziwy i próbny) i healthchecks.io założone; schemat i funkcje SQL (zasada 13), Core w trybie chmurowym (zasada 14) i agent (zasada 15: sekcja `cloud`, `enroll`, `run`, `cloud migrate`/`import`/`agent`) zrobione i sprawdzone w testach i na próbnym projekcie; 2026-11-17: panel WWW w trybie chmurowym z kopią odczytów wszystkich agentów (`readings_feed`) i kopia zapasowa chmury (`cloud backup`, także codziennie w `run`) – w testach, na próbnym projekcie i (panel) w przeglądarce na programie podglądu. **Prawdziwy projekt jeszcze bez schematu**, tryb chmurowy nie ma jeszcze wydania ani prawdziwego `run`; zostało przejście usługi na bestia5 (2.1.5) |
+| Chmura Supabase, wielu agentów (dzierżawy czujników, blokada nadawcy) | faza 2 uzgodniona z użytkownikiem 2026-11-16 (zasady 1–4, 10, 12); 2026-11-16: projekty Supabase (prawdziwy i próbny) i healthchecks.io założone; schemat i funkcje SQL (zasada 13), Core w trybie chmurowym (zasada 14) i agent (zasada 15: sekcja `cloud`, `enroll`, `run`, `cloud migrate`/`import`/`agent`) zrobione i sprawdzone w testach i na próbnym projekcie; 2026-11-17: panel WWW w trybie chmurowym z kopią odczytów wszystkich agentów (`readings_feed`) i kopia zapasowa chmury (`cloud backup`, także codziennie w `run`) – w testach, na próbnym projekcie i (panel) w przeglądarce na programie podglądu; zmiana roli agenta bez restartu (poprawka) i odcięcie agenta (`cloud agent --revoke`) – w testach i na próbnym projekcie. **Prawdziwy projekt jeszcze bez schematu**, tryb chmurowy nie ma jeszcze wydania ani prawdziwego `run`; zostało przejście usługi na bestia5 (2.1.5) |
 | Agent Android, Raspberry Pi jako nadawca, interfejs WWW w chmurze | zaprojektowane (zasady 10, 12), niezrobione – fazy 2.2, 2.3 i 3 |
 
 ## Zweryfikowane na sprzęcie (ATLO SMS1, Tuya `gvygg3m8`)
@@ -624,7 +624,11 @@ Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → S
       kopii), bez obu – czytelny błąd „pierwsze uruchomienie wymaga sieci”; unieważniony token nie jest maskowany kopią.
       Odświeżanie, gdy synchronizacja zobaczy nowszą wersję (albo agent pracuje na kopii – wtedy przy pierwszej udanej
       synchronizacji); błąd sieci – następnym razem; zła konfiguracja w chmurze – zostaje poprzednia, a tej wersji agent
-      drugi raz nie pobiera. Zdarzenie `Changed` dla silników.
+      drugi raz nie pobiera. Zdarzenie `Changed` dla silników. **Zmiana roli agenta** (nadawca/zbieracz, priorytet –
+      `cloud agent`) nie podnosi `config_version`, a od roli zależy, czy nadawca pracuje i czy konfiguracja ma ustawienia
+      poczty; dlatego odświeżenie także wtedy, gdy rola z `agent_sync` różni się od tej w konfiguracji (2026-11-17 – wcześniej
+      awansowany agent brał blokadę nadawcy z odpowiedzi `agent_sync`, ale silnik maili widział starą rolę i do restartu
+      nic nie wysyłał, także sygnału strażnika).
     - **Testy:** przełożenie, kopia (atrapa szyfrowania, prawdziwe DPAPI na Windows, prawa 600 na Linuksie), źródło na
       atrapie chmury (w CI) oraz próbny projekt: `get_config` → `AgentConfig` (czujnik bez kluczy pominięty z ostrzeżeniem)
       i start bez sieci z kopii chronionej DPAPI – 2026-11-16 zielone.
@@ -701,7 +705,7 @@ Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → S
       sygnały zatrzymania, BLE, SQLite), potem `CloudRuntime`: konfiguracja z chmury albo z kopii, a obok siebie pętle
       synchronizacji, zbieracza (radio Shiny do odczytu i do nasłuchu) i nadawcy (`GmailSender` z hasłem z
       `mail_credentials`, `HealthchecksHeartbeat`). Po każdej udanej synchronizacji (hak `CloudSync.Synced`) –
-      odświeżenie konfiguracji przy nowej wersji i rozdział poleceń: zbieracz, potem nadawca; nieobsługiwane (np. zdalne
+      odświeżenie konfiguracji przy nowej wersji albo zmienionej roli agenta i rozdział poleceń: zbieracz, potem nadawca; nieobsługiwane (np. zdalne
       `pair`) wygasają z ostrzeżeniem w dzienniku. Zatrzymanie: zbieracz i nadawca kończą bieżący krok, potem ostatnia
       synchronizacja (najwyżej 30 s) wysyła ostatnie odczyty i oddaje dzierżawy i blokadę. Brak tokenu, token odrzucony
       albo brak konfiguracji (ani chmury, ani kopii) – czytelny błąd i kod 1. **Prawdziwy `run` niesprawdzony:** na
@@ -726,11 +730,22 @@ Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → S
         najpierw import, potem agent w trybie chmurowym (inaczej odczyty nieznanych jeszcze czujników zostałyby odrzucone na
         stałe);
       - `cloud agent [--name NAZWA [--sender-priority N] --confirm]` (`CloudAgents`) – lista agentów albo nowy agent
-        (zbieracz albo kandydat na nadawcę 1–9) z jednorazowym kodem rejestracji (24 h) do `enroll`.
+        (zbieracz albo kandydat na nadawcę 1–9) z jednorazowym kodem rejestracji (24 h) do `enroll`. Istniejącemu agentowi
+        zmienia rolę – działający agent przejmuje ją przy najbliższej synchronizacji, bez ponownej rejestracji (zasada 14,
+        źródło konfiguracji); kod jest wtedy potrzebny tylko przy przenosinach na inne urządzenie;
+      - `cloud agent --name NAZWA --revoke [--confirm]` (2026-11-17, `CloudAgents.RevokeAsync`) – odcięcie agenta (zgubione
+        urządzenie, wyciek tokenu): jedną transakcją `admin_agent_revoke` (token przestaje działać od razu) i skasowanie
+        ważnych, niewykorzystanych kodów rejestracji tego agenta (mogły wyciec razem z urządzeniem albo z ekranu). Agent
+        zostaje na liście z rolą; dzierżaw nie zabiera – wygasają jak przy nagłym zniknięciu (czujniki po ok. 32 min,
+        blokada nadawcy po ok. 7 min). Odcięty agent dostaje odmowę przy najbliższej synchronizacji i stoi do zatrzymania;
+        z powrotem – nowy kod, `enroll` i restart agenta.
       Sprawdzone 2026-11-16 na próbnym projekcie: biblioteka (import zmyślonej konfiguracji → agent z kodem widzi czujniki z
       kluczami, ustawienia, odbiorców, a z blokadą hasło i adres strażnika; powtórka bez dubli) i prawdziwe CLI (plan,
-      `--confirm`, brak `--admin`, agent z kodem). **Na prawdziwym projekcie jeszcze niczego nie uruchomiono** – to decyzja
-      użytkownika.
+      `--confirm`, brak `--admin`, agent z kodem). 2026-11-17 na próbnym projekcie: zmiana roli dociera do zarejestrowanego
+      agenta przez Data API (zbieracz → nadawca z odbiorcami → zbieracz, bez nowego kodu) i odcięcie (token i ukryty kod
+      odrzucone, rola zostaje, powtórka bez błędu, nowy kod dopuszcza z powrotem) – test i prawdziwe CLI (plan, `--confirm`,
+      błędy: brak `--name`, nieznany agent, `--revoke` z `--sender-priority` – kod 1). **Na prawdziwym projekcie jeszcze
+      niczego nie uruchomiono** – to decyzja użytkownika.
     - **Panel WWW w trybie chmurowym** (2026-11-17; ten sam panel co w zasadzie 11 – logowanie, HTTPS, strony, wykresy):
       - **Kopia odczytów wszystkich agentów** (`CloudReadingMirror`, tylko z sekcją `web`): agent pokazuje to, co ma w
         lokalnej bazie, więc dociąga z chmury co 2 min odczyty przyjęte po ostatnim znanym numerze (`readings_feed`, paczki
