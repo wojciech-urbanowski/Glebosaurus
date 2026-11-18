@@ -20,7 +20,7 @@ internal sealed record CliOptions(
     string Command, int? Seconds, int Timeout, string? Credentials, string? Config, string? Output, bool Verbose, bool Quiet,
     int? Minutes, bool ConfirmBind, string? Id, string? Name, string? Mac, int? Linger, bool Samples, string? Date, string? StopEvent,
     string? Code = null, string? Subcommand = null, string? Admin = null, bool Confirm = false, int? SenderPriority = null, string? TimeZone = null,
-    int? Keep = null, bool Revoke = false);
+    int? Keep = null, bool Revoke = false, int? ReadInterval = null);
 
 internal static class Cli
 {
@@ -68,6 +68,10 @@ internal static class Cli
               Przenosi do chmury konfigurację trybu samodzielnego: ustawienia, odbiorców, czujniki z kluczami Tuya, hasło
               Gmaila i adres sygnału healthchecks.io (z pliku administratora). Sekretów nie wypisuje; nic nie usuwa.
               Strefa raportów: --time-zone (IANA, np. Europe/Warsaw), domyślnie strefa tego komputera.
+          glebosaurus cloud settings --admin PLIK [--read-interval MINUTY [--confirm]]
+              Bez --read-interval: wspólne ustawienia z chmury (odstęp odczytów, raporty, strefa) i czujniki z własnym
+              odstępem. Z --read-interval i --confirm zmienia sam odstęp odczytów (np. 125 = 2 h 5 min); reszty
+              konfiguracji nie rusza. Agenci przejmą go przy najbliższej synchronizacji (ok. minuty).
           glebosaurus cloud agent --admin PLIK [--name NAZWA [--sender-priority N] --confirm]
               Bez --name: lista agentów. Z --name i --confirm: tworzy agenta (z --sender-priority 1–9 – kandydat na
               nadawcę, 1 najważniejszy; bez – tylko zbiera) i wypisuje jednorazowy kod rejestracji (24 h) do enroll.
@@ -151,13 +155,13 @@ internal static class Cli
     {
         var hasCommand = args.Length > 0 && !args[0].StartsWith('-');
         var command = hasCommand ? args[0].ToLowerInvariant() : "help";
-        // „cloud migrate|import|agent” – polecenie z podpoleceniem.
+        // „cloud migrate|import|settings|agent|backup” – polecenie z podpoleceniem.
         var subcommand = command == "cloud" && args.Length > 1 && !args[1].StartsWith('-') ? args[1].ToLowerInvariant() : null;
         int? seconds = null, minutes = null, linger = null;
         var timeout = 12;
         string? credentials = null, config = null, output = null, id = null, name = null, mac = null, date = null, stopEvent = null, code = null;
         string? admin = null, timeZone = null;
-        int? senderPriority = null, keep = null;
+        int? senderPriority = null, keep = null, readInterval = null;
         bool verbose = false, quiet = false, confirmBind = false, samples = false, confirm = false, revoke = false;
         for (var i = (hasCommand ? 1 : 0) + (subcommand is null ? 0 : 1); i < args.Length; i++)
         {
@@ -187,13 +191,14 @@ internal static class Cli
                 case "--sender-priority": senderPriority = Number(args, ++i, "--sender-priority", 9); break;
                 case "--time-zone": timeZone = Value(args, ++i, "--time-zone"); break;
                 case "--keep": keep = Number(args, ++i, "--keep", 365); break;
+                case "--read-interval": readInterval = Number(args, ++i, "--read-interval", 1440); break;
                 // Prywatny sygnał zatrzymania od usługi Windows (glebosaurus-service); nie dla ludzi, więc bez opisu w pomocy.
                 case "--stop-event": stopEvent = Value(args, ++i, "--stop-event"); break;
                 default: throw new ArgumentException($"Nieznany parametr {args[i]}. Użyj --help.");
             }
         }
         return new(command, seconds, timeout, credentials, config, output, verbose, quiet, minutes, confirmBind, id, name, mac, linger, samples, date, stopEvent, code,
-            subcommand, admin, confirm, senderPriority, timeZone, keep, revoke);
+            subcommand, admin, confirm, senderPriority, timeZone, keep, revoke, readInterval);
     }
 
     private static string Value(string[] args, int index, string flag) =>

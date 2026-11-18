@@ -8,7 +8,7 @@ namespace Glebosaurus.Agent;
 
 /// <summary>
 /// Narzędzia właściciela chmury (ARCHITEKTURA.md, zasada 15): migracje schematu, import konfiguracji trybu samodzielnego,
-/// agenci z kodami rejestracji i kopia zapasowa. Łączą się z bazą hasłem bazy z pliku administratora (pooler sesji,
+/// wspólne ustawienia (odstęp odczytów), agenci z kodami rejestracji i kopia zapasowa. Łączą się z bazą hasłem bazy z pliku administratora (pooler sesji,
 /// VerifyFull). Bez --confirm każde polecenie zmieniające chmurę tylko pokazuje, co zrobi (kopia tylko czyta).
 /// </summary>
 internal static class CloudAdminCommands
@@ -17,9 +17,10 @@ internal static class CloudAdminCommands
     {
         "migrate" => await MigrateAsync(options, cancellationToken),
         "import" => await ImportAsync(options, cancellationToken),
+        "settings" => await SettingsAsync(options, cancellationToken),
         "agent" => await AgentAsync(options, cancellationToken),
         "backup" => await BackupAsync(options, cancellationToken),
-        _ => throw new ArgumentException("Podaj polecenie: glebosaurus cloud migrate|import|agent|backup --admin PLIK (zob. --help).")
+        _ => throw new ArgumentException("Podaj polecenie: glebosaurus cloud migrate|import|settings|agent|backup --admin PLIK (zob. --help).")
     };
 
     private static (CloudAdminSettings Settings, NpgsqlDataSource Data) Open(CliOptions options)
@@ -95,6 +96,40 @@ internal static class CloudAdminCommands
         }
         await CloudImporter.ApplyAsync(data, plan, cancellationToken);
         Console.WriteLine($"Zaimportowano jedną transakcją: ustawienia i czujniki (liczba: {plan.Sensors.Count}). Agenci zobaczą nową konfigurację przy najbliższej synchronizacji.");
+        return ExitCodes.Success;
+    }
+
+    private static async Task<int> SettingsAsync(CliOptions options, CancellationToken cancellationToken)
+    {
+        if (options.Confirm && options.ReadInterval is null) throw new ArgumentException("--confirm bez zmiany – podaj --read-interval MINUTY.");
+        var (_, data) = Open(options);
+        await using var _ = data;
+        if (!await SchemaReadyAsync(data, cancellationToken)) return ExitCodes.Error;
+        var current = await CloudSettingsAdmin.GetAsync(data, cancellationToken);
+        Console.WriteLine($"  odczyt co: {CloudSettingsAdmin.Minutes(current.ReadIntervalMinutes)} (okno skanu {current.ScanWindowSeconds} s)");
+        Console.WriteLine($"  raporty: {string.Join(", ", current.ReportTimes)} ({current.TimeZone}), przypomnienia alertów co {current.AlertReminderHours.ToString(CultureInfo.InvariantCulture)} h, " +
+                          $"logi {current.LogRetentionDays} dni, wersja konfiguracji {current.ConfigVersion}");
+        Console.WriteLine($"  czujniki włączone: {current.Sensors.Count}, z własnym odstępem: " +
+                          (current.Sensors.Any(s => s.ReadIntervalMinutes is not null)
+                              ? string.Join(", ", current.Sensors.Where(s => s.ReadIntervalMinutes is not null).Select(s => $"{s.Id} ({CloudSettingsAdmin.Minutes(s.ReadIntervalMinutes!.Value)})"))
+                              : "żaden"));
+        if (options.ReadInterval is not { } minutes) return ExitCodes.Success;
+
+        if (minutes == current.ReadIntervalMinutes)
+        {
+            Console.WriteLine($"Odstęp odczytów już wynosi {CloudSettingsAdmin.Minutes(minutes)} – nic do zmiany.");
+            return ExitCodes.Success;
+        }
+        Console.WriteLine($"Zmiana: odczyt co {CloudSettingsAdmin.Minutes(current.ReadIntervalMinutes)} → co {CloudSettingsAdmin.Minutes(minutes)} (reszta ustawień bez zmian).");
+        foreach (var note in CloudSettingsAdmin.ReadIntervalNotes(current, minutes)) Console.WriteLine($"  uwaga: {note}");
+        if (!options.Confirm)
+        {
+            Console.WriteLine("Bez --confirm niczego nie zapisuję.");
+            return ExitCodes.Success;
+        }
+        await CloudSettingsAdmin.SetReadIntervalAsync(data, minutes, cancellationToken);
+        Console.WriteLine($"Zapisano: odczyt co {CloudSettingsAdmin.Minutes(minutes)}. Agenci przejmą zmianę przy najbliższej synchronizacji (ok. minuty); " +
+                          "kolejny odczyt czujnika wypada po nowym odstępie od jego ostatniego odczytu.");
         return ExitCodes.Success;
     }
 

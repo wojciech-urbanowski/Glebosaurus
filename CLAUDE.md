@@ -14,7 +14,8 @@ dotnet test --solution Glebosaurus.slnx -c Release        # xunit.v3 na Microsof
 $env:GLEBOSAURUS_CLOUD_TESTS='1'; dotnet test --project tests/Glebosaurus.Cloud.Tests -c Release   # SQL na PRÓBNYM Supabase (czyści go)
 dotnet run --project src/Glebosaurus.Agent -f net10.0-windows10.0.19041.0 -- --help   # Windows; Linux: -f net10.0
 # Tryb chmurowy: sekcja "cloud" w konfiguracji (wzór examples/glebosaurus.cloud.config.json), potem enroll --code KOD i run
-# Właściciel: cloud migrate|import|agent --admin local/cloud-admin.test.json (bez --confirm tylko plan; prawdziwy projekt – tylko na prośbę)
+# Właściciel: cloud migrate|import|settings|agent --admin local/cloud-admin.test.json (bez --confirm tylko plan; prawdziwy projekt – tylko na prośbę)
+# cloud settings --read-interval MIN – sam odstęp odczytów w chmurze (admin_settings_update), bez pełnego importu
 # Kopia chmury: cloud backup --admin local/cloud-admin.test.json --out <scratchpad> (tylko czyta bazę; plik ZIP z odszyfrowanymi sekretami)
 dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self-contained false -o publish/linux-arm64
 ./deploy/package-windows.ps1                               # pliki wydania Windows (zip samodzielny, install-windows.ps1, SHA256SUMS) w publish/release
@@ -160,7 +161,8 @@ trzeba wiedzieć przed każdą pracą:
   telefon), wykres w raporcie (`MailChart`: kolumny po 2 godz., temperatura jako blady zakres), panel WWW bez edycji
   konfiguracji (pełny edytor – faza 3c), log administratora w trybie chmurowym jako osobny mail od każdego agenta.
 - **Faza 2.1 (chmura):** 2.1.1–2.1.4 skończone; 2.1.5 od 2026-11-18: prawdziwy projekt ma schemat (trzy migracje) i
-  konfigurację (od 2026-11-18 19:07 9 czujników: 5 sparowanych lokalnie i 4 zostawione w Smart Life), wydanie 0.2.0, usługa w trybie chmurowym – teraz tydzień próby (kryterium 2.1 w
+  konfigurację (od 2026-11-18 19:07 9 czujników: 5 sparowanych lokalnie i 4 zostawione w Smart Life; od 21:32 odczyt co
+  2 h 5 min – decyzja użytkownika, `cloud settings`), wydanie 0.2.0, usługa w trybie chmurowym – teraz tydzień próby (kryterium 2.1 w
   ROADMAP). Zmiany na prawdziwym projekcie (migracje, `cloud import`, `cloud agent --confirm`) dalej tylko na prośbę.
 - **Z pracy usługi (2026-11-17):** czujniki przy wejściu prawie poza zasięgiem bestia5 (ROADMAP, „Do zbadania”); fałszywe
   alerty „brak odczytów” po wyłączeniu komputera poprawione (`SilenceGrace`, ARCHITEKTURA.md, zasada 9) – na bestia5 od

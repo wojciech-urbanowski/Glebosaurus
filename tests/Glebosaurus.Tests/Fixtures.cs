@@ -23,6 +23,8 @@ internal static class Fixtures
     public static AgentConfig Config(params SensorConfig[] sensors) => new()
     {
         MonitorName = "Test",
+        // Testy silnika liczą czas w odstępach 15 min (dawny domyślny) – stały tutaj, niezależnie od domyślnego w AgentConfig.
+        ReadIntervalMinutes = 15,
         Sensors = sensors.Length > 0 ? [.. sensors] : [Sensor()],
         Mail = new() { GmailAddress = "nadawca@gmail.com", AppPassword = "haslo", AlertRecipients = ["ktos@example.com"] },
         Reports = new() { Times = [], CatchUpHours = 3 }

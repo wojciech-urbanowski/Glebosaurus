@@ -42,7 +42,7 @@ public class ConfigTests : IDisposable
         var sensor = Assert.Single(config.Sensors);
         Assert.Equal("Monstera", sensor.Name);
         Assert.Equal(25, sensor.WateringBelowPercent);
-        Assert.Equal(15, config.ReadIntervalMinutes);
+        Assert.Equal(125, config.ReadIntervalMinutes);
         Assert.Equal(["07:00", "19:00"], config.Reports.Times);
         Assert.Null(config.Mail);
     }

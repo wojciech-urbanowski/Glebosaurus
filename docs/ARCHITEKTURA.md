@@ -41,7 +41,7 @@ podlewaniu i raporty o stałych porach mailem (Gmail), a konfigurację, alerty i
 - **Czujniki zostawione w Smart Life też czytamy** (2026-11-18): klucze z chmury Tuya (`deviceId`, `localKey`, `uuid`, bez
   MAC) – MAC 4 czujników ustalony skanem po UUID Tuya z reklamy (`scan`; ta sama metoda dała dla 5 znanych czujników dokładnie
   ich MAC), `read` z takim kluczem działa (protokół 3.1, firmware 9.3, jak przy lokalnym parowaniu), a po `cloud import`
-  agent czyta je co 15 min jak pozostałe. Skutki: odebrane przez nas rekordy znikają z czujnika, więc Smart Life traci od
+  agent czyta je w tym samym rytmie co pozostałe. Skutki: odebrane przez nas rekordy znikają z czujnika, więc Smart Life traci od
   tej pory ich historię; połączenie aplikacji w telefonie blokuje nasz odczyt w danym cyklu. Zegary tych czujników były
   dobre (Alpinarium, Trawa, Laurowiśnia szafka – godzinne rekordy z prawdziwym dobowym rytmem temperatury); wcześniejsze
   „Hortensje ok. 17 h 46 min do tyłu” było skutkiem błędu niżej, nie zegara.
@@ -96,7 +96,15 @@ podlewaniu i raporty o stałych porach mailem (Gmail), a konfigurację, alerty i
   po 5–8 s od startu sesji; razem ok. 11–14 s połączenia. To pomiar sprzed 2026-11-13: sesja kończyła się wtedy na pierwszym
   komplecie DP3/5/15, czyli na najstarszym rekordzie historii (patrz „Zaległe pomiary” niżej); teraz czeka na ciszę po serii.
 - Odczyt co minutę (próba) zbił wskazanie baterii z 33% do 27% w ok. 40 minut – artefakt próby, ale pokazuje, że
-  częstotliwość odczytów decyduje o baterii. Domyślnie 15 min; docelowy odstęp po pomiarach przez kilka dni.
+  częstotliwość odczytów decyduje o baterii.
+- **Odstęp odczytów: 2 h 5 min** (decyzja użytkownika 2026-11-18, wcześniej 15 min): wilgotność gleby zmienia się wolno, a
+  czujnik sam zapisuje rekord co godzinę i oddaje go przy połączeniu (niżej, „Zaległe pomiary”), więc rzadsze połączenia
+  nie gubią przebiegu – baza dostaje te same punkty godzinowe plus stan z chwili odczytu; sesja jest dłuższa tylko o 2 ramki
+  (ok. 2 s). Alert „czas podlać” (`consecutiveReadings` kolejnych odczytów poniżej progu) liczy też rekordy z historii, a
+  „brak odczytów” (domyślnie 6 h) musi być dłuższy niż odstęp – `cloud settings` ostrzega, gdy nie jest. W trybie chmurowym
+  odstęp jest ustawieniem w chmurze (`cloud settings --read-interval`), w samodzielnym – `readIntervalMinutes` w pliku.
+  Prawdziwy projekt: 125 min od 2026-11-18 21:32 (wersja konfiguracji 59 → 60); usługa na bestia5 (0.2.1) pobrała ją sama
+  o 21:32:55, bez nowego wydania.
 
 **Pułapki**
 - Wymuszone zabicie procesu w trakcie rozłączania powoduje, że następny odczyt wisi na włączaniu powiadomień (limit 12 s to

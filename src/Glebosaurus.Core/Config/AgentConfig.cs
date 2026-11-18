@@ -12,8 +12,14 @@ public sealed class AgentConfig
 {
     public string MonitorName { get; set; } = Environment.MachineName;
 
-    /// <summary>Domyślny odstęp między odczytami czujnika, w minutach (ułamki dozwolone, minimum 0,5).</summary>
-    public double ReadIntervalMinutes { get; set; } = 15;
+    /// <summary>
+    /// Domyślny odstęp między odczytami czujnika, w minutach (ułamki dozwolone, minimum 0,5). 2 h 5 min: wilgotność gleby
+    /// zmienia się wolno, a czujnik sam zapisuje rekord co godzinę i oddaje go przy połączeniu, więc rzadsze połączenia nie
+    /// gubią przebiegu, a oszczędzają baterię (decyzja użytkownika 2026-11-18; wcześniej 15 min).
+    /// </summary>
+    public double ReadIntervalMinutes { get; set; } = DefaultReadIntervalMinutes;
+
+    public const double DefaultReadIntervalMinutes = 125;
 
     /// <summary>
     /// Jak długo łącznie nasłuchiwać reklam w poszukiwaniu czujników, które czekają na odczyt (czas połączeń się nie wlicza).

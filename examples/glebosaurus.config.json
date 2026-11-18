@@ -5,8 +5,9 @@
   // Nazwa tego monitora w mailach i dzienniku.
   "monitorName": "Raspberry Pi – salon",
 
-  // Domyślny odstęp między odczytami czujnika (minuty, min. 0,5). Częstsze odczyty szybciej wyczerpują baterie czujników.
-  "readIntervalMinutes": 15,
+  // Domyślny odstęp między odczytami czujnika (minuty, min. 0,5; domyślnie 125 = 2 h 5 min). Czujnik sam zapisuje rekord
+  // co godzinę i oddaje go przy połączeniu, więc rzadszy odczyt nie gubi przebiegu, a częstszy szybciej wyczerpuje baterię.
+  "readIntervalMinutes": 125,
 
   // Jak długo łącznie (sekundy, 5–120) nasłuchiwać reklam BLE w poszukiwaniu czujników czekających na odczyt. Znaleziony
   // czujnik jest czytany od razu, więc dłuższe okno kosztuje tylko przy czujniku poza zasięgiem (słaby sygnał: przerwy do ~27 s).

@@ -180,7 +180,9 @@ surowych ramek (np. po zmianie sprzętu) służy `listen`:
    Na ATLO SMS1 sprawdzone 2026-11-13: czujnik oddaje historię w `0x8003` i **kasuje ją po odebraniu** – `listen` zużywa
    zaległe rekordy, więc zapisuj wynik przez `--out` (szczegóły: docs/ARCHITEKTURA.md).
 
-Jak to działa: co 30 s monitor sprawdza, które czujniki czekają na odczyt (odstęp `readIntervalMinutes`, domyślnie 15 min).
+Jak to działa: co 30 s monitor sprawdza, które czujniki czekają na odczyt (odstęp `readIntervalMinutes` od ostatniego
+odczytu czujnika, domyślnie 125 min = 2 h 5 min; czujnik sam zapisuje rekord co godzinę i oddaje go przy połączeniu, więc
+wykres i alerty mają dane godzinowe, a bateria – mniej połączeń).
 Dla nich nasłuchuje reklam BLE i każdy czujnik, który się pojawi, czyta od razu, a potem słucha dalej po pozostałe – czujnik
 poza zasięgiem nie opóźnia więc tych w zasięgu. `scanWindowSeconds` (domyślnie 60 s) to łączny czas nasłuchu; czujnik, którego
 nie było przez całe okno, jest „nie znaleziony”. Potem monitor zapisuje odczyty, przelicza alerty i wysyła maile.
@@ -326,6 +328,13 @@ każde polecenie bez `--confirm` tylko pokazuje plan):
 glebosaurus cloud migrate --admin local/cloud-admin.json --confirm                 # schemat bazy w chmurze
 glebosaurus cloud import --admin local/cloud-admin.json --config local/glebosaurus.config.json --confirm
 glebosaurus cloud agent --admin local/cloud-admin.json --name bestia5 --sender-priority 2 --confirm   # wypisze kod
+```
+
+Wspólne ustawienia bez ponownego importu – na razie odstęp odczytów (bez `--read-interval` polecenie tylko pokazuje
+ustawienia; czujniki z własnym odstępem go zachowują, agenci przejmują zmianę w ciągu ok. minuty):
+
+```powershell
+glebosaurus cloud settings --admin local/cloud-admin.json --read-interval 125 --confirm   # odczyt co 2 h 5 min
 ```
 
 Ten sam `cloud agent` z nazwą istniejącego agenta zmienia jego rolę (np. `--sender-priority 1` – główny nadawca; bez
