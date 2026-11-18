@@ -38,6 +38,21 @@ podlewaniu i raporty o stałych porach mailem (Gmail), a konfigurację, alerty i
 - **Wymiana baterii nie kasuje przypisania** (≥ 60 s bez zasilania, bez przycisku reset – ten sam klucz od razu uwierzytelnił
   sesję; DP6 w pierwszym raporcie potwierdza restart). Przypisanie kasuje **reset przyciskiem**; wtedy
   `pair --id <to samo id>` przypisze ten sam klucz jeszcze raz.
+- **Czujniki zostawione w Smart Life też czytamy** (2026-11-18): klucze z chmury Tuya (`deviceId`, `localKey`, `uuid`, bez
+  MAC) – MAC 4 czujników ustalony skanem po UUID Tuya z reklamy (`scan`; ta sama metoda dała dla 5 znanych czujników dokładnie
+  ich MAC), `read` z takim kluczem działa (protokół 3.1, firmware 9.3, jak przy lokalnym parowaniu), a po `cloud import`
+  agent czyta je co 15 min jak pozostałe. Skutki: zegar czujnika ustawia tylko aplikacja Smart Life – Hortensje niskie miały
+  go ok. 17 h 46 min do tyłu (zaległe rekordy kotwiczymy czasem połączenia, więc w bazie są dobrze); odebrane przez nas
+  rekordy znikają z czujnika, więc Smart Life traci od tej pory ich historię; połączenie aplikacji w telefonie blokuje
+  nasz odczyt w danym cyklu.
+- **Długa sesja na słabej baterii** (2026-11-18): zaległe ok. 110 rekordów godzinnych (5 dni w Smart Life, MTU danych 20)
+  zajęły całe 180 s sesji (`read` i agent – dane przyszły w komplecie, limit złapał dopiero oczekiwanie na ciszę). Hortensje
+  niskie z baterią 5% (DP14 = niski także w rekordach bez obciążenia radia) po takiej sesji przestały się reklamować w ogóle –
+  najpewniej wyczerpana bateria. Przy DP14 = 0 nie robić ręcznych odczytów z długą historią; najpierw wymiana baterii.
+- **Niesparowany czujnik nadający dłużej niż 20 s** (2026-11-18): jeden czujnik `gvygg3m8` nadawał jako niesparowany
+  przez całe 2 min skanu (42 pakiety) – może pętla restartów na słabej baterii. `pair` przypisał mu klucz (sesja bez błędu),
+  ale potem czujnik zamilkł (ponad 15 min, także dwa wznowienia `pair`); na prośbę użytkownika klucz usunięto – jeśli
+  przypisanie się udało, czujnik wymaga resetu przyciskiem.
 
 **Dane**
 - Punkty danych profilu `sgs01`: DP3 wilgotność gleby %, DP5 temperatura gleby ×10 °C, DP15 bateria %, DP14 enum

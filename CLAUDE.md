@@ -92,6 +92,10 @@ dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self
 - Sparowany czujnik reklamuje się rzadko (ok. 1 pakiet na kilka–kilkanaście sekund); dane usługi i producenta przychodzą w
   osobnych pakietach. Dopasowanie: po MAC z konfiguracji, zapasowo po UUID Tuya.
 - Czujnik przyjmuje jedno połączenie naraz. Odczyt = ok. 11–14 s połączenia i kosztuje baterię, więc interwał ≥ 15 min.
+  Czujnik z dużą zaległą historią (np. dni w Smart Life) oddaje ją przez całe 180 s sesji – **przy DP14 = 0 (niska
+  bateria) nie rób ręcznych odczytów**: 2026-11-18 Hortensje niskie (5%) zamilkły po takiej sesji.
+- Czujniki zostawione w Smart Life czytamy kluczem z chmury Tuya (bez resetu); MAC ustala `scan` po UUID Tuya z reklamy.
+  Nasze odczyty kasują ich rekordy w czujniku (Smart Life traci historię), a zegar ustawia im tylko aplikacja.
 - **Nie zabijaj procesu w trakcie rozłączania** (następny odczyt może zawisnąć). Do prób: `run --minutes N`.
 - W zasięgu jest wiele innych urządzeń Tuya (DC:23:51:*): część to **własne czujniki użytkownika**, wciąż sparowane ze Smart
   Life (`Cisy` było wśród nich), reszta może być cudza. Łącz się tylko z czujnikami z konfiguracji; `pair` wybiera tylko niesparowany czujnik
@@ -149,12 +153,12 @@ trzeba wiedzieć przed każdą pracą:
   konfiguracji, `cloud-admin.json` bez klucza tajnego (codzienna kopia do `data\backups`) i poprzednia konfiguracja
   `glebosaurus.standalone.config.json`. Zmiany czujników, progów i poczty idą teraz przez chmurę (`cloud import` nadpisuje
   – tylko na prośbę), nie przez plik usługi. `local/` zostaje do prób (jego `glebosaurus.config.json` to tryb samodzielny,
-  z 4 dodatkowymi czujnikami ze Smart Life bez MAC), a `run` z niego nie wystartuje obok usługi (kod 4).
+  z tymi samymi 9 czujnikami co chmura – z niego szedł `cloud import`), a `run` z niego nie wystartuje obok usługi (kod 4).
 - **Zatwierdzone przez użytkownika – nie zmieniaj bez prośby:** układ i kolorystyka maili (kwadratowe, pastelowe, pod
   telefon), wykres w raporcie (`MailChart`: kolumny po 2 godz., temperatura jako blady zakres), panel WWW bez edycji
   konfiguracji (pełny edytor – faza 3c), log administratora w trybie chmurowym jako osobny mail od każdego agenta.
 - **Faza 2.1 (chmura):** 2.1.1–2.1.4 skończone; 2.1.5 od 2026-11-18: prawdziwy projekt ma schemat (trzy migracje) i
-  konfigurację z usługi (5 czujników), wydanie 0.2.0, usługa w trybie chmurowym – teraz tydzień próby (kryterium 2.1 w
+  konfigurację (od 2026-11-18 19:07 9 czujników: 5 sparowanych lokalnie i 4 zostawione w Smart Life), wydanie 0.2.0, usługa w trybie chmurowym – teraz tydzień próby (kryterium 2.1 w
   ROADMAP). Zmiany na prawdziwym projekcie (migracje, `cloud import`, `cloud agent --confirm`) dalej tylko na prośbę.
 - **Z pracy usługi (2026-11-17):** czujniki przy wejściu prawie poza zasięgiem bestia5 (ROADMAP, „Do zbadania”); fałszywe
   alerty „brak odczytów” po wyłączeniu komputera poprawione (`SilenceGrace`, ARCHITEKTURA.md, zasada 9) – na bestia5 od

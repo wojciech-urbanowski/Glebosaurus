@@ -13,14 +13,15 @@ Stan: ✔ zrobione · ◐ w toku albo częściowo · ○ do zrobienia.
 ### Działa na co dzień (wersja 0.2.0, tryb chmurowy od 2026-11-18)
 
 - **Usługa na bestia5** (Windows 11, od 2026-11-15, `%LOCALAPPDATA%\Glebosaurus`), **od 2026-11-18 18:06 w trybie
-  chmurowym** (2.1.5): agent `bestia5` (nadawca, priorytet 2) czyta 5 czujników (Cyprysek, Cisy, Zioła, Wiszący wejście,
-  Laurowiśnia wejście) co 15 min, odczyty idą do Supabase (lokalna baza to bufor i kopia), alerty i raporty o 07:00 i 19:00
+  chmurowym** (2.1.5): agent `bestia5` (nadawca, priorytet 2) czyta co 15 min 9 czujników: 5 sparowanych lokalnie
+  (Cyprysek, Cisy, Zioła, Wiszący wejście, Laurowiśnia wejście) i od 2026-11-18 19:07 4 zostawione w Smart Life
+  (Laurowiśnia szafka, Hortensje niskie, Trawa, Alpinarium – klucze z chmury Tuya; Hortensje czekają na baterię), odczyty idą do Supabase (lokalna baza to bufor i kopia), alerty i raporty o 07:00 i 19:00
   wysyła przez blokadę nadawcy i kolejkę maili w chmurze, log administratora za poprzedni dzień, panel WWW w sieci
   lokalnej, codzienna kopia chmury do `data\backups`; start przy zalogowaniu, samoaktualizacja z wydań GitHuba (0.1.0 →
   0.1.1 → 0.2.0). Konfiguracja (czujniki, progi, poczta, klucze Tuya) jest w chmurze – plik usługi ma tylko sekcję
   `cloud`; poprzednia leży obok jako `glebosaurus.standalone.config.json` (droga powrotu).
-- **Prawdziwy projekt Supabase** (od 2026-11-18): schemat (3 migracje), konfiguracja z usługi (`cloud import`), sekrety w
-  Vault; nadawca wysyła sygnał do healthchecks.io co 5 min (bez ostrzeżeń w dzienniku; stan sprawdzenia – w panelu
+- **Prawdziwy projekt Supabase** (od 2026-11-18): schemat (3 migracje), konfiguracja z usługi (`cloud import`; od 19:07 9
+  czujników), sekrety w Vault; pierwszy raport z harmonogramu z chmury o 19:00; nadawca wysyła sygnał do healthchecks.io co 5 min (bez ostrzeżeń w dzienniku; stan sprawdzenia – w panelu
   healthchecks.io).
 - **Protokół Tuya BLE i lokalne parowanie** bez konta Tuya (`pair`), zaległe pomiary z pamięci czujnika, nasłuch na
   przemian z odczytem.
@@ -46,6 +47,7 @@ Stan: ✔ zrobione · ◐ w toku albo częściowo · ○ do zrobienia.
 **W tle, niezależnie od kolejności:** pomiar baterii (1b.4 – dane zbiera usługa od 2026-11-15), kalibracja wilgotności
 (1b.5), parowanie pozostałych czujników (1b.6 – nowy czujnik po `pair` trafia do chmury przez `cloud import`), licencja
 (1b.8).
+
 ### Do zbadania – z dzienników usługi na bestia5 (2026-11-15…17)
 
 - ✔ **Fałszywe alerty „brak odczytów” po wyłączeniu komputera** – poprawione w kodzie 2026-11-17, na bestia5 od 0.2.0
@@ -61,10 +63,12 @@ Stan: ✔ zrobione · ◐ w toku albo częściowo · ○ do zrobienia.
   słyszał tylko Cisy (i trzy razy z rzędu nie znalazł go przy odczycie), a o 18:29 usłyszał i przeczytał 4 pozostałe
   (−61…−65 dBm – dużo lepiej niż zwykle w trybie samodzielnym). W trybie chmurowym agent bierze dzierżawę tylko na czujnik, który słyszy – reszta czeka na
   kolejnych agentów (2.2/2.3), a do tego czasu jej dotyczą alerty „brak odczytów”, jak dotąd.
-- **4 czujniki ze Smart Life w `local/glebosaurus.config.json` bez MAC** (Laurowiśnia szafka, Hortensje niskie, Trawa,
-  Alpinarium – klucze z chmury Tuya, dopisane 2026-11-16, nigdy nie sprawdzone odczytem): chmura rozpoznaje czujnik po MAC,
-  więc 2026-11-18 nie weszły do importu (w usłudze ich nie było). Do wyboru: ustalić MAC (skan – dopasowanie po UUID z
-  reklamy), sprawdzić odczyt i dopisać przez `cloud import`, albo sparować lokalnie (reset przyciskiem, 1b.6).
+- ✔ **4 czujniki ze Smart Life bez MAC** (Laurowiśnia szafka, Hortensje niskie, Trawa, Alpinarium – klucze z chmury Tuya,
+  dopisane do `local/` 2026-11-16) – 2026-11-18: MAC ustalony skanem po UUID z reklamy, próbny `read` Hortensji udany,
+  `cloud import` o 19:07 (na prośbę użytkownika), agent czyta Alpinarium, Trawę i Laurowiśnię szafkę; Hortensje milczą od
+  próbnego odczytu (bateria 5% – ARCHITEKTURA.md, „Zweryfikowane na sprzęcie”). Czujniki zostają w Smart Life.
+- **Niesparowany czujnik `gvygg3m8` (DC:23:51:…)** (2026-11-18): nadawał jako niesparowany ponad 2 min, po przypisaniu klucza
+  zamilkł; na prośbę użytkownika porzucony, klucz usunięty – do ewentualnego użycia tylko po resecie przyciskiem.
 - **„Czujnik nie potwierdził włączenia powiadomień”** – 7 razy w 3 dni (Cisy, Zioła), następny cykl zwykle udany. Niski
   priorytet; obserwować, czy nie rośnie.
 
@@ -74,10 +78,11 @@ Stan: ✔ zrobione · ◐ w toku albo częściowo · ○ do zrobienia.
   milczy” (w `mail-preview`).
 - Obejrzeć pierwsze maile z trybu chmurowego (2026-11-18 18:09: alert „słaba bateria” Cypryska i log administratora –
   oba to jednorazowe powtórki po przejściu) i pierwszy raport z chmury (19:00).
-- Cyprysek: bateria 12% od 2026-11-16 (alert od 2026-11-14) – wymiana baterii (parowanie zostaje).
+- Wymiana baterii (przypisanie i klucze zostają): **Hortensje niskie** (5%, od 2026-11-18 18:41 milczą – bez nowej baterii
+  nie będzie odczytów), Trawa (8%), Laurowiśnia szafka (12–14%), Cyprysek (12% od 2026-11-16). Alerty „słaba bateria”
+  Laurowiśni szafki i Trawy wyszły 2026-11-18 o 19:23 i 19:33.
 - healthchecks.io: alarm „nadawca milczy” przy każdym wyłączeniu bestia5 na dłużej niż ok. 30 min – jeśli męczy, wyłączyć
   powiadomienia tego sprawdzenia w panelu healthchecks.io (do czasu Raspberry Pi).
-- 4 czujniki ze Smart Life bez MAC (wyżej, „Do zbadania”) – co z nimi.
 - Decyzje: licencja repozytorium, raport przy wielu czujnikach (1b.7b).
 - Reguła Zapory, jeśli panel ma być dostępny z telefonu.
 - Fizycznie: parowanie kolejnych czujników (reset przyciskiem, baterie w oknie 20 s), pomiary do kalibracji.
@@ -89,9 +94,9 @@ Stan: ✔ zrobione · ◐ w toku albo częściowo · ○ do zrobienia.
 | Poczta | dzienny limit Gmaila, zachowanie przy błędnym haśle |
 | Usługa Windows | strażnik co godzinę; aktualizacja o 03:30 (komputer był wtedy dotąd wyłączony); uśpienie i wybudzenie; wylogowanie w trakcie odczytu; utrata adaptera BLE; 7 dni ciągłej pracy; usuwanie dzienników starszych niż 7 dni |
 | Panel WWW | wejście z telefonu w sieci domowej; wykresy na prawdziwym monitorze |
-| Tryb chmurowy | (na żywo od 2026-11-18: historia, blokada nadawcy, maile przez kolejkę, nasłuch i dzierżawy, codzienna kopia w `run`, panel – logowanie) raport z harmonogramu z chmury, tydzień pracy, przerwa sieci i dosłanie, restart bez dubli maili, uśpienie i nocne wyłączenia w trybie chmurowym, unieważnienie tokenu na prawdziwym agencie, polecenia z panelu (odczyt i raport na żądanie) |
+| Tryb chmurowy | (na żywo od 2026-11-18: historia, blokada nadawcy, maile przez kolejkę, nasłuch i dzierżawy, codzienna kopia w `run`, panel – logowanie, raport z harmonogramu, nowe czujniki z `cloud import` bez restartu) tydzień pracy, przerwa sieci i dosłanie, restart bez dubli maili, uśpienie i nocne wyłączenia w trybie chmurowym, unieważnienie tokenu na prawdziwym agencie, polecenia z panelu (odczyt i raport na żądanie) |
 | Raspberry Pi | wszystko (paczka tylko zbudowana) |
-| Czujnik | kalibracja wilgotności; profil `ojzlzzsw`; czy niesparowany czujnik milczy po oknie 20 s |
+| Czujnik | kalibracja wilgotności; profil `ojzlzzsw`; czy niesparowany czujnik milczy po oknie 20 s (2026-11-18 jeden nadawał ponad 2 min – ARCHITEKTURA.md) |
 
 ---
 
