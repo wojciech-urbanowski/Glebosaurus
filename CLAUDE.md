@@ -147,9 +147,9 @@ Pełny obraz – co działa, co zostało, w jakiej kolejności, co niesprawdzone
 [docs/ROADMAP.md](docs/ROADMAP.md), „Stan w skrócie”; daty i szczegóły sprawdzeń – w ARCHITEKTURA.md. Tu tylko to, co
 trzeba wiedzieć przed każdą pracą:
 
-- **Prawdziwym monitorem jest usługa na bestia5** (od 2026-11-15, wersja 0.2.0 od 2026-11-18): program w
+- **Prawdziwym monitorem jest usługa na bestia5** (od 2026-11-15, wersja 0.2.1 od 2026-11-18 20:20): program w
   `%LOCALAPPDATA%\Glebosaurus\app`, dane w `…\Glebosaurus\data`, zadanie „Glebosaurus” przy zalogowaniu, Zapora
-  zatwierdzona dla stałej ścieżki `app\glebosaurus.exe`, samoaktualizacja z GitHuba sprawdzona (0.1.0 → 0.1.1 → 0.2.0).
+  zatwierdzona dla stałej ścieżki `app\glebosaurus.exe`, samoaktualizacja z GitHuba sprawdzona (0.1.0 → 0.1.1 → 0.2.0 → 0.2.1).
   **Od 2026-11-18 18:06 pracuje w trybie chmurowym** (2.1.5): agent `bestia5`, nadawca z priorytetem 2, konfiguracja,
   czujniki, klucze Tuya i hasło Gmaila w prawdziwym projekcie Supabase; w `data\` sekcja `cloud`, token, kopia
   konfiguracji, `cloud-admin.json` bez klucza tajnego (codzienna kopia do `data\backups`) i poprzednia konfiguracja

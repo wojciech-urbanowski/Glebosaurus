@@ -10,14 +10,15 @@ Stan: ✔ zrobione · ◐ w toku albo częściowo · ○ do zrobienia.
 
 ## Stan w skrócie
 
-### Działa na co dzień (wersja 0.2.0, tryb chmurowy od 2026-11-18)
+### Działa na co dzień (wersja 0.2.1, tryb chmurowy od 2026-11-18)
 
 - **Usługa na bestia5** (Windows 11, od 2026-11-15, `%LOCALAPPDATA%\Glebosaurus`), **od 2026-11-18 18:06 w trybie
   chmurowym** (2.1.5): agent `bestia5` (nadawca, priorytet 2) czyta co 15 min 9 czujników: 5 sparowanych lokalnie
   (Cyprysek, Cisy, Zioła, Wiszący wejście, Laurowiśnia wejście) i od 2026-11-18 19:07 4 zostawione w Smart Life
   (Laurowiśnia szafka, Hortensje niskie, Trawa, Alpinarium – klucze z chmury Tuya; Hortensje czekają na baterię), odczyty idą do Supabase (lokalna baza to bufor i kopia), alerty i raporty o 07:00 i 19:00
   wysyła przez blokadę nadawcy i kolejkę maili w chmurze, log administratora za poprzedni dzień, panel WWW w sieci
-  lokalnej, codzienna kopia chmury do `data\backups`; start przy zalogowaniu, samoaktualizacja z wydań GitHuba (0.1.0 →
+  lokalnej, codzienna kopia chmury do `data\backups`; start przy zalogowaniu, 
+
   0.1.1 → 0.2.0). Konfiguracja (czujniki, progi, poczta, klucze Tuya) jest w chmurze – plik usługi ma tylko sekcję
   `cloud`; poprzednia leży obok jako `glebosaurus.standalone.config.json` (droga powrotu).
 - **Prawdziwy projekt Supabase** (od 2026-11-18): schemat (3 migracje), konfiguracja z usługi (`cloud import`; od 19:07 9
@@ -70,7 +71,8 @@ Stan: ✔ zrobione · ◐ w toku albo częściowo · ○ do zrobienia.
 - ✔ **„Migotanie” wykresu Alpinarium** (2026-11-18): pierwsza sesja z ok. 230 rekordami historii urwała się na limicie
   180 s, a ostatni odebrany rekord (sprzed 3 dni) został zakotwiczony na chwili połączenia – 152 rekordy przesunięte o 3 d
   6 h przeplatały się z prawdziwymi. Poprawka w 0.2.1 (ARCHITEKTURA.md, zasada 8), dane przesunięte z powrotem w chmurze i
-  w bazie usługi (na prośbę użytkownika). Na bestia5 do czasu aktualizacji błąd może wrócić przy długiej historii (np.
+  w bazie usługi (na prośbę użytkownika). 
+
   Hortensje po wymianie baterii).
 - **Niesparowany czujnik `gvygg3m8` (DC:23:51:…)** (2026-11-18): nadawał jako niesparowany ponad 2 min, po przypisaniu klucza
   zamilkł; na prośbę użytkownika porzucony, klucz usunięty – do ewentualnego użycia tylko po resecie przyciskiem.
