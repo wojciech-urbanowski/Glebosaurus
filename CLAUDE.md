@@ -122,11 +122,12 @@ dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self
   (`local/cloud-admin.json`) zmienia się wyłącznie na prośbę użytkownika – także migracja „gotowa i sprawdzona”, `cloud
   import` i `cloud agent --confirm`. Do prób importu nie używaj prawdziwej konfiguracji (`local/glebosaurus.config.json` ma
   prawdziwe hasło Gmaila i klucze Tuya) – zmyślona konfiguracja w scratchpadzie.
-- **Claude działa z pakietu MSIX**: moje polecenia piszące do `%LOCALAPPDATA%` (poza `Temp`) trafiają do
-  `%LOCALAPPDATA%\Packages\Claude_…\LocalCache\Local`, której Harmonogram nie widzi – `install-windows.ps1` przerwie wtedy z
-  wyjaśnieniem. Prawdziwą usługę instaluje/aktualizuje użytkownik w zwykłym oknie PowerShell albo tymczasowe zadanie
-  Harmonogramu (procesy z Harmonogramu działają poza pakietem); próby w scratchpadzie (Temp) działają normalnie. Usługa działa
-  na bestia5 od 2026-11-15 (`%LOCALAPPDATA%\Glebosaurus`) – próbne instalacje nie mogą jej ruszyć obok (jeden monitor na konto).
+- **Claude bywa w pakiecie MSIX**: 2026-11-15 moje polecenia piszące do `%LOCALAPPDATA%` (poza `Temp`) trafiały do
+  `%LOCALAPPDATA%\Packages\Claude_…\LocalCache\Local`, której Harmonogram nie widzi – `install-windows.ps1` przerywa wtedy z
+  wyjaśnieniem; 2026-11-18 procesy narzędzi działały już poza pakietem (bez przekierowania – nie zakładaj ani jednego, ani
+  drugiego). Zasada zostaje: prawdziwą usługę instaluje/aktualizuje/przełącza użytkownik w zwykłym oknie PowerShell; próby
+  w scratchpadzie (Temp) działają normalnie. Usługa działa na bestia5 od 2026-11-15 (`%LOCALAPPDATA%\Glebosaurus`) – próbne
+  instalacje nie mogą jej ruszyć obok (jeden monitor na konto).
 - Tag `v*` wypchnięty na GitHuba publikuje wydanie, które zainstalowane usługi pobiorą same – tylko na prośbę użytkownika.
   `install-windows.ps1` na prawdziwym `%LOCALAPPDATA%\Glebosaurus` (albo z `-ImportFrom local`) rejestruje zadanie i uruchamia
   prawdziwy monitor z mailami – próby rób na katalogu tymczasowym z `-TaskName Glebosaurus-test` i udawanym API (`-ApiBase`).
@@ -140,18 +141,21 @@ Pełny obraz – co działa, co zostało, w jakiej kolejności, co niesprawdzone
 [docs/ROADMAP.md](docs/ROADMAP.md), „Stan w skrócie”; daty i szczegóły sprawdzeń – w ARCHITEKTURA.md. Tu tylko to, co
 trzeba wiedzieć przed każdą pracą:
 
-- **Prawdziwym monitorem jest usługa na bestia5** (wersja 0.1.1, od 2026-11-15): program w `%LOCALAPPDATA%\Glebosaurus\app`,
-  **kopia** danych z `local/` w `…\Glebosaurus\data`, zadanie „Glebosaurus” przy zalogowaniu, Zapora zatwierdzona dla
-  stałej ścieżki `app\glebosaurus.exe`, samoaktualizacja z GitHuba sprawdzona (0.1.0 → 0.1.1). Pracuje w trybie
-  samodzielnym z prawdziwą pocztą (konto nadawcy i odbiorca w `local/glebosaurus.config.json`). `local/` zostaje do prób,
-  a `run` z niego nie wystartuje obok usługi (kod 4).
+- **Prawdziwym monitorem jest usługa na bestia5** (od 2026-11-15, wersja 0.2.0 od 2026-11-18): program w
+  `%LOCALAPPDATA%\Glebosaurus\app`, dane w `…\Glebosaurus\data`, zadanie „Glebosaurus” przy zalogowaniu, Zapora
+  zatwierdzona dla stałej ścieżki `app\glebosaurus.exe`, samoaktualizacja z GitHuba sprawdzona (0.1.0 → 0.1.1 → 0.2.0).
+  **Od 2026-11-18 18:06 pracuje w trybie chmurowym** (2.1.5): agent `bestia5`, nadawca z priorytetem 2, konfiguracja,
+  czujniki, klucze Tuya i hasło Gmaila w prawdziwym projekcie Supabase; w `data\` sekcja `cloud`, token, kopia
+  konfiguracji, `cloud-admin.json` bez klucza tajnego (codzienna kopia do `data\backups`) i poprzednia konfiguracja
+  `glebosaurus.standalone.config.json`. Zmiany czujników, progów i poczty idą teraz przez chmurę (`cloud import` nadpisuje
+  – tylko na prośbę), nie przez plik usługi. `local/` zostaje do prób (jego `glebosaurus.config.json` to tryb samodzielny,
+  z 4 dodatkowymi czujnikami ze Smart Life bez MAC), a `run` z niego nie wystartuje obok usługi (kod 4).
 - **Zatwierdzone przez użytkownika – nie zmieniaj bez prośby:** układ i kolorystyka maili (kwadratowe, pastelowe, pod
   telefon), wykres w raporcie (`MailChart`: kolumny po 2 godz., temperatura jako blady zakres), panel WWW bez edycji
   konfiguracji (pełny edytor – faza 3c), log administratora w trybie chmurowym jako osobny mail od każdego agenta.
-- **Faza 2.1 (chmura):** konta i oba projekty Supabase oraz healthchecks.io gotowe, schemat SQL (2.1.2, trzy migracje),
-  Core (2.1.3) i agent (2.1.4, z panelem w trybie chmurowym i `cloud backup` – 2026-11-17) skończone w kodzie i testach.
-  **Prawdziwy projekt Supabase jest bez schematu**, wydanie 0.1.1 nie ma trybu chmurowego, a maila w tym trybie jeszcze
-  nie było; przejście usługi (2.1.5) – tylko na prośbę użytkownika.
+- **Faza 2.1 (chmura):** 2.1.1–2.1.4 skończone; 2.1.5 od 2026-11-18: prawdziwy projekt ma schemat (trzy migracje) i
+  konfigurację z usługi (5 czujników), wydanie 0.2.0, usługa w trybie chmurowym – teraz tydzień próby (kryterium 2.1 w
+  ROADMAP). Zmiany na prawdziwym projekcie (migracje, `cloud import`, `cloud agent --confirm`) dalej tylko na prośbę.
 - **Z pracy usługi (2026-11-17):** czujniki przy wejściu prawie poza zasięgiem bestia5 (ROADMAP, „Do zbadania”); fałszywe
-  alerty „brak odczytów” po wyłączeniu komputera poprawione w kodzie (`SilenceGrace`, ARCHITEKTURA.md, zasada 9) – na
-  bestia5 dopiero z następnym wydaniem.
+  alerty „brak odczytów” po wyłączeniu komputera poprawione (`SilenceGrace`, ARCHITEKTURA.md, zasada 9) – na bestia5 od
+  0.2.0.

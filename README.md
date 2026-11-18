@@ -14,7 +14,8 @@ na GitHubie (patrz „Windows: instalacja jako usługa”): protokół Tuya BLE 
 odczyty do SQLite, alerty, raporty z wykresem i log administratora mailem przez Gmail (wygląd pod telefon), lokalny panel
 diagnostyczny w przeglądarce (HTTPS, sieć lokalna, hasło; wykresy, odczyt i raport na żądanie – patrz „Panel WWW”).
 **Tryb chmurowy** (Supabase, wielu agentów – faza 2; z panelem WWW i kopią zapasową chmury) jest w wydaniu od 0.2.0;
-prawdziwy projekt Supabase ma schemat i konfigurację od 2026-11-18, a usługa na bestia5 przechodzi na ten tryb (2.1.5).
+od 2026-11-18 pracuje w nim usługa na bestia5 (czujniki, progi, poczta i klucze w prawdziwym projekcie Supabase; 2.1.5 –
+tydzień próby).
 **Niesprawdzone:** Raspberry Pi, kalibracja wilgotności. Co zrobione, co zostało i w jakiej kolejności:
 [ROADMAP](docs/ROADMAP.md), „Stan w skrócie”.
 
@@ -311,7 +312,7 @@ Zabezpieczenia (kilka warstw):
 Pliki `glebosaurus-web.password` i `glebosaurus-web.pfx` (z kluczem prywatnym) są sekretami jak klucze czujników – leżą w
 `local/` (poza repozytorium); na Linuksie powstają z prawami 600. Nowe hasło: ponownie `web-password` i restart monitora.
 
-## Tryb chmurowy (faza 2) – gotowy w kodzie, jeszcze nie w użyciu
+## Tryb chmurowy (faza 2) – od 0.2.0, na bestia5 od 2026-11-18
 
 Wielu agentów (Windows, Raspberry Pi, później Android) pracuje na wspólnej chmurze Supabase: czujniki, progi, harmonogramy,
 odbiorcy, klucze Tuya i hasło Gmaila są w chmurze, agenci dzielą się czujnikami przez dzierżawy (żaden czujnik nie ma dwóch
@@ -345,6 +346,13 @@ w trybie chmurowym ze swojej bazy. Na urządzeniu agenta plik konfiguracji ma se
 glebosaurus enroll --config glebosaurus.config.json     # bez --code pyta o kod, nie pokazując go
 glebosaurus run --config glebosaurus.config.json
 ```
+
+Zainstalowana usługa Windows (tak przeszła bestia5 2026-11-18): najpierw zwykła aktualizacja do 0.2.0 lub nowszej skryptem
+instalacji, potem w zwykłym oknie PowerShell `Disable-ScheduledTask Glebosaurus`, `glebosaurus stop`, w
+`%LOCALAPPDATA%\Glebosaurus\data` konfiguracja z sekcją `cloud` zamiast dotychczasowej (tę zachowaj obok, np. jako
+`glebosaurus.standalone.config.json` – to droga powrotu), `cloud agent … --confirm` i `enroll --config <ten plik>`, na koniec
+`Enable-ScheduledTask Glebosaurus` i `Start-ScheduledTask Glebosaurus`. Agent przy pierwszej synchronizacji wysyła całą
+historię odczytów z bazy usługi (paczkami po 500).
 
 Token agenta (`glebosaurus-cloud.token`) i ostatnia dobra kopia konfiguracji z chmury (`glebosaurus-cloud-config.bin`, z
 kluczami Tuya) leżą obok konfiguracji, chronione DPAPI (Windows) albo prawami 600 (Linux) – to sekrety, nie kopiuj ich na
