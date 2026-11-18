@@ -371,7 +371,7 @@ Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → S
    ostatnich 75 h (`GetRangeAsync`), więc wykres mają raporty zaplanowane, na żądanie i polecenie `report`; przykłady
    (`mail-preview`, też `raport-20.html`) mają zmyśloną historię. `report --out` z prawdziwej bazy dał 3 wykresy (18 KB).
    Stopka każdego maila (HTML) i ostatni wiersz wersji tekstowej podają wersję Glebosaurusa (`AppInfo.Version`, czytana z
-   metadanych zestawu; jedno źródło numeru: `Directory.Build.props`, obecnie 0.1.1).
+   metadanych zestawu; jedno źródło numeru: `Directory.Build.props`, obecnie 0.2.0).
    **Log techniczny dla administratora** (2026-11-13): dziennik agenta to pliki dzienne `glebosaurus-RRRRMMDD.log` (czas
    lokalny; wspólna klasa `DailyLogFiles` zna nazwy, zapisuje do nich `FileLoggerProvider`, a silnik czyta je przez
    `ILogArchive`). Retencja po dacie z nazwy pliku: `logs.retentionDays` (domyślnie 7; zostaje dzisiejszy i tyle dni

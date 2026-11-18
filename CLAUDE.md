@@ -77,7 +77,7 @@ dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self
 - `TreatWarningsAsErrors`; `TargetFramework` ustawiany per projekt; Agent ma dwa TFM (Windows: WinRT, Linux: BlueZ).
 - Czas przez `TimeProvider`, radio/baza/poczta przez interfejsy – dzięki temu silnik testuje się bez sprzętu.
 - Każda zmiana zachowania dostaje test; sprawdzenia na sprzęcie opisuje się w ARCHITEKTURA.md z datą.
-- Wersja (obecnie 0.1.1) jest w jednym miejscu: `Directory.Build.props`; widać ją w stopce każdego maila (`AppInfo.Version`).
+- Wersja (obecnie 0.2.0) jest w jednym miejscu: `Directory.Build.props`; widać ją w stopce każdego maila (`AppInfo.Version`).
   Podbijaj ją tylko na prośbę użytkownika (przy wydaniu paczki). Wydanie = tag `v<wersja>` (musi zgadzać się z
   `Directory.Build.props`) → Actions publikuje je, a zainstalowane usługi same się zaktualizują w ciągu doby.
 - Skrypty `.ps1` zapisuj w UTF-8 **z BOM** (Windows PowerShell 5.1) i nie wstawiaj „” do napisów w podwójnych cudzysłowach –
