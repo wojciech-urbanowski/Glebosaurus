@@ -157,6 +157,32 @@ public sealed class CollectorTests : IDisposable
     }
 
     [Fact]
+    public async Task SessionCutInHistory_StoresHistoryWithSensorTimes_KeepsLease_AndRetriesAfterAMinute()
+    {
+        // Alpinarium 2026-11-18: przerwana sesja oddała najstarszą część historii; agent wpisał jej ostatni rekord jako „teraz”.
+        Grant("s1");
+        var threeDaysAgo = Fixtures.T0 - TimeSpan.FromDays(3);
+        reader.Script = sensor => new(sensor, null, SensorReadFailure.Incomplete, "sesja urwana w trakcie historii czujnika")
+            { Earlier = [Fixtures.Soil(threeDaysAgo, 94), Fixtures.Soil(threeDaysAgo + TimeSpan.FromHours(1), 93)] };
+
+        await collector.CycleAsync(Ct);
+        await collector.CycleAsync(Ct);                 // przed upływem minuty – bez ponownego połączenia
+
+        var stored = await db.Store.GetRecentAsync("s1", 10, Ct);
+        Assert.Equal([threeDaysAgo + TimeSpan.FromHours(1), threeDaysAgo], stored.Select(r => r.At));
+        Assert.Equal(2, await db.Store.CountUnsentAsync(Ct));
+        Assert.Equal(1, storedSignals);
+        Assert.Equal(0, hearing.Observations()["s1"].ConsecutiveFailures); // połączenie działało – czujnik zostaje u tego agenta
+        Assert.Single(reader.Calls);
+
+        reader.Script = sensor => Fixtures.Ok(sensor, 96);
+        clock.Advance(Minute);
+        await collector.CycleAsync(Ct);
+        Assert.Equal(2, reader.Calls.Count);
+        Assert.Equal(96, (await db.Store.GetLatestAsync("s1", Ct))!.MoisturePercent);
+    }
+
+    [Fact]
     public async Task ReadNow_SkipsInterval_AndReportsResult()
     {
         Grant("s1");

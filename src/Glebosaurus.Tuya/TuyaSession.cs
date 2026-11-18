@@ -14,7 +14,12 @@ public sealed class TuyaUnboundException(string message) : InvalidOperationExcep
 
 /// <param name="Protocol">Wersja protokołu, np. "3.1".</param>
 /// <param name="Firmware">Wersja firmware czujnika, np. "9.3".</param>
-public sealed record TuyaReadResult(IReadOnlyList<TuyaDataPoint> DataPoints, string Protocol, string Firmware, IReadOnlyList<string> Notes);
+/// <param name="Truncated">
+/// Sesję przerwał jej limit czasu, gdy czujnik wciąż nadawał (np. długa historia): odebrane punkty są prawdziwe, ale ostatni
+/// z nich nie musi być stanem z chwili połączenia – reszta historii i zwykły raport stanu przyjdą przy następnym połączeniu.
+/// </param>
+public sealed record TuyaReadResult(IReadOnlyList<TuyaDataPoint> DataPoints, string Protocol, string Firmware, IReadOnlyList<string> Notes,
+    bool Truncated = false);
 
 /// <summary>Jedna sesja z czujnikiem po połączeniu GATT: odczyt punktów danych albo lokalne przypisanie.</summary>
 /// <param name="quietTimeout">
@@ -76,18 +81,18 @@ public sealed class TuyaSession(
             if (dataPoints.Count > 0)
             {
                 notes.Add($"Sesja przekroczyła limit czasu ({SessionDeadline.TotalSeconds:0} s); zwrócono punkty danych odebrane do tej chwili.");
-                return Result();
+                return Result(truncated: true);
             }
             throw new TimeoutException($"Sesja Tuya przekroczyła limit czasu ({SessionDeadline.TotalSeconds:0} s).");
         }
     }
 
-    private TuyaReadResult Result()
+    private TuyaReadResult Result(bool truncated = false)
     {
         var all = notes.ToList();
         if (skippedReports > 0)
             all.Add($"Pominięto nieczytelne raporty punktów danych: {skippedReports} (potwierdzone, żeby czujnik oddał resztę serii); pierwszy: {firstSkipped}.");
-        return new(dataPoints.ToArray(), protocol, firmware, all);
+        return new(dataPoints.ToArray(), protocol, firmware, all, truncated);
     }
 
     /// <summary>Punkty danych z ramki 0x8001 (bez czasu) albo 0x8003 (znacznik czasu czujnika: 1 + sekundy Unix albo 0 + 13 cyfr ms).</summary>

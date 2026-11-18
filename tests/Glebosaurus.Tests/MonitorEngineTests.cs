@@ -93,6 +93,28 @@ public class MonitorEngineTests
     }
 
     [Fact]
+    public async Task SessionCutInTheMiddleOfHistoryStoresTheHistoryAndComesBackForTheRestAfterAMinute()
+    {
+        // Alpinarium 2026-11-18: limit sesji urwał historię – odebrane rekordy (czujnik już je skasował) zostają z czasem
+        // czujnika, a „stanu teraz” nie ma: najstarsza historia nie może trafić do bazy jako pomiar z tej chwili.
+        using var h = new Harness();
+        var threeDaysAgo = Fixtures.T0 - TimeSpan.FromDays(3);
+        h.Reader.Script = sensor => new SensorReadOutcome(sensor, null, SensorReadFailure.Incomplete, "sesja urwana w trakcie historii czujnika")
+            { Earlier = [Fixtures.Soil(threeDaysAgo, 94), Fixtures.Soil(threeDaysAgo + TimeSpan.FromHours(1), 93)] };
+
+        await h.Engine.CycleAsync(Ct);
+
+        var stored = await h.Store.GetRecentAsync("s1", 10, Ct);
+        Assert.Equal([threeDaysAgo + TimeSpan.FromHours(1), threeDaysAgo], stored.Select(r => r.At));
+        Assert.Contains(h.Log.Entries, e => e.Message.Contains("zapisano 2 zaległych pomiarów"));
+
+        h.Reader.Script = sensor => Fixtures.Ok(sensor, 96);
+        await h.CycleAfter(TimeSpan.FromMinutes(1)); // po resztę od razu, nie po zwykłym odstępie 15 min
+        Assert.Equal(2, h.Reader.Calls.Count);
+        Assert.Equal(96, (await h.Store.GetLatestAsync("s1", Ct))!.MoisturePercent);
+    }
+
+    [Fact]
     public async Task EarlierReadingFromTheFutureMeansWrongSensorClockAndIsSkipped()
     {
         using var h = new Harness();

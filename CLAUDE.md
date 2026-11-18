@@ -77,7 +77,7 @@ dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self
 - `TreatWarningsAsErrors`; `TargetFramework` ustawiany per projekt; Agent ma dwa TFM (Windows: WinRT, Linux: BlueZ).
 - Czas przez `TimeProvider`, radio/baza/poczta przez interfejsy – dzięki temu silnik testuje się bez sprzętu.
 - Każda zmiana zachowania dostaje test; sprawdzenia na sprzęcie opisuje się w ARCHITEKTURA.md z datą.
-- Wersja (obecnie 0.2.0) jest w jednym miejscu: `Directory.Build.props`; widać ją w stopce każdego maila (`AppInfo.Version`).
+- Wersja (obecnie 0.2.1) jest w jednym miejscu: `Directory.Build.props`; widać ją w stopce każdego maila (`AppInfo.Version`).
   Podbijaj ją tylko na prośbę użytkownika (przy wydaniu paczki). Wydanie = tag `v<wersja>` (musi zgadzać się z
   `Directory.Build.props`) → Actions publikuje je, a zainstalowane usługi same się zaktualizują w ciągu doby.
 - Skrypty `.ps1` zapisuj w UTF-8 **z BOM** (Windows PowerShell 5.1) i nie wstawiaj „” do napisów w podwójnych cudzysłowach –
@@ -92,10 +92,12 @@ dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self
 - Sparowany czujnik reklamuje się rzadko (ok. 1 pakiet na kilka–kilkanaście sekund); dane usługi i producenta przychodzą w
   osobnych pakietach. Dopasowanie: po MAC z konfiguracji, zapasowo po UUID Tuya.
 - Czujnik przyjmuje jedno połączenie naraz. Odczyt = ok. 11–14 s połączenia i kosztuje baterię, więc interwał ≥ 15 min.
-  Czujnik z dużą zaległą historią (np. dni w Smart Life) oddaje ją przez całe 180 s sesji – **przy DP14 = 0 (niska
-  bateria) nie rób ręcznych odczytów**: 2026-11-18 Hortensje niskie (5%) zamilkły po takiej sesji.
+  Czujnik z dużą zaległą historią (np. tygodnie w Smart Life) oddaje ją na raty – ok. 110 rekordów na 180-sekundową sesję;
+  sesja urwana limitem bez raportu stanu nie ma stanu bieżącego (`MapSession`, od 0.2.1 – wcześniej przesuwała historię
+  „na teraz”, Alpinarium 2026-11-18). **Przy DP14 = 0 (niska bateria) nie rób ręcznych odczytów**: 2026-11-18 Hortensje
+  niskie (5%) zamilkły po takiej sesji.
 - Czujniki zostawione w Smart Life czytamy kluczem z chmury Tuya (bez resetu); MAC ustala `scan` po UUID Tuya z reklamy.
-  Nasze odczyty kasują ich rekordy w czujniku (Smart Life traci historię), a zegar ustawia im tylko aplikacja.
+  Nasze odczyty kasują ich rekordy w czujniku (Smart Life traci historię).
 - **Nie zabijaj procesu w trakcie rozłączania** (następny odczyt może zawisnąć). Do prób: `run --minutes N`.
 - W zasięgu jest wiele innych urządzeń Tuya (DC:23:51:*): część to **własne czujniki użytkownika**, wciąż sparowane ze Smart
   Life (`Cisy` było wśród nich), reszta może być cudza. Łącz się tylko z czujnikami z konfiguracji; `pair` wybiera tylko niesparowany czujnik

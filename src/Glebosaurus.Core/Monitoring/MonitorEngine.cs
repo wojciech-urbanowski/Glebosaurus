@@ -3,6 +3,7 @@ using Glebosaurus.Core.Config;
 using Glebosaurus.Core.Domain;
 using Glebosaurus.Core.Mail;
 using Glebosaurus.Core.Reports;
+using Glebosaurus.Tuya;
 using Microsoft.Extensions.Logging;
 
 namespace Glebosaurus.Core.Monitoring;
@@ -19,6 +20,9 @@ public sealed class MonitorEngine(
     public static readonly TimeSpan MailRetryDelay = TimeSpan.FromMinutes(5);
 
     private static readonly TimeSpan UnboundRetryDelay = TimeSpan.FromMinutes(30);
+
+    /// <summary>Po sesji urwanej w trakcie historii – szybko po resztę, póki czujnik jest w zasięgu (sesja trwa do 180 s).</summary>
+    internal static readonly TimeSpan IncompleteRetryDelay = TimeSpan.FromMinutes(1);
 
     /// <summary>
     /// Odczyt na żądanie (panel WWW) najwcześniej tyle po ostatniej próbie tego czujnika – każde połączenie kosztuje baterię,
@@ -299,11 +303,7 @@ public sealed class MonitorEngine(
             {
                 case SensorReadFailure.None when outcome.Reading is { MoisturePercent: not null } or { SoilTemperatureCelsius: not null }:
                     var r = outcome.Reading!;
-                    // Zaległe rekordy czujnik kasuje po odebraniu, więc zapisujemy je od razu, z czasem czujnika. Rekord z
-                    // przyszłości oznacza zły zegar czujnika i nie wiadomo, kiedy go zmierzono – pomijamy go.
-                    var earlier = outcome.Earlier.Where(e => e.At < now).ToList();
-                    foreach (var e in earlier)
-                        await store.AddReadingAsync(new(sensor.Id, e.At, e.MoisturePercent, e.SoilTemperatureCelsius, e.BatteryPercent, e.BatteryState), cancellationToken);
+                    var earlier = await StoreEarlierAsync(sensor, outcome, now, cancellationToken);
                     // Najnowszy pomiar to „stan teraz”: zapisujemy go z chwilą odbioru (nie z zegarem czujnika), bo od tego
                     // zależy rytm odczytów i raporty.
                     await store.AddReadingAsync(new(sensor.Id, now, r.MoisturePercent, r.SoilTemperatureCelsius, r.BatteryPercent, r.BatteryState), cancellationToken);
@@ -314,6 +314,14 @@ public sealed class MonitorEngine(
                     if (earlier.Count > 0)
                         logger.LogInformation("{Sensor}: zapisano {Count} zaległych pomiarów z czujnika (od {Oldest:yyyy-MM-dd HH:mm}).",
                             sensor.Name, earlier.Count, TimeZoneInfo.ConvertTime(earlier.Min(e => e.At), timeZone));
+                    break;
+                case SensorReadFailure.Incomplete:
+                    // Historia zapisana, stanu bieżącego brak – szybkie ponowienie po resztę (bez stopniowania przerwy).
+                    var saved = await StoreEarlierAsync(sensor, outcome, now, cancellationToken);
+                    attempts[sensor.Id] = new(now + IncompleteRetryDelay, 0);
+                    var incomplete = $"sesja urwana w trakcie historii czujnika – zapisano {saved.Count} zaległych pomiarów, reszta i stan bieżący przy następnym połączeniu";
+                    lastOutcome[sensor.Id] = (now, SensorReadFailure.Error, incomplete);
+                    logger.LogInformation("{Sensor}: {Message} (sygnał {Signal}).", sensor.Name, incomplete, signal);
                     break;
                 case SensorReadFailure.NotFound:
                     RegisterFailure(sensor, now);
@@ -341,6 +349,19 @@ public sealed class MonitorEngine(
             lastOutcome[sensor.Id] = (clock.GetUtcNow(), SensorReadFailure.Error, "warstwa BLE nie zwróciła wyniku");
             logger.LogWarning("{Sensor}: warstwa BLE nie zwróciła wyniku.", sensor.Name);
         }
+    }
+
+    /// <summary>
+    /// Zaległe rekordy czujnik kasuje po odebraniu, więc zapisujemy je od razu, z czasem czujnika. Rekord z przyszłości oznacza
+    /// zły zegar czujnika i nie wiadomo, kiedy go zmierzono – pomijamy go.
+    /// </summary>
+    private async Task<List<SoilReading>> StoreEarlierAsync(SensorConfig sensor, SensorReadOutcome outcome, DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var earlier = outcome.Earlier.Where(e => e.At < now).ToList();
+        foreach (var e in earlier)
+            await store.AddReadingAsync(new(sensor.Id, e.At, e.MoisturePercent, e.SoilTemperatureCelsius, e.BatteryPercent, e.BatteryState), cancellationToken);
+        return earlier;
     }
 
     /// <summary>Do ostrzeżenia „nie znaleziono”: kiedy i z jaką mocą czujnik był ostatnio słyszany (od startu monitora).</summary>

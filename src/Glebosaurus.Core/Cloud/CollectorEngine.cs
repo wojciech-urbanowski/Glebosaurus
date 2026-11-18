@@ -282,12 +282,21 @@ public sealed class CollectorEngine(
             foreach (var note in outcome.Notes) logger.LogWarning("{Sensor}: uwaga z sesji czujnika: {Note}", sensor.Name, note);
 
             JsonObject result;
-            if (outcome is { Failure: SensorReadFailure.None, Reading: { } reading } && (reading.MoisturePercent is not null || reading.SoilTemperatureCelsius is not null))
+            if (outcome.Failure == SensorReadFailure.Incomplete)
             {
-                // Zaległe rekordy czujnik kasuje po odebraniu – od razu do bazy; rekord z przyszłości to zły zegar czujnika.
-                foreach (var earlier in outcome.Earlier.Where(e => e.At < now))
-                    await store.AddReadingAsync(new(sensor.Id, earlier.At, earlier.MoisturePercent, earlier.SoilTemperatureCelsius,
-                        earlier.BatteryPercent, earlier.BatteryState), cancellationToken);
+                // Historia zapisana, stanu bieżącego brak: połączenie działało (bez porażki w dzierżawie), szybko po resztę.
+                var saved = await StoreEarlierAsync(sensor, outcome, now, cancellationToken);
+                stored |= saved > 0;
+                attempts[sensor.Id] = new(now + MonitorEngine.IncompleteRetryDelay, 0);
+                var incomplete = $"sesja urwana w trakcie historii czujnika – zapisano {saved} zaległych pomiarów, reszta i stan bieżący przy następnym połączeniu";
+                lastOutcome[sensor.Id] = (now, SensorReadFailure.Error, incomplete);
+                hearing.RecordAttempt(sensor.Id, success: true);
+                logger.LogInformation("{Sensor}: {Message} (sygnał {Signal}).", sensor.Name, incomplete, SignalStats.Format(outcome.SignalDbm));
+                result = Failure(incomplete);
+            }
+            else if (outcome is { Failure: SensorReadFailure.None, Reading: { } reading } && (reading.MoisturePercent is not null || reading.SoilTemperatureCelsius is not null))
+            {
+                await StoreEarlierAsync(sensor, outcome, now, cancellationToken);
                 await store.AddReadingAsync(new(sensor.Id, now, reading.MoisturePercent, reading.SoilTemperatureCelsius,
                     reading.BatteryPercent, reading.BatteryState), cancellationToken);
                 stored = true;
@@ -343,6 +352,19 @@ public sealed class CollectorEngine(
         TimeSpan.FromMinutes(sensor.ReadIntervalMinutes ?? agent.ReadIntervalMinutes);
 
     /// <summary>Wykładniczy odstęp ponowień (1, 2, 4, 8, do 10 min), nigdy dłuższy niż zwykły odstęp odczytów – jak w trybie samodzielnym.</summary>
+    /// <summary>Zaległe rekordy czujnik kasuje po odebraniu – od razu do bazy; rekord z przyszłości to zły zegar czujnika.</summary>
+    private async Task<int> StoreEarlierAsync(SensorConfig sensor, SensorReadOutcome outcome, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var count = 0;
+        foreach (var earlier in outcome.Earlier.Where(e => e.At < now))
+        {
+            await store.AddReadingAsync(new(sensor.Id, earlier.At, earlier.MoisturePercent, earlier.SoilTemperatureCelsius,
+                earlier.BatteryPercent, earlier.BatteryState), cancellationToken);
+            count++;
+        }
+        return count;
+    }
+
     private void RegisterFailure(AgentConfig agent, SensorConfig sensor, DateTimeOffset now, TimeSpan? fixedDelay = null)
     {
         var failures = attempts.TryGetValue(sensor.Id, out var previous) ? previous.Failures + 1 : 1;

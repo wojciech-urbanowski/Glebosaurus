@@ -15,7 +15,13 @@ public enum SensorReadFailure
     Unbound,
 
     /// <summary>Połączenie, uwierzytelnienie lub odczyt się nie powiodły.</summary>
-    Error
+    Error,
+
+    /// <summary>
+    /// Sesja urwała się (limit czasu) w trakcie historii czujnika: są zaległe pomiary (<see cref="SensorReadOutcome.Earlier"/>,
+    /// czujnik już je skasował – trzeba je zapisać), ale nie ma stanu bieżącego; resztę czujnik odda przy następnym połączeniu.
+    /// </summary>
+    Incomplete
 }
 
 /// <param name="Reading">Najnowszy pomiar – to jest „stan teraz”. null przy błędzie.</param>

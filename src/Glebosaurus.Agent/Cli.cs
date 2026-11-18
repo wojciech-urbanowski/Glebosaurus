@@ -552,15 +552,17 @@ internal static class Cli
                 sessionDeadline: TimeSpan.FromMinutes(3), quietTimeout: TimeSpan.FromSeconds(3));
             var result = await session.ReadAsync(cancellationToken);
 
-            var readings = SoilSensorProfiles.MapAll(profile, result.DataPoints, connectedAt);
+            var mapped = SoilSensorProfiles.MapSession(profile, result.DataPoints, connectedAt, result.Truncated);
             Console.WriteLine();
             Console.WriteLine($"Protokół Tuya {result.Protocol}, firmware {result.Firmware}, profil {profile}.");
-            if (readings.Count > 1)
+            if (mapped.Earlier.Count > 0)
             {
-                Console.WriteLine($"Zaległe pomiary z czujnika ({readings.Count - 1}), od najstarszego:");
-                foreach (var old in readings.SkipLast(1)) Console.WriteLine("  " + Describe(old));
+                Console.WriteLine($"Zaległe pomiary z czujnika ({mapped.Earlier.Count}), od najstarszego:");
+                foreach (var old in mapped.Earlier) Console.WriteLine("  " + Describe(old));
             }
-            if (readings.LastOrDefault() is { } reading)
+            if (mapped is { Current: null, Earlier.Count: > 0 })
+                Console.WriteLine("Sesja urwała się w trakcie historii czujnika – stanu bieżącego brak; resztę historii czujnik odda przy następnym połączeniu.");
+            if (mapped.Current is { } reading)
             {
                 Console.WriteLine($"Stan najnowszy ({reading.At.ToLocalTime():yyyy-MM-dd HH:mm:ss}):");
                 Console.WriteLine($"  Wilgotność gleby : {Show(reading.MoisturePercent, "%")}");
@@ -568,7 +570,7 @@ internal static class Cli
                 Console.WriteLine($"  Bateria          : {Show(reading.BatteryPercent, "%")} (stan baterii DP14: {Show(reading.BatteryState, "")}{(SoilSensorProfiles.BatteryStateName(reading.BatteryState) is { } state ? $" – {state}" : "")})");
             }
             foreach (var note in result.Notes) Console.WriteLine($"  Uwaga: {note}");
-            return readings.Count == 0 ? 3 : 0;
+            return mapped.Current is null && mapped.Earlier.Count == 0 ? 3 : 0;
         }
         catch (TuyaUnboundException e)
         {

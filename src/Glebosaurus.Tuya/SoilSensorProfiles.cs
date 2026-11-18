@@ -12,6 +12,11 @@ public sealed record SoilReading(
     DateTimeOffset At, string Profile, int? MoisturePercent, decimal? SoilTemperatureCelsius,
     int? BatteryPercent, int? BatteryState, IReadOnlyDictionary<int, string> RawDataPoints);
 
+/// <summary>Pomiary z jednej sesji (<see cref="SoilSensorProfiles.MapSession"/>).</summary>
+/// <param name="Current">Stan z chwili połączenia; null, gdy sesja urwała się w trakcie historii czujnika.</param>
+/// <param name="Earlier">Zaległe pomiary z pamięci czujnika, od najstarszego (czujnik kasuje je po odebraniu).</param>
+public sealed record SoilSession(SoilReading? Current, IReadOnlyList<SoilReading> Earlier);
+
 /// <summary>Mapowanie punktów danych Tuya na pomiary gleby, per profil produktu.</summary>
 public static class SoilSensorProfiles
 {
@@ -73,13 +78,7 @@ public static class SoilSensorProfiles
     /// </summary>
     public static IReadOnlyList<SoilReading> MapAll(string profile, IEnumerable<TuyaDataPoint> points, DateTimeOffset connectedAt)
     {
-        var all = points.ToList();
-        var records = all.Where(p => p.MeasuredAt is not null).GroupBy(p => p.MeasuredAt!.Value)
-            .Select(group => Map(profile, group, group.Key))
-            .ToList();
-        // Zwykły raport stanu (bez czasu) to z definicji „teraz”, więc zawsze idzie na koniec, niezależnie od kolejności odbioru.
-        if (all.Where(p => p.MeasuredAt is null).ToList() is { Count: > 0 } live) records.Add(Map(profile, live, connectedAt));
-        var readings = records.Where(reading => reading.MoisturePercent is not null || reading.SoilTemperatureCelsius is not null).ToArray();
+        var readings = Records(profile, points.ToList(), connectedAt);
         if (readings.Length == 0) return readings;
 
         var drift = connectedAt - readings[^1].At;
@@ -89,6 +88,38 @@ public static class SoilSensorProfiles
         while (start > 0 && readings[start - 1].At < readings[start].At) start--;
         for (var i = start; i < readings.Length; i++) readings[i] = readings[i] with { At = readings[i].At + drift };
         return readings;
+    }
+
+    /// <summary>
+    /// Wynik jednej sesji: stan bieżący i zaległe pomiary (od najstarszego). Zwykle to <see cref="MapAll"/> – ostatni rekord
+    /// jest stanem z chwili połączenia. Wyjątek: sesja przerwana limitem czasu (<paramref name="truncated"/>) bez zwykłego
+    /// raportu stanu urwała się w trakcie historii – czujnik oddaje ją od najstarszego rekordu, a raport stanu na końcu.
+    /// Wtedy ostatni odebrany rekord bywa sprzed dni, więc nie jest stanem bieżącym (<see cref="SoilSession.Current"/> = null)
+    /// i nie wolno kotwiczyć na nim serii: rekordy zachowują czasy czujnika (ustawia je ta sesja na prośbę czujnika albo
+    /// aplikacja), a te z przyszłości – zły zegar – odpadają. Resztę historii czujnik odda przy następnym połączeniu.
+    /// Alpinarium 2026-11-18: przerwana sesja przesunięta „na teraz” wstawiła 3 dni historii o 3 dni i 6 h za późno,
+    /// przeplatając je z prawdziwymi pomiarami z następnej sesji.
+    /// </summary>
+    public static SoilSession MapSession(string profile, IEnumerable<TuyaDataPoint> points, DateTimeOffset connectedAt, bool truncated)
+    {
+        var all = points.ToList();
+        if (!truncated || all.Any(p => p.MeasuredAt is null))
+        {
+            var readings = MapAll(profile, all, connectedAt);
+            return readings.Count == 0 ? new(null, []) : new(readings[^1], readings.Take(readings.Count - 1).ToArray());
+        }
+        return new(null, Records(profile, all, connectedAt).Where(r => r.At <= connectedAt + ClockTolerance).ToArray());
+    }
+
+    /// <summary>Rekordy pomiarów gleby w kolejności odbioru, z czasem czujnika; zwykły raport stanu na końcu z <paramref name="connectedAt"/>.</summary>
+    private static SoilReading[] Records(string profile, List<TuyaDataPoint> all, DateTimeOffset connectedAt)
+    {
+        var records = all.Where(p => p.MeasuredAt is not null).GroupBy(p => p.MeasuredAt!.Value)
+            .Select(group => Map(profile, group, group.Key))
+            .ToList();
+        // Zwykły raport stanu (bez czasu) to z definicji „teraz”, więc zawsze idzie na koniec, niezależnie od kolejności odbioru.
+        if (all.Where(p => p.MeasuredAt is null).ToList() is { Count: > 0 } live) records.Add(Map(profile, live, connectedAt));
+        return records.Where(reading => reading.MoisturePercent is not null || reading.SoilTemperatureCelsius is not null).ToArray();
     }
 
     public static SoilReading Map(string profile, IEnumerable<TuyaDataPoint> points, DateTimeOffset at)

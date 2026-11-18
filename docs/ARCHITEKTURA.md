@@ -41,14 +41,25 @@ podlewaniu i raporty o stałych porach mailem (Gmail), a konfigurację, alerty i
 - **Czujniki zostawione w Smart Life też czytamy** (2026-11-18): klucze z chmury Tuya (`deviceId`, `localKey`, `uuid`, bez
   MAC) – MAC 4 czujników ustalony skanem po UUID Tuya z reklamy (`scan`; ta sama metoda dała dla 5 znanych czujników dokładnie
   ich MAC), `read` z takim kluczem działa (protokół 3.1, firmware 9.3, jak przy lokalnym parowaniu), a po `cloud import`
-  agent czyta je co 15 min jak pozostałe. Skutki: zegar czujnika ustawia tylko aplikacja Smart Life – Hortensje niskie miały
-  go ok. 17 h 46 min do tyłu (zaległe rekordy kotwiczymy czasem połączenia, więc w bazie są dobrze); odebrane przez nas
-  rekordy znikają z czujnika, więc Smart Life traci od tej pory ich historię; połączenie aplikacji w telefonie blokuje
-  nasz odczyt w danym cyklu.
-- **Długa sesja na słabej baterii** (2026-11-18): zaległe ok. 110 rekordów godzinnych (5 dni w Smart Life, MTU danych 20)
-  zajęły całe 180 s sesji (`read` i agent – dane przyszły w komplecie, limit złapał dopiero oczekiwanie na ciszę). Hortensje
-  niskie z baterią 5% (DP14 = niski także w rekordach bez obciążenia radia) po takiej sesji przestały się reklamować w ogóle –
-  najpewniej wyczerpana bateria. Przy DP14 = 0 nie robić ręcznych odczytów z długą historią; najpierw wymiana baterii.
+  agent czyta je co 15 min jak pozostałe. Skutki: odebrane przez nas rekordy znikają z czujnika, więc Smart Life traci od
+  tej pory ich historię; połączenie aplikacji w telefonie blokuje nasz odczyt w danym cyklu. Zegary tych czujników były
+  dobre (Alpinarium, Trawa, Laurowiśnia szafka – godzinne rekordy z prawdziwym dobowym rytmem temperatury); wcześniejsze
+  „Hortensje ok. 17 h 46 min do tyłu” było skutkiem błędu niżej, nie zegara.
+- **Historia dłuższa niż jedna sesja** (2026-11-18): czujnik oddaje ok. 110 rekordów na 180 s sesji (MTU danych 20), od
+  najstarszego, a zwykły raport stanu na końcu; czujnik ze Smart Life trzyma tygodnie rekordów godzinnych (Alpinarium: od
+  11-09, ok. 230). Gdy limit sesji urwie historię, ostatni odebrany rekord bywa sprzed dni – a `MapAll` kotwiczył serię na
+  chwili połączenia (przy rozjechanym zegarze), więc **Alpinarium dostało 152 rekordy z 11-09…11-15 przesunięte o 3 d 6 h**
+  (przeplot z prawdziwą serią z następnej sesji, „migotanie” na wykresie) i najstarszy rekord jako „stan teraz” o 19:14;
+  ten sam błąd dał wyświetlenie historii Hortensji w `read` o 17 h za późno. Laurowiśnia szafka też doszła do limitu, ale
+  po raporcie stanu – bez szkody. Poprawka 0.2.1 (zasada 8): sesja przerwana limitem bez raportu stanu nie ma stanu
+  bieżącego, rekordy zostają z czasem czujnika (te z przyszłości odpadają), silnik zapisuje je od razu (czujnik już je
+  skasował) i wraca po resztę po 1 min, bez porażki w dzierżawie. Dane Alpinarium naprawione jednorazowo w chmurze i w
+  bazie usługi: przesunięcie z rytmu rekordów (sesja 2 zaczęła się dokładnie tam, gdzie urwała się 1) – 3 d 5 h 57 min
+  44,6 s, dokładność ok. ±15 s.
+- **Długa sesja na słabej baterii** (2026-11-18): Hortensje niskie z baterią 5% (DP14 = niski także w rekordach bez
+  obciążenia radia) po pełnej 180-sekundowej sesji `read` (urwanej w trakcie historii – ok. 18 najnowszych rekordów zostało w
+  czujniku) przestały się reklamować w ogóle – najpewniej wyczerpana bateria. Przy DP14 = 0 nie robić ręcznych odczytów z
+  długą historią; najpierw wymiana baterii.
 - **Niesparowany czujnik nadający dłużej niż 20 s** (2026-11-18): jeden czujnik `gvygg3m8` nadawał jako niesparowany
   przez całe 2 min skanu (42 pakiety) – może pętla restartów na słabej baterii. `pair` przypisał mu klucz (sesja bez błędu),
   ale potem czujnik zamilkł (ponad 15 min, także dwa wznowienia `pair`); na prośbę użytkownika klucz usunięto – jeśli
@@ -342,6 +353,13 @@ Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → S
    ponowień, a cykl idzie dalej (testy na atrapie radia i silniku). Ostrzeżenia w dzienniku; ślad stosu tylko przy pierwszej
    porażce z serii. Parowanie to osobna, interaktywna komenda uruchamiana w zasięgu czujnika (okno ok. 20 s – skan musi już działać,
    gdy użytkownik wkłada baterie). Przy kilku niesparowanych kandydatach parowanie wymaga `--mac`.
+   **Sesja dłuższa niż limit** (0.2.1, 2026-11-18): sesja odczytu trwa najwyżej 180 s, a czujnik z długą historią oddaje ją
+   na raty (ok. 110 rekordów na sesję). `TuyaReadResult.Truncated` mówi, że sesję urwał limit; bez zwykłego raportu stanu
+   (`SoilSensorProfiles.MapSession`) nie ma wtedy stanu bieżącego, a rekordy zostają z czasem czujnika – kotwiczenie na
+   chwili połączenia (`MapAll`, restart zegara po wymianie baterii) dotyczy tylko sesji zakończonej normalnie. Radio zwraca
+   `SensorReadFailure.Incomplete` z zaległymi rekordami; oba silniki zapisują je od razu, ponawiają po 1 min (bez stopniowania)
+   i nie liczą tego jako porażki dzierżawy. Wcześniej najstarsza część historii trafiała przesunięta „na teraz”
+   (Alpinarium – wyżej, „Historia dłuższa niż jedna sesja”).
 9. **Alerty i raporty.** Progi per czujnik z histerezą, kilka kolejnych odczytów i cooldown; „czujnik milczy”,
    niska bateria (docelowo trend albo DP14 – stan baterii, 0 = niski – zamiast pojedynczego DP15). **„Czujnik milczy”**
    (2026-11-17): cisza liczy się od ostatniego odczytu w bazie (czujnik bez odczytów – od startu), także za czas, gdy
@@ -386,7 +404,7 @@ Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → S
    ostatnich 75 h (`GetRangeAsync`), więc wykres mają raporty zaplanowane, na żądanie i polecenie `report`; przykłady
    (`mail-preview`, też `raport-20.html`) mają zmyśloną historię. `report --out` z prawdziwej bazy dał 3 wykresy (18 KB).
    Stopka każdego maila (HTML) i ostatni wiersz wersji tekstowej podają wersję Glebosaurusa (`AppInfo.Version`, czytana z
-   metadanych zestawu; jedno źródło numeru: `Directory.Build.props`, obecnie 0.2.0).
+   metadanych zestawu; jedno źródło numeru: `Directory.Build.props`, obecnie 0.2.1).
    **Log techniczny dla administratora** (2026-11-13): dziennik agenta to pliki dzienne `glebosaurus-RRRRMMDD.log` (czas
    lokalny; wspólna klasa `DailyLogFiles` zna nazwy, zapisuje do nich `FileLoggerProvider`, a silnik czyta je przez
    `ILogArchive`). Retencja po dacie z nazwy pliku: `logs.retentionDays` (domyślnie 7; zostaje dzisiejszy i tyle dni

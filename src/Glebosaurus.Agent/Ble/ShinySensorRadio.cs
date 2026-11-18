@@ -75,9 +75,11 @@ internal sealed class ShinySensorRadio(BleHost ble) : ISensorRadio<SeenSensor>, 
             var session = new TuyaSession(new ShinyGattLink(peripheral), sensor.Tuya, ResponseTimeout,
                 sessionDeadline: SessionDeadline, quietTimeout: QuietTimeout);
             var result = await session.ReadAsync(cancellationToken);
-            var readings = SoilSensorProfiles.MapAll(profile, result.DataPoints, connectedAt);
-            return new(sensor, readings.LastOrDefault(), SensorReadFailure.None)
-                { Earlier = readings.SkipLast(1).ToArray(), SignalDbm = signal, Notes = result.Notes };
+            var mapped = SoilSensorProfiles.MapSession(profile, result.DataPoints, connectedAt, result.Truncated);
+            return mapped is { Current: null, Earlier.Count: > 0 }
+                ? new(sensor, null, SensorReadFailure.Incomplete, "sesja urwana w trakcie historii czujnika")
+                    { Earlier = mapped.Earlier, SignalDbm = signal, Notes = result.Notes }
+                : new(sensor, mapped.Current, SensorReadFailure.None) { Earlier = mapped.Earlier, SignalDbm = signal, Notes = result.Notes };
         }
         catch (TuyaUnboundException)
         {

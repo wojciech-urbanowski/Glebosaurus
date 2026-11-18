@@ -8,7 +8,7 @@ Dokumenty: [docs/ARCHITEKTURA.md](docs/ARCHITEKTURA.md) – projekt i fakty zmie
 
 ## Stan
 
-Wersja 0.2.0. **Tryb samodzielny działa na co dzień** na Windows 11 z prawdziwymi czujnikami – od 2026-11-15 jako usługa na
+Wersja 0.2.1. **Tryb samodzielny działa na co dzień** na Windows 11 z prawdziwymi czujnikami – od 2026-11-15 jako usługa na
 koncie użytkownika (zadanie Harmonogramu przy zalogowaniu, bez okna), instalowana skryptem i sama aktualizująca się z wydań
 na GitHubie (patrz „Windows: instalacja jako usługa”): protokół Tuya BLE z lokalnym parowaniem bez konta Tuya (`pair`),
 odczyty do SQLite, alerty, raporty z wykresem i log administratora mailem przez Gmail (wygląd pod telefon), lokalny panel
@@ -215,7 +215,7 @@ ci sami co alertów). Można podać kilka adresów; adresy są walidowane przy s
 czujniku wykres ostatnich 3 dób z samego HTML (kolumny po 2 godz.: niebieska kreska – średnia wilgotność, blady pasek –
 temperatura od najniższej do najwyższej, różowe tło – poniżej progu podlania; przy wielu czujnikach kolumny są szersze,
 żeby Gmail nie przyciął maila), a wersja tekstowa linijkę `▁…█`. `mail-preview` zapisuje też `raport-20.html` z 20 czujnikami. W stopce każdego
-maila jest wersja Glebosaurusa („Wiadomość automatyczna · Glebosaurus 0.2.0”); numer wersji jest w jednym miejscu,
+maila jest wersja Glebosaurusa („Wiadomość automatyczna · Glebosaurus 0.2.1”); numer wersji jest w jednym miejscu,
 w `Directory.Build.props`.
 
 ### Log techniczny dla administratora
@@ -385,7 +385,7 @@ jeszcze nie ma (ROADMAP, faza 4).
 
 ## Raspberry Pi (linux-arm64) – niesprawdzone
 
-Paczka: `publish/Glebosaurus-<wersja>-linux-arm64.tar.gz` (wersja pochodzi z `Directory.Build.props`, obecnie 0.2.0, i jest widoczna
+Paczka: `publish/Glebosaurus-<wersja>-linux-arm64.tar.gz` (wersja pochodzi z `Directory.Build.props`, obecnie 0.2.1, i jest widoczna
 w stopce maili; `publish/` jest poza repozytorium; zależna od frameworka – od 2026-11-14
 (panel WWW) wymaga **ASP.NET Core Runtime 10** (zawiera .NET Runtime; sam .NET Runtime już nie wystarczy), np.
 `./dotnet-install.sh --channel 10.0 --runtime aspnetcore`; budowanie:

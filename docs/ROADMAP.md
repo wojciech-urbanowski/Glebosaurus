@@ -67,6 +67,11 @@ Stan: ✔ zrobione · ◐ w toku albo częściowo · ○ do zrobienia.
   dopisane do `local/` 2026-11-16) – 2026-11-18: MAC ustalony skanem po UUID z reklamy, próbny `read` Hortensji udany,
   `cloud import` o 19:07 (na prośbę użytkownika), agent czyta Alpinarium, Trawę i Laurowiśnię szafkę; Hortensje milczą od
   próbnego odczytu (bateria 5% – ARCHITEKTURA.md, „Zweryfikowane na sprzęcie”). Czujniki zostają w Smart Life.
+- ✔ **„Migotanie” wykresu Alpinarium** (2026-11-18): pierwsza sesja z ok. 230 rekordami historii urwała się na limicie
+  180 s, a ostatni odebrany rekord (sprzed 3 dni) został zakotwiczony na chwili połączenia – 152 rekordy przesunięte o 3 d
+  6 h przeplatały się z prawdziwymi. Poprawka w 0.2.1 (ARCHITEKTURA.md, zasada 8), dane przesunięte z powrotem w chmurze i
+  w bazie usługi (na prośbę użytkownika). Na bestia5 do czasu aktualizacji błąd może wrócić przy długiej historii (np.
+  Hortensje po wymianie baterii).
 - **Niesparowany czujnik `gvygg3m8` (DC:23:51:…)** (2026-11-18): nadawał jako niesparowany ponad 2 min, po przypisaniu klucza
   zamilkł; na prośbę użytkownika porzucony, klucz usunięty – do ewentualnego użycia tylko po resecie przyciskiem.
 - **„Czujnik nie potwierdził włączenia powiadomień”** – 7 razy w 3 dni (Cisy, Zioła), następny cykl zwykle udany. Niski

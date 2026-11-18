@@ -19,6 +19,7 @@ public class SessionTests
         Assert.Equal("3.1", result.Protocol);
         Assert.Equal("9.3", result.Firmware);
         Assert.Equal(6, result.DataPoints.Count);
+        Assert.False(result.Truncated); // sesja skończyła się ciszą, nie limitem czasu
         Assert.False(link.IsSubscribed);
         Assert.Single(link.PairRequests);
         Assert.Equal(5, link.PairRequests[0].Flag); // klucz sesji, nie jawnie
@@ -141,6 +142,7 @@ public class SessionTests
 
         Assert.Equal(6, result.DataPoints.Count);
         Assert.Contains(result.Notes, n => n.Contains("limit czasu"));
+        Assert.True(result.Truncated); // ostatni odebrany rekord nie musi być stanem z chwili połączenia
         Assert.False(link.IsSubscribed);
     }
 

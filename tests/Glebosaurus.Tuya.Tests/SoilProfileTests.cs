@@ -125,6 +125,61 @@ public class SoilProfileTests
     }
 
     [Fact]
+    public void TruncatedSessionWithoutLiveReportKeepsSensorTimesAndHasNoCurrentState()
+    {
+        // Alpinarium 2026-11-18: limit 180 s urwał sesję w trakcie historii (czujnik oddaje ją od najstarszego, raport stanu na
+        // końcu). Ostatni odebrany rekord był sprzed ok. 3 dni – zakotwiczenie go na chwili połączenia przesunęło całą paczkę.
+        var connected = DateTimeOffset.Parse("2026-11-18T19:11:21+01:00");
+        var points = new[] { Record("12:11:55", 94, 71, 24), Record("13:13:35", 94, 74, 24) }.SelectMany(record => record);
+
+        var session = SoilSensorProfiles.MapSession(SoilSensorProfiles.Sgs01, points, connected, truncated: true);
+
+        Assert.Null(session.Current);
+        Assert.Equal([DateTimeOffset.Parse("2026-11-13T12:11:55+01:00"), DateTimeOffset.Parse("2026-11-13T13:13:35+01:00")],
+            session.Earlier.Select(r => r.At)); // czasy czujnika, bez przesunięcia
+    }
+
+    [Fact]
+    public void TruncatedSessionDropsRecordsFromTheFutureInsteadOfGuessingTheirTime()
+    {
+        var connected = DateTimeOffset.Parse("2026-11-13T12:00:00+01:00");
+        var points = new[] { Record("11:00:00", 40, 200, 80), Record("13:00:00", 41, 200, 80) }.SelectMany(record => record);
+
+        var session = SoilSensorProfiles.MapSession(SoilSensorProfiles.Sgs01, points, connected, truncated: true);
+
+        Assert.Equal([40], session.Earlier.Select(r => r.MoisturePercent));
+        Assert.Null(session.Current);
+    }
+
+    [Fact]
+    public void TruncatedSessionThatGotTheLiveReportStillHasTheCurrentState()
+    {
+        // Laurowiśnia szafka 2026-11-18: historia i raport stanu doszły, limit złapał dopiero oczekiwanie na ciszę.
+        var connected = DateTimeOffset.Parse("2026-11-13T19:19:58+01:00");
+        var points = Record("18:59:20", 49, 120, 14).Concat([Value(3, 49), Value(5, 120)]);
+
+        var session = SoilSensorProfiles.MapSession(SoilSensorProfiles.Sgs01, points, connected, truncated: true);
+
+        Assert.Equal(connected, session.Current!.At);
+        Assert.Equal([DateTimeOffset.Parse("2026-11-13T18:59:20+01:00")], session.Earlier.Select(r => r.At));
+    }
+
+    [Fact]
+    public void CompleteSessionIsMapAllSplitIntoCurrentStateAndHistory()
+    {
+        // Ten sam przypadek co restart zegara (Cisy): bez przerwania sesji zostaje dotychczasowe kotwiczenie.
+        var connected = DateTimeOffset.Parse("2026-11-13T12:00:00+01:00");
+        var points = new[] { Record("10:00:00", 40, 200, 80), Record("10:10:00", 41, 200, 80) }.SelectMany(record => record).ToArray();
+
+        var session = SoilSensorProfiles.MapSession(SoilSensorProfiles.Sgs01, points, connected, truncated: false);
+
+        var all = SoilSensorProfiles.MapAll(SoilSensorProfiles.Sgs01, points, connected);
+        Assert.Equal((connected, 41), (session.Current!.At, session.Current.MoisturePercent));
+        Assert.Equal(all.Take(1).Select(r => (r.At, r.MoisturePercent)), session.Earlier.Select(r => (r.At, r.MoisturePercent)));
+        Assert.Equal(connected - TimeSpan.FromMinutes(10), session.Earlier[0].At); // dotychczasowe kotwiczenie zostaje
+    }
+
+    [Fact]
     public void MapAllSkipsRecordsThatCarryNoSoilMeasurement()
     {
         // Rekord z 13:13:23 miał tylko DP15 (bateria) i DP14 – to nie jest pomiar gleby.
