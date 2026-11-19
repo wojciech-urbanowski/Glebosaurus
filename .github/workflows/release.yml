@@ -1,7 +1,8 @@
-# Wydanie: tag v<wersja> (ta sama co w Directory.Build.props) → testy, paczka Windows x64, APK Android (gdy są sekrety klucza),
-# próba instalacji skryptem i wydanie na GitHubie z plikami: Glebosaurus-<wersja>-win-x64.zip, install-windows.ps1,
+# Wydanie: tag v<wersja> (ta sama co w Directory.Build.props) → testy, paczka Windows x64, paczka Linux arm64 (Raspberry Pi),
+# APK Android (gdy są sekrety klucza), próby instalacji skryptami (Windows i arm64) i wydanie na GitHubie z plikami:
+# Glebosaurus-<wersja>-win-x64.zip, install-windows.ps1, Glebosaurus-<wersja>-linux-arm64.tar.gz, install-linux.sh,
 # SHA256SUMS i Glebosaurus-<wersja>-android.apk.
-# Usługi zainstalowane skryptem znajdą je same (przy starcie i codziennie o 03:30).
+# Usługi zainstalowane skryptami znajdą je same (Windows: przy starcie i codziennie o 03:30; Linux: timer o tych samych porach).
 name: Wydanie
 
 on:
@@ -12,8 +13,10 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  build:
     runs-on: windows-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v7
 
@@ -34,9 +37,14 @@ jobs:
       - name: Testy
         run: dotnet test --solution Glebosaurus.slnx -c Release
 
-      - name: Paczka
+      - name: Paczka Windows
         shell: pwsh
         run: ./deploy/package-windows.ps1 -OutputDir out
+
+      # Raspberry Pi (faza 2.3a): paczka zależna od frameworka i install-linux.sh – wiersze dopisane do tego samego SHA256SUMS.
+      - name: Paczka Linux arm64
+        shell: pwsh
+        run: ./deploy/package-linux.ps1 -OutputDir out
 
       # Agent Android: APK podpisany kluczem wydań z sekretów repozytorium (ANDROID_KEYSTORE_BASE64 – plik klucza w base64,
       # ANDROID_KEYSTORE_PASSWORD – hasło). Bez nich wydanie wychodzi bez APK (Windows aktualizuje się jak dotąd).
@@ -72,12 +80,63 @@ jobs:
           & ./out/install-windows.ps1 -InstallDir $dir -NoTask -Uninstall -RemoveData
           if (Test-Path $dir) { throw "Odinstalowanie zostawiło $dir." }
 
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release
+          path: |
+            out/*.zip
+            out/*.tar.gz
+            out/*.apk
+            out/install-windows.ps1
+            out/install-linux.sh
+            out/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 7
+
+  # Paczka Linux na prawdziwym arm64 (jak Raspberry Pi OS 64-bit): skróty, instalacja skryptem z wydania, wersja, odinstalowanie.
+  linux:
+    needs: build
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: release
+          path: out
+
+      - name: ASP.NET Core Runtime 10 w /opt/dotnet (jak w README)
+        run: |
+          curl -fsSLO https://dot.net/v1/dotnet-install.sh
+          sudo bash dotnet-install.sh --channel 10.0 --runtime aspnetcore --install-dir /opt/dotnet
+          sudo ln -sf /opt/dotnet/dotnet /usr/local/bin/dotnet
+
+      - name: Próba instalacji z paczki (bez systemd)
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          (cd out && sha256sum -c --ignore-missing SHA256SUMS)
+          dir="$RUNNER_TEMP/glebosaurus"
+          bash out/install-linux.sh --no-systemd --prefix "$dir" --package "out/Glebosaurus-$VERSION-linux-arm64.tar.gz"
+          reported="$(dotnet "$dir/app/glebosaurus.dll" --version)"
+          [ "$reported" = "$VERSION" ] || { echo "glebosaurus --version: $reported"; exit 1; }
+          bash "$dir/install-linux.sh" --no-systemd --prefix "$dir" --uninstall --remove-data
+          [ ! -e "$dir" ] || { echo "Odinstalowanie zostawiło $dir."; exit 1; }
+
+  publish:
+    needs: [build, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: release
+          path: out
+
       - name: Wydanie na GitHubie
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          $version = '${{ steps.version.outputs.version }}'
+          $version = '${{ needs.build.outputs.version }}'
           $notes = @"
           Glebosaurus $version – monitor czujników gleby Tuya BLE.
 
@@ -89,9 +148,18 @@ jobs:
           ``````
           Szczegóły (przejęcie istniejącej konfiguracji, aktualizacje, odinstalowanie): README.md, sekcja "Windows: instalacja jako usługa".
 
+          **Raspberry Pi / Linux arm64** (64-bit; na razie jako nadawca maili bez czytania czujników – "bluetooth": false;
+          wymaga ASP.NET Core Runtime 10): usługa systemd z samoaktualizacją –
+          ``````bash
+          curl -fsSLO https://github.com/${{ github.repository }}/releases/latest/download/install-linux.sh
+          sudo bash install-linux.sh
+          ``````
+          Szczegóły (runtime .NET, konfiguracja, rejestracja, aktualizacje): README.md, sekcja "Raspberry Pi: nadawca maili".
+
           **Android** (agent zbierający, telefon na ładowarce): Glebosaurus-$version-android.apk – instalacja i rejestracja kodem QR:
           README.md, sekcja "Android: agent zbierający".
           "@
-          $files = @("out/Glebosaurus-$version-win-x64.zip", 'out/install-windows.ps1', 'out/SHA256SUMS')
+          $files = @("out/Glebosaurus-$version-win-x64.zip", 'out/install-windows.ps1', "out/Glebosaurus-$version-linux-arm64.tar.gz",
+                     'out/install-linux.sh', 'out/SHA256SUMS')
           if (Test-Path "out/Glebosaurus-$version-android.apk") { $files += "out/Glebosaurus-$version-android.apk" }
           gh release create $env:GITHUB_REF_NAME @files --title "Glebosaurus $version" --notes $notes --verify-tag

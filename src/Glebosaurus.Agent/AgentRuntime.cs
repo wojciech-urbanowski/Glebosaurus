@@ -7,6 +7,12 @@ namespace Glebosaurus.Agent;
 
 internal sealed record LoadedConfig(AgentConfig Config, string ConfigPath, string DatabasePath)
 {
+    /// <summary>Bluetooth tego agenta do dziennika, panelu i sygnału życia: biblioteka BLE albo „wyłączony w konfiguracji”.</summary>
+    public string BluetoothText => Config.Bluetooth ? Ble.BleHost.Backend : AgentConfig.BluetoothOffText;
+
+    /// <summary>Linux: blokada „jeden agent na te dane” (<see cref="Core.Hosting.InstanceLockFile"/>) obok konfiguracji.</summary>
+    public string InstanceLockPath => Path.Combine(Path.GetDirectoryName(ConfigPath)!, Core.Hosting.InstanceLockFile.FileName);
+
     public string LogDirectory => Path.Combine(Path.GetDirectoryName(ConfigPath)!, "logs");
 
     /// <summary>Pliki dziennika agenta w <see cref="LogDirectory"/> (zapis, odczyt wczorajszego dziennika, retencja).</summary>

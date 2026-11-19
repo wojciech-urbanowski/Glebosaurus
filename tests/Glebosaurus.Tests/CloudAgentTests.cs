@@ -48,6 +48,14 @@ public sealed class CloudAgentTests : IDisposable
         Assert.Equal(Path.Combine(directory, "glebosaurus-cloud.token"), AgentConfigLoader.ResolveRelative(path, config.Cloud.TokenFile));
         Assert.Equal(Path.Combine(directory, "dane", "bufor.db"), AgentConfigLoader.ResolveDatabasePath(config, path));
         Assert.Equal(14, config.Logs.RetentionDays);
+        Assert.True(config.Bluetooth);   // domyślnie agent czyta czujniki
+    }
+
+    [Fact]
+    public void AgentFile_BluetoothCanBeSwitchedOff_ForAMailOnlyAgent()
+    {
+        Assert.False(AgentConfigLoader.Load(Write($$"""{ {{Cloud}}, "bluetooth": false }""")).Bluetooth);
+        Assert.Throws<InvalidDataException>(() => AgentConfigLoader.Load(Write($$"""{ {{Cloud}}, "bluetooth": "nie" }""")));
     }
 
     [Theory]
@@ -128,7 +136,7 @@ public sealed class CloudAgentTests : IDisposable
     private sealed record Parts(CloudRuntime Runtime, FakeCloudApi Api, CloudSync Sync, FakeSensorReader Reader, FakeHearing Hearing, TempStore Store,
         CloudConfigSource Source);
 
-    private Parts Build(TimeProvider? time = null, TimeSpan? tick = null, bool collectorOnly = false)
+    private Parts Build(TimeProvider? time = null, TimeSpan? tick = null, bool collectorOnly = false, bool radio = true)
     {
         var clock = time ?? new ManualTimeProvider(Fixtures.T0);
         var manual = clock as ManualTimeProvider ?? new ManualTimeProvider(clock.GetUtcNow());
@@ -136,17 +144,21 @@ public sealed class CloudAgentTests : IDisposable
         var store = new TempStore();
         var ledger = new LeaseLedger(clock);
         var sensors = new SensorLeasePolicy(clock, ledger);
-        var notifierLock = new NotifierLockPolicy(clock, ledger, new NotifierLockOptions { CollectorOnly = collectorOnly });
+        var notifierLock = new NotifierLockPolicy(clock, ledger, new NotifierLockOptions
+        {
+            CollectorOnly = collectorOnly, PriorityStep = radio ? TimeSpan.FromMinutes(1) : TimeSpan.Zero
+        });
         var hearing = new FakeHearing();
         var source = new CloudConfigSource(api, new CloudConfigCache(Path.Combine(directory, "kopia.bin"), new OwnerOnlyFileProtector()),
             new AgentConfig(), clock, NullLogger.Instance);
         var every = tick ?? TimeSpan.FromSeconds(30);
+        // Jak w agencie (CloudAgent): bez radia czujniki nie idą do przydziału.
         var sync = new CloudSync(api, store.Store, hearing, ledger, sensors, notifierLock,
-            () => source.Current?.Config.Sensors.Select(s => s.Id).ToList() ?? [], () => new("test", "test"), clock, NullLogger.Instance,
+            () => radio ? source.Current?.Config.Sensors.Select(s => s.Id).ToList() ?? [] : [], () => new("test", "test"), clock, NullLogger.Instance,
             new CloudSyncOptions { Interval = every, RetryDelays = [every] });
         var reader = new FakeSensorReader();
-        var collector = new CollectorEngine(() => source.Current, store.Store, reader, new FakeListener(), sensors, new SensorHearingTracker(clock),
-            api, null, clock, NullLogger.Instance, new CollectorOptions { TickInterval = every });
+        var collector = new CollectorEngine(() => source.Current, store.Store, radio ? reader : null, radio ? new FakeListener() : null, sensors,
+            new SensorHearingTracker(clock), api, null, clock, NullLogger.Instance, new CollectorOptions { TickInterval = every });
         var notifier = collectorOnly ? null : new NotifierEngine(() => source.Current, api, notifierLock, _ => new FakeMail(), null, () => sync.State, clock,
             NullLogger.Instance, new NotifierOptions { TickInterval = every });
         return new(new CloudRuntime(source, sync, collector, notifier, NullLogger.Instance), api, sync, reader, hearing, store, source);
@@ -220,6 +232,27 @@ public sealed class CloudAgentTests : IDisposable
         Assert.DoesNotContain(parts.Api.Requests, r => r.Claims.Contains("notifier"));
         Assert.NotEmpty(parts.Api.Stored);
         Assert.DoesNotContain(parts.Api.Done, d => d.Id == 5);   // raport na żądanie zostaje dla prawdziwego nadawcy
+    }
+
+    [Fact]
+    public async Task Run_WithoutBluetooth_TakesMailLock_ButNeverClaimsOrReadsSensors()
+    {
+        // Raspberry Pi daleko od czujników ("bluetooth": false) jako główny nadawca – czujniki zostają innym agentom.
+        var parts = Build(TimeProvider.System, TimeSpan.FromMilliseconds(50), radio: false);
+        using var store = parts.Store;
+        parts.Api.Identity = new AgentIdentity("bestia5", true, 1);
+        parts.Api.Config = Config(canSendMail: true);
+        parts.Hearing.Current["s1"] = new(DateTimeOffset.UtcNow, -60, null, null, 0);
+        parts.Api.Commands = [new(7, "read_now", "s1", null, Fixtures.T0, 600)];
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+
+        await parts.Runtime.RunAsync(stop.Token);
+
+        Assert.Contains(parts.Api.Requests, r => r.Claims.Contains("notifier"));
+        Assert.DoesNotContain(parts.Api.Requests, r => r.Claims.Any(c => c.StartsWith("sensor:", StringComparison.Ordinal)));
+        Assert.Empty(parts.Reader.Calls);
+        Assert.Empty(parts.Api.Stored);
+        Assert.Equal(CollectorEngine.NoRadioError, (string)Assert.Single(parts.Api.Done, d => d.Id == 7).Result!["error"]!);
     }
 
     [Fact]

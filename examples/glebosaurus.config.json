@@ -28,6 +28,11 @@
   // Dziennik agenta (pliki dzienne w logs/); wczorajszy trafia do chmury, a nadawca wysyła go administratorowi.
   "logs": { "retentionDays": 7 }
 
+  // Agent bez Bluetooth – np. Raspberry Pi stojący daleko od czujników jako sam nadawca maili (rola nadawcy:
+  // cloud agent --sender-priority 1). Nie otwiera Bluetooth, nie słucha i nie czyta czujników; synchronizuje się z
+  // chmurą, wysyła do niej swój dziennik i maile. Domyślnie true (agent czyta czujniki, które słyszy).
+  // , "bluetooth": false
+
   // Panel WWW w sieci lokalnej (HTTPS, hasło: glebosaurus web-password): pulpit z odczytami wszystkich agentów, kto czyta
   // który czujnik, nadawca maili; odczyt i raport na żądanie idą poleceniem przez chmurę. Żeby włączyć, usuń komentarz.
   // , "web": {

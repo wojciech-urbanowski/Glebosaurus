@@ -265,6 +265,57 @@ public sealed class CollectorTests : IDisposable
         Assert.Equal(1, logs.Reads.Count(d => d == today));
     }
 
+    // ---- Agent bez Bluetooth ("bluetooth": false – np. Raspberry Pi jako sam nadawca) ---------------------------------
+
+    private CollectorEngine WithoutRadio()
+    {
+        var config = new CloudAgentConfig(Fixtures.Config(Fixtures.Sensor("s1")), TimeZoneInfo.Utc, 1, new("malina", true, 1), null, []);
+        return new(() => config, db.Store, null, null, leases, hearing, api, logs, clock, NullLogger.Instance);
+    }
+
+    [Fact]
+    public async Task WithoutRadio_NeverListensOrReads_EvenWithLease()
+    {
+        var collector = WithoutRadio();
+        Grant("s1");   // np. dzierżawa sprzed zmiany konfiguracji – i tak nie ma czym czytać
+
+        await collector.CycleAsync(Ct);
+        clock.Advance(10 * Minute);
+        await collector.CycleAsync(Ct);
+
+        Assert.False(collector.HasRadio);
+        Assert.Empty(hearing.Observations());
+        Assert.Equal(0, await db.Store.CountUnsentAsync(Ct));
+        Assert.Equal(Fixtures.T0 + 10 * Minute, collector.State.LastCycleAt);
+        Assert.Null(collector.State.LastCycleError);
+    }
+
+    [Fact]
+    public async Task WithoutRadio_ReadNowFails_ButLogsReleaseAndCleanupWork()
+    {
+        var collector = WithoutRadio();
+        var today = DateOnly.FromDateTime(Fixtures.T0.UtcDateTime);
+        logs.Days[today.AddDays(-1)] = "wczoraj\n";
+        logs.Days[today] = "dziś\n";
+
+        Assert.True(await collector.HandleCommandAsync(Command(1, "read_now", "s1"), Ct));
+        Assert.True(await collector.HandleCommandAsync(Command(2, "send_log"), Ct));
+        Assert.True(await collector.HandleCommandAsync(Command(3, "release", "s1"), Ct));
+        await collector.CycleAsync(Ct);
+
+        var readNow = Assert.Single(api.Done, d => d.Id == 1);
+        Assert.False((bool)readNow.Result!["ok"]!);
+        Assert.Equal(CollectorEngine.NoRadioError, (string)readNow.Result["error"]!);
+        Assert.True((bool)Assert.Single(api.Done, d => d.Id == 2).Result!["ok"]!);
+        Assert.Contains(api.Done, d => d.Id == 3);
+        Assert.Equal([today, today.AddDays(-1)], api.Logs.Select(l => l.Day));   // send_log i wczorajszy dziennik w cyklu
+    }
+
+    [Fact]
+    public void RadioIsAllOrNothing() =>
+        Assert.Throws<ArgumentException>(() => new CollectorEngine(() => null, db.Store, reader, null, leases, hearing, api, logs, clock,
+            NullLogger.Instance));
+
     [Fact]
     public async Task OtherCommands_AreNotForCollector()
     {

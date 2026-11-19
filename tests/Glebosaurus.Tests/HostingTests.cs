@@ -37,6 +37,31 @@ public class SingleInstanceTests
     public void NobodyHoldsAnUnusedName() => Assert.False(SingleInstance.IsHeld(UniqueName()));
 }
 
+public class InstanceLockFileTests
+{
+    [Fact]
+    public void SecondAcquireFailsUntilTheFirstIsReleased()
+    {
+        var directory = Directory.CreateTempSubdirectory("glebosaurus-lock-");
+        try
+        {
+            var path = Path.Combine(directory.FullName, InstanceLockFile.FileName);
+            var first = InstanceLockFile.TryAcquire(path);
+            Assert.NotNull(first);
+            Assert.Null(InstanceLockFile.TryAcquire(path));   // drugi agent z tą samą konfiguracją (np. terminal obok usługi)
+
+            first.Dispose();
+
+            using var again = InstanceLockFile.TryAcquire(path);
+            Assert.NotNull(again);
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+}
+
 public class StopSignalTests
 {
     [Fact]

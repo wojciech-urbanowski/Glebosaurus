@@ -39,6 +39,47 @@ jobs:
           }
           if ($failed) { exit 1 }
 
+      # Raspberry Pi (faza 2.3a): dwie paczki linux-arm64 (stara i nowa wersja) do próby instalacji i samoaktualizacji.
+      - name: Paczki Linux do próby instalacji
+        shell: pwsh
+        run: |
+          ./deploy/package-linux.ps1 -Version 0.0.1 -OutputDir out/linux-old
+          ./deploy/package-linux.ps1 -Version 0.0.2 -OutputDir out/linux-new
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linux-packages
+          path: out/linux-*
+          retention-days: 3
+
+  # install-linux.sh na prawdziwym arm64 z systemd (jak Raspberry Pi OS 64-bit): instalacja z paczki, samoaktualizacja z
+  # udawanego wydania (file://), zepsute wydanie, pełna usługa bez startu (nie ma konfiguracji agenta), odinstalowanie.
+  linux:
+    needs: build
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: linux-packages
+          path: out
+
+      - name: shellcheck
+        run: |
+          command -v shellcheck >/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q shellcheck; }
+          shellcheck -S warning deploy/install-linux.sh deploy/test-install-linux.sh
+
+      - name: ASP.NET Core Runtime 10 w /opt/dotnet (jak w README)
+        run: |
+          curl -fsSLO https://dot.net/v1/dotnet-install.sh
+          sudo bash dotnet-install.sh --channel 10.0 --runtime aspnetcore --install-dir /opt/dotnet
+          sudo ln -sf /opt/dotnet/dotnet /usr/local/bin/dotnet
+          dotnet --list-runtimes
+
+      - name: Próba instalacji
+        run: bash deploy/test-install-linux.sh out/linux-old out/linux-new --systemd
+
   # Agent Android (faza 2.2) – poza Glebosaurus.slnx, bo wymaga obciążenia „android”, JDK i Android SDK (są na runnerze).
   # Bez klucza wydań: APK podpisany kluczem testowym, tylko sprawdzenie, że projekt się buduje.
   android:

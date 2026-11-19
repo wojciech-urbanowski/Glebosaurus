@@ -27,15 +27,18 @@ czujniki BLE ──► agenci (Windows / Android / Raspberry Pi) ──► Supab
 - **Panel WWW** (opcjonalnie, na agencie w sieci domowej): stan wszystkich czujników, wykresy całej historii, odczyt i raport
   na żądanie.
 
-Stan: wersja 0.2.3; agent pracuje na co dzień na Windows 11 i Androidzie; **niesprawdzone:** Raspberry Pi, kalibracja
+Stan: wersja 0.2.3; agent pracuje na co dzień na Windows 11 i Androidzie; Raspberry Pi jako nadawca maili bez Bluetooth
+– zrobione, na Pi jeszcze nieuruchomione; **niesprawdzone:** Raspberry Pi na żywo (także czytanie czujników), kalibracja
 wilgotności, dłuższa praca telefonu – szczegóły w [ROADMAP](docs/ROADMAP.md).
 
 ## Czego potrzeba
 
 - **Czujniki gleby Tuya BLE** – sprawdzone na ATLO SMS1 (produkt Tuya `gvygg3m8`, „SGS01”); w kodzie jest też profil
   `ojzlzzsw` (niesprawdzony).
-- **Agent z Bluetooth LE** w zasięgu czujników (zwykle kilka metrów, zależy od ułożenia czujnika): komputer z Windows 11,
-  telefon z Androidem 10+ albo Raspberry Pi z 64-bitowym Raspberry Pi OS. Kilku agentów pokrywa większy teren.
+- **Agent z Bluetooth LE** w zasięgu czujników (zwykle kilka metrów, zależy od ułożenia czujnika): komputer z Windows 11
+  albo telefon z Androidem 10+ (Raspberry Pi – później, ROADMAP 2.3b). Kilku agentów pokrywa większy teren.
+- **Nadawca maili** – agent z rolą nadawcy, najlepiej pracujący bez przerwy: komputer z Windows albo Raspberry Pi z
+  64-bitowym Raspberry Pi OS, który nie musi stać przy czujnikach (niżej, „Raspberry Pi: nadawca maili”).
 - **Konto Supabase** (darmowy plan wystarcza) – jeden projekt na dane; drugi, próbny, przydaje się do testów.
 - **Konto Gmail** do wysyłki, z weryfikacją dwuetapową i [hasłem aplikacji](https://myaccount.google.com/apppasswords) –
   najlepiej osobne konto tylko do tego (hasło aplikacji daje pełny dostęp do skrzynki).
@@ -106,7 +109,8 @@ jeden agent z kopią zapasową – niżej).
    glebosaurus run --config glebosaurus.config.json
    ```
 
-   Na Windows zamiast `run` z konsoli zainstaluj usługę (niżej), na telefonie – aplikację (niżej, „Android”).
+   Na Windows zamiast `run` z konsoli zainstaluj usługę (niżej), na telefonie – aplikację (niżej, „Android”), na Raspberry
+   Pi – usługę systemd (niżej, „Raspberry Pi”).
 
 Pierwsze odczyty pojawiają się, gdy agent usłyszy czujnik (nasłuch co 3 min), pierwszy raport – o najbliższej porze z
 `reports.times`.
@@ -194,7 +198,7 @@ pory ich historię, a telefon z otwartą aplikacją blokuje odczyt.
 | `cloud-admin.json` ([wzór](examples/cloud-admin.json)) | właściciel, jego komputer | adres projektu, klucz publikowalny, hasło bazy, adres healthchecks.io | **tak** – klucz do całej chmury |
 | `cloud-config.json` ([wzór](examples/cloud-config.json)) | właściciel, obok pliku administratora | strefa, odstęp odczytów, czujniki (`tuyaFile` / `tuya`), progi, raporty, poczta z hasłem aplikacji | **tak** (hasło Gmaila, klucze) |
 | `*.credentials.json` (z `pair`) | właściciel | klucz lokalny czujnika | **tak** |
-| `glebosaurus.config.json` ([wzór](examples/glebosaurus.config.json)) | każdy agent | adres projektu i klucz publikowalny, baza, retencja, dziennik, panel WWW, kopia zapasowa | nie |
+| `glebosaurus.config.json` ([wzór](examples/glebosaurus.config.json)) | każdy agent | adres projektu i klucz publikowalny, baza, retencja, dziennik, panel WWW, kopia zapasowa, `"bluetooth": false` (agent bez radia) | nie |
 | `glebosaurus-cloud.token`, `glebosaurus-cloud-config.bin` | agent, obok jego konfiguracji | token agenta, kopia konfiguracji z chmury (z kluczami Tuya) – chronione DPAPI (Windows) / prawami 600 (Linux) | **tak** – nie kopiuj na inne urządzenia |
 
 Plik agenta odrzuca ustawienia, które należą do chmury (`sensors`, `mail`, `reports`, `alerts`, `readIntervalMinutes`,
@@ -224,7 +228,7 @@ lokalnej bazie i trafiają do chmury po powrocie sieci.
 ```powershell
 glebosaurus run --config glebosaurus.config.json        # praca ciągła; dziennik w logs/ obok pliku konfiguracji
 glebosaurus enroll --config glebosaurus.config.json     # rejestracja agenta kodem od właściciela
-glebosaurus stop                                        # czysto zatrzymuje działającego agenta i usługę (Windows)
+glebosaurus stop                                        # czysto zatrzymuje działającego agenta i usługę (Windows; Linux: sudo systemctl stop glebosaurus)
 glebosaurus web-password --config glebosaurus.config.json  # hasło i certyfikat panelu WWW (panel działa w ramach run)
 glebosaurus pair --id ID --file cloud-config.json --confirm-bind   # nowy czujnik (skan rusza pierwszy)
 glebosaurus mail-test --file cloud-config.json [--samples]          # PRAWDZIWY mail z konta z pliku konfiguracji chmury
@@ -371,22 +375,94 @@ idą też w sygnale życia do chmury, więc widać je w panelu WWW komputera) i 
 oddaje czujniki innym. Token i kopia konfiguracji z kluczami Tuya są zaszyfrowane kluczem z Android Keystore (odinstalowanie
 aplikacji je kasuje – potem nowa rejestracja). Dziennik: `adb logcat -s Glebosaurus`.
 
-## Raspberry Pi (linux-arm64) – niesprawdzone
+## Raspberry Pi: nadawca maili
 
-Paczka zależna od frameworka (wymaga **ASP.NET Core Runtime 10**, np. `./dotnet-install.sh --channel 10.0 --runtime
-aspnetcore`):
+Raspberry Pi pracuje bez przerwy, więc dobrze nadaje się na **głównego nadawcę maili** (priorytet 1; komputer z Windows
+zostaje zapasowym – przejmie wysyłkę ok. 7 min po zniknięciu Pi). Na razie Pi pracuje **bez Bluetooth** (`"bluetooth":
+false`) i nie musi stać przy czujnikach: synchronizuje się z chmurą, liczy alerty z odczytów innych agentów, wysyła maile,
+sygnał healthchecks.io i swój dziennik; czytanie czujników na Pi to kolejny etap (ROADMAP 2.3b). Wymagania: 64-bitowy
+Raspberry Pi OS (albo inny Debian/Ubuntu arm64 z systemd – `uname -m` pokazuje `aarch64`), dostęp do internetu.
+**Na prawdziwym Pi jeszcze niesprawdzone** – skrypt instalacji sprawdza CI (Ubuntu arm64 z systemd).
+
+1. **.NET** – paczka jest zależna od frameworka, więc najpierw ASP.NET Core Runtime 10 (sam .NET Runtime nie wystarczy).
+   Do `/opt/dotnet`, nie do katalogu domowego (usługa go nie widzi):
+
+   ```bash
+   curl -fsSLO https://dot.net/v1/dotnet-install.sh
+   sudo bash dotnet-install.sh --channel 10.0 --runtime aspnetcore --install-dir /opt/dotnet
+   sudo ln -sf /opt/dotnet/dotnet /usr/local/bin/dotnet
+   ```
+
+   Runtime aktualizujesz sam (samoaktualizacja Glebosaurusa tego nie robi): co jakiś czas te same dwa pierwsze polecenia,
+   potem `sudo systemctl restart glebosaurus`. Wydanie na nowszym .NET skrypt zainstaluje dopiero po doinstalowaniu
+   runtime'u – do tego czasu agent pracuje w dotychczasowej wersji, a dziennik aktualizacji mówi, co zrobić.
+
+2. **Instalacja** – skrypt z wydania (ten sam później aktualizuje):
+
+   ```bash
+   curl -fsSLO https://github.com/wojciech-urbanowski/Glebosaurus/releases/latest/download/install-linux.sh
+   sudo bash install-linux.sh
+   ```
+
+   Tworzy użytkownika systemowego `glebosaurus` (bez logowania), program w `/opt/glebosaurus/app` (właściciel root), dane
+   w `/opt/glebosaurus/data` (konfiguracja, token, baza, dzienniki – tylko dla `glebosaurus`), usługę
+   `glebosaurus.service` (start przy uruchomieniu systemu, podnoszona po awarii), timer aktualizacji i polecenie
+   `glebosaurus`, które uruchamia agenta jako `glebosaurus` w katalogu danych. Bez konfiguracji usługa nie startuje.
+
+3. **Konfiguracja** – z wzoru, który skrypt zostawił w `data/`:
+
+   ```bash
+   sudo cp /opt/glebosaurus/data/glebosaurus.config.example.json /opt/glebosaurus/data/glebosaurus.config.json
+   sudo nano /opt/glebosaurus/data/glebosaurus.config.json
+   ```
+
+   Wpisz `cloud.url` i `cloud.publishableKey` (jak na innych agentach) i dopisz `"bluetooth": false`.
+
+4. **Rejestracja** – na komputerze właściciela agent z priorytetem 1 (dotychczasowy nadawca zostaje z 2), na Pi kod:
+
+   ```powershell
+   glebosaurus cloud agent --admin cloud-admin.json --name malina --sender-priority 1 --confirm
+   ```
+
+   ```bash
+   sudo glebosaurus enroll                 # pyta o kod, nie pokazując go
+   sudo systemctl start glebosaurus
+   journalctl -u glebosaurus -f            # dziennik na żywo; pliki dzienne: /opt/glebosaurus/data/logs
+   ```
+
+   Po kilku minutach Pi przejmuje blokadę nadawcy (dotychczasowy nadawca oddaje ją ważniejszemu, gdy ten jest obecny
+   od 2 min, w bezpiecznej chwili) – widać to w panelu WWW i na ekranie telefonu („nadawca: malina”). W dzienniku Pi
+   pojawia się „Bluetooth wyłączony w konfiguracji”; ostrzeżenie, że agent nie ma roli nadawcy, znaczy, że zabrakło
+   `--sender-priority`.
+
+5. **Opcjonalnie:** panel WWW (sekcja `web` w pliku agenta, potem `sudo glebosaurus web-password` i `sudo systemctl
+   restart glebosaurus`; adres `https://<nazwa-pi>:8470/`) i **codzienna kopia chmury** – tylko na jednym agencie (na Pi,
+   bo pracuje stale; z dotychczasowego agenta usuń wtedy `cloud.backup`). Plik administratora z adresem projektu i hasłem
+   bazy (bez klucza tajnego) kopiuj tak, żeby należał do usługi:
+
+   ```bash
+   sudo install -o glebosaurus -g glebosaurus -m 600 cloud-admin.json /opt/glebosaurus/data/
+   ```
+
+   i dopisz w sekcji `cloud`: `"backup": { "adminFile": "cloud-admin.json" }` (kopie w `data/backups`).
+
+**Aktualizacje** przychodzą same: timer 5 min po starcie systemu i codziennie o 03:30 sprawdza wydania na GitHubie.
+Nowszą wersję instaluje skrypt z tego wydania (sprawdzony skrótem SHA-256): pobiera i sprawdza paczkę, próbuje uruchomić
+nowy program, dopiero potem czysto zatrzymuje agenta (kończy bieżącą wysyłkę) i podmienia program (poprzedni zostaje w
+`app.old`). Gdy nowa wersja nie przepracuje 45 s bez restartu, wraca poprzednia, a nieudana wersja czeka dobę. Dziennik:
+`journalctl -u glebosaurus-update` i `/opt/glebosaurus/updates/install-last.log`.
 
 ```bash
-dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self-contained false -o publish/linux-arm64
-sudo mkdir -p /opt/glebosaurus && sudo cp -r publish/linux-arm64/* /opt/glebosaurus/
-systemctl status bluetooth          # BlueZ musi działać
-dotnet /opt/glebosaurus/glebosaurus.dll scan --seconds 15 --verbose
+sudo bash /opt/glebosaurus/install-linux.sh                           # aktualizacja teraz (albo naprawa: usługa, timer, prawa)
+sudo bash /opt/glebosaurus/install-linux.sh --version 0.2.3           # konkretna (także starsza) wersja
+sudo bash /opt/glebosaurus/install-linux.sh --auto-updates off        # bez samoaktualizacji (on – z powrotem)
+sudo bash /opt/glebosaurus/install-linux.sh --uninstall [--remove-data]   # dane zostają, chyba że --remove-data
+sudo systemctl stop glebosaurus                                       # czyste zatrzymanie (start: systemctl start)
 ```
 
-Plik agenta z sekcją `cloud` i rejestracja (`enroll`) jak wyżej. Jako usługa: [deploy/glebosaurus.service](deploy/glebosaurus.service)
-(wzór). Jeśli `scan` zgłasza brak dostępu do Bluetooth: użytkownik powinien być w grupie `bluetooth`, a polityka D-Bus dla
-BlueZ musi mu na to pozwalać (uwagi w dokumentacji Shiny dla Linuxa). Dopasowanie po adresie MAC opiera się na
-identyfikatorze urządzenia z BlueZ (nieprzetestowane); zapasowo działa UUID Tuya z reklamy.
+Polecenia agenta na Pi uruchamiaj przez `sudo glebosaurus …` (np. `enroll`, `web-password`, `mail-preview --out
+podglad`) – działają jako `glebosaurus` w katalogu danych, więc ścieżki względne liczą się od `/opt/glebosaurus/data`.
+Drugi `run` obok usługi kończy się kodem 4. Narzędzia właściciela (`cloud …`) uruchamiaj na swoim komputerze, nie na Pi.
 
 ## Budowanie i testy
 
@@ -416,11 +492,15 @@ $env:GLEBOSAURUS_CLOUD_TESTS = '1'; dotnet test --project tests/Glebosaurus.Clou
 | `Glebosaurus.Service` | usługa Windows bez okna (`glebosaurus-service.exe`): uruchamia i pilnuje agenta, sprawdza wydania |
 | `Glebosaurus.Android` | agent na Androida – poza `Glebosaurus.slnx` (wymaga obciążenia `android`) |
 
-Pliki wydania dla Windows (paczka samodzielna, skrypt instalacji, `SHA256SUMS`) buduje `./deploy/package-windows.ps1`
-(wynik w `publish/release`). Wydanie: wersja w `Directory.Build.props`, potem tag `v<wersja>` – workflow
-[release.yml](.github/workflows/release.yml) uruchamia testy, buduje paczkę i APK, próbuje zainstalować paczkę skryptem i
-publikuje wydanie; zainstalowane usługi znajdą je same w ciągu doby. [ci.yml](.github/workflows/ci.yml) buduje i testuje
-każdy push do `main` i każdy PR (także APK).
+Pliki wydania dla Windows (paczka samodzielna, skrypt instalacji, `SHA256SUMS`) buduje `./deploy/package-windows.ps1`, a
+dla Linuksa (paczka linux-arm64 zależna od frameworka i `install-linux.sh`, wiersze dopisane do tego samego `SHA256SUMS`)
+`./deploy/package-linux.ps1` (PowerShell 7; wynik w `publish/release`). Wydanie: wersja w `Directory.Build.props`, potem
+tag `v<wersja>` – workflow [release.yml](.github/workflows/release.yml) uruchamia testy, buduje paczki i APK, próbuje
+zainstalować paczki skryptami (Windows i Linux arm64) i publikuje wydanie; zainstalowane usługi znajdą je same w ciągu doby.
+[ci.yml](.github/workflows/ci.yml) buduje i testuje każdy push do `main` i każdy PR (także APK), a na `ubuntu-24.04-arm`
+sprawdza `install-linux.sh` z systemd (`deploy/test-install-linux.sh`: instalacja, samoaktualizacja z udawanego wydania,
+zepsute wydanie, usługa, odinstalowanie). Ten sam skrypt próbny działa też w Git Bash na Windows – z paczkami
+`package-linux.ps1 -Runtime linux-x64`, bez części z systemd.
 
 Agent Android potrzebuje obciążenia `android` (`dotnet workload install android`), JDK 17+ i Android SDK. Buduje go skrypt
 (APK w `publish/android`, podpisany kluczem wydań z `local/`, jeśli jest; `-Install` instaluje na podłączonym telefonie

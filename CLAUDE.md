@@ -20,8 +20,9 @@ dotnet run --project src/Glebosaurus.Agent -f net10.0-windows10.0.19041.0 -- --h
 # cloud config --file PLIK – plik konfiguracji chmury (wzór examples/cloud-config.json: czujniki, progi, raporty, poczta)
 # cloud settings --read-interval MIN – sam odstęp odczytów w chmurze (admin_settings_update), bez pełnego pliku
 # Kopia chmury: cloud backup --admin local/cloud-admin.test.json --out <scratchpad> (tylko czyta bazę; plik ZIP z odszyfrowanymi sekretami)
-dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self-contained false -o publish/linux-arm64
 ./deploy/package-windows.ps1                               # pliki wydania Windows (zip samodzielny, install-windows.ps1, SHA256SUMS) w publish/release
+./deploy/package-linux.ps1 [-Version X -OutputDir D -Runtime linux-x64]   # paczka Linux (zależna od frameworka) + install-linux.sh + wiersze SHA256SUMS
+bash deploy/test-install-linux.sh STARA NOWA [--systemd]   # próba install-linux.sh (Git Bash: paczki linux-x64, bez --systemd)
 ./deploy/build-android.ps1 -Toolchain <katalog> [-Install]   # APK agenta Android (poza slnx), podpis kluczem z local/, -Install = adb; katalog w pamięci Claude
 # Kod QR rejestracji telefonu: cloud agent --admin … --name NAZWA --confirm --qr <scratchpad>\kod.png (zawiera kod rejestracji)
 ```
@@ -37,7 +38,7 @@ dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self
   `DailyLogFiles`). Kolejność radia „nasłuch → odczyt znalezionego → nasłuch po resztę” to `ListenThenReadSensorReader`.
   `Core/Updates` (wersje, opis wydania, `SHA256SUMS`, `UpdatePolicy`, harmonogram, `install.json`, ślad próby) i
   `Core/Hosting` (muteksy jednej instancji, zdarzenie zatrzymania – nazwy wpisane też w skrypt, kody wyjścia,
-  `RestartBackoff`) – logika usługi Windows z testami.
+  `RestartBackoff`; na Linuksie jedna instancja przez blokadę pliku `InstanceLockFile`) – logika usługi Windows z testami.
 - **Agent w Core** (`Core/Cloud`, ARCHITEKTURA.md, zasada 14): protokół 1:1 z funkcjami SQL i `ICloudApi`, `LeaseLedger`
   (ważność od wysłania prośby, zegar monotoniczny), `SensorLeasePolicy` i `NotifierLockPolicy`, `CloudSync` (pętla
   `agent_sync`, bufor `IReadingOutbox` = kolumna `sync_state` w SQLite; `user_version` = 1 – nie podnoś bez potrzeby),
@@ -53,7 +54,8 @@ dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self
 - `src/Glebosaurus.Data` (SQLite: odczyty, bufor, kopia; stare bazy mogą mieć nieużywane tabele `alerts`/`report_runs`),
   `src/Glebosaurus.Mail` (Gmail/MailKit), `src/Glebosaurus.Cloud` (`SupabaseCloudApi`, sam HttpClient – także dla
   Androida; ochrona tokenu i kopii konfiguracji; `HealthchecksHeartbeat`).
-- `src/Glebosaurus.Agent` – CLI (Shiny.BluetoothLE): `run` (`CloudAgent.RunAsync`), `enroll`, `stop`, `web-password`, `pair`
+- `src/Glebosaurus.Agent` – CLI (Shiny.BluetoothLE): `run` (`CloudAgent.RunAsync`; z `"bluetooth": false` w pliku agenta bez
+  BLE – zbieracz bez radia, np. Raspberry Pi jako sam nadawca, ROADMAP 2.3a), `enroll`, `stop`, `web-password`, `pair`
   (klucz obok pliku konfiguracji chmury, `--file`), `mail-test --file`, `mail-preview`, `cloud …` (`CloudAdminCommands`),
   diagnostyka `scan`/`read`/`listen`; radio Shiny to tylko `ISensorRadio` (`ShinySensorRadio`).
 - `src/Glebosaurus.Cloud.Admin` – połączenie z bazą (Npgsql, pooler sesji, zawsze `VerifyFull` z wbudowanym certyfikatem
@@ -66,6 +68,11 @@ dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self
   codziennie o 03:30 i przekazuje aktualizację skryptowi `deploy/install-windows.ps1` (ten sam instaluje od zera; bez
   konfiguracji albo bez tokenu agenta usługi nie startuje). Wydania: `deploy/package-windows.ps1` +
   `.github/workflows/release.yml` (tag `v*`); CI: `ci.yml`.
+- **Linux / Raspberry Pi** (ARCHITEKTURA.md, zasada 7): `deploy/install-linux.sh` (bash, sudo) – instalacja = aktualizacja,
+  użytkownik `glebosaurus`, `/opt/glebosaurus/{app,app.old,data,updates}`, `install.conf`, jednostki `glebosaurus.service`
+  i `glebosaurus-update.timer` (samoaktualizacja ze skryptem z nowego wydania), polecenie `/usr/local/bin/glebosaurus`;
+  paczka zależna od frameworka (`package-linux.ps1`; runtime instaluje właściciel); próba – `test-install-linux.sh`, w CI
+  na `ubuntu-24.04-arm`. Czytanie czujników na Pi – faza 2.3b (niesprawdzone).
 - `src/Glebosaurus.Web` – lokalny panel diagnostyczny w procesie `run` (Kestrel, HTTPS z certyfikatem z podpisem własnym,
   tylko sieć lokalna, hasło; **pulpit** `/` z wykresem ostatnich 3 dób przy każdym czujniku, **strona czujnika**
   `/sensor?id=` z przeglądalnym wykresem całej historii – SVG w `wwwroot/charts.js`, bez bibliotek, dane z
@@ -106,6 +113,8 @@ dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self
 - Wersja (obecnie 0.2.3) jest w jednym miejscu: `Directory.Build.props`; widać ją w stopce każdego maila (`AppInfo.Version`).
   Podbijaj ją tylko na prośbę użytkownika (przy wydaniu paczki). Wydanie = tag `v<wersja>` (musi zgadzać się z
   `Directory.Build.props`) → Actions publikuje je, a zainstalowane usługi same się zaktualizują w ciągu doby.
+- Skrypty `.sh` – LF (`.gitattributes`), bez BOM, `set -Eeuo pipefail`, przechodzą `shellcheck -S warning` (CI); bez awk z
+  przedziałami `{n}` (mawk w Debianie). `install-linux.sh` nigdy nie wykonuje `install.conf` (czyta go `sed`).
 - Skrypty `.ps1` zapisuj w UTF-8 **z BOM** (Windows PowerShell 5.1) i nie wstawiaj „” do napisów w podwójnych cudzysłowach –
   PowerShell traktuje je jak zwykły cudzysłów; tam poprzedzaj je odwrotnym apostrofem albo użyj napisu w pojedynczych
   cudzysłowach. Konfigurację w skrypcie czytaj tylko przez `Read-ConfigJson` (komentarze `//`): komunikat wyjątku
@@ -156,6 +165,9 @@ dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self
   (`local/cloud-admin.json`) zmienia się wyłącznie na prośbę użytkownika – także migracja „gotowa i sprawdzona”,
   `cloud config --confirm`, `cloud settings --confirm` i `cloud agent --confirm`. Do prób `cloud config` nie używaj
   prawdziwego pliku konfiguracji chmury (ma prawdziwe hasło Gmaila i klucze Tuya) – zmyślony plik w scratchpadzie.
+- **Prawdziwą usługę na Raspberry Pi instaluje i aktualizuje użytkownik** (`sudo bash install-linux.sh`); próby –
+  `--no-systemd --prefix <scratchpad>` albo CI. `test-install-linux.sh --systemd` zakłada i usuwa `/opt/glebosaurus` i
+  użytkownika `glebosaurus` – tylko na maszynie do prób, nigdy na Pi z działającym agentem.
 - **Prawdziwą usługę Windows instaluje/aktualizuje/przełącza użytkownik** w zwykłym oknie PowerShell. Procesy narzędzi Claude
   bywają w pakiecie MSIX (zapisy w `%LOCALAPPDATA%` poza `Temp` trafiają wtedy do `%LOCALAPPDATA%\Packages\Claude_…\LocalCache\Local`,
   której Harmonogram nie widzi – `install-windows.ps1` przerywa z wyjaśnieniem), a bywają poza nim – nie zakładaj ani

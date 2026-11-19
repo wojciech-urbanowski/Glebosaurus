@@ -54,7 +54,8 @@ public static class CloudConfigMapper
             Reports = new() { Times = reportTimes, CatchUpHours = Math.Clamp(settings.ReportCatchUpHours, 0, 24) },
             Alerts = new() { ReminderHours = settings.AlertReminderHours > 0 ? settings.AlertReminderHours : 24 },
             Logs = new() { RetentionDays = Math.Clamp(settings.LogRetentionDays, 1, 365) },
-            Web = local.Web
+            Web = local.Web,
+            Bluetooth = local.Bluetooth
         };
         return new(config, zone, cloud.ConfigVersion, cloud.Agent, cloud.Agent.CanSendMail ? cloud.Mail : null, warnings, cachedAt);
     }

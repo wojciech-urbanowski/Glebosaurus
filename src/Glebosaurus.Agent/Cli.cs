@@ -41,11 +41,12 @@ internal static class Cli
               odczyty do chmury, a z rolą nadawcy wysyła maile (najwyżej raz, przez kolejkę w chmurze). Dziennik trafia do
               katalogu logs/ obok pliku konfiguracji; --quiet wyłącza wyjście na konsolę; --minutes N kończy pracę (czysto,
               z rozłączeniem czujnika) po N minutach – do prób i diagnostyki. Na jednym koncie działa naraz tylko jeden agent
-              (drugi kończy się kodem 4) – także obok usługi Windows.
+              (drugi kończy się kodem 4) – także obok usługi Windows; na Linuksie jeden na plik konfiguracji. Z "bluetooth":
+              false w konfiguracji agent nie otwiera Bluetooth i nie czyta czujników (np. Raspberry Pi jako sam nadawca maili).
           glebosaurus stop [--seconds N]
               Windows: czysto zatrzymuje działającego agenta i usługę Glebosaurus (sygnał, potem czeka na koniec, domyślnie
               do 240 s). Usługa wróci przy następnym zalogowaniu albo po uruchomieniu zadania Harmonogramu „Glebosaurus”.
-              Kod 2: nic nie działa. Na Linuksie: systemctl stop glebosaurus.
+              Kod 2: nic nie działa. Na Linuksie: sudo systemctl stop glebosaurus.
           glebosaurus web-password [--config PLIK]
               Ustawia hasło do panelu WWW (co najmniej {PanelPassword.MinLength} znaków; zapisuje tylko jego skrót w pliku
               glebosaurus-web.password obok konfiguracji) i przygotowuje certyfikat HTTPS (glebosaurus-web.pfx). Wypisuje
@@ -280,15 +281,20 @@ internal static class Cli
         using var loggers = AgentRuntime.CreateLogging(loaded.LogFiles, loaded.Config.Logs.RetentionDays, console: !options.Quiet);
         var logger = loggers.CreateLogger("Glebosaurus");
         logger.LogInformation("Konfiguracja: {Config}; baza: {Database}; dziennik: {Logs}; BLE: {Backend}.",
-            loaded.ConfigPath, loaded.DatabasePath, loaded.LogDirectory, BleHost.Backend);
+            loaded.ConfigPath, loaded.DatabasePath, loaded.LogDirectory, loaded.BluetoothText);
         logger.LogInformation("Dziennik: pliki dzienne, trzymane {Days} dni; wczorajszy trafia do chmury, a nadawca wysyła go administratorowi.",
             loaded.Config.Logs.RetentionDays);
 
-        // Dwóch agentów na jednym koncie (np. deweloperski „run” obok usługi) dzieliłoby bazę, token i panel.
-        using var instance = SingleInstance.TryAcquire(InstanceNames.MonitorMutex);
+        // Dwóch agentów na jednym koncie (np. deweloperski „run” obok usługi) dzieliłoby bazę, token i panel. Windows: muteks
+        // sesji (zna go też skrypt instalacji); Linux: blokada pliku obok konfiguracji – usługa systemd i terminal to różne sesje.
+        using IDisposable? instance = OperatingSystem.IsWindows()
+            ? SingleInstance.TryAcquire(InstanceNames.MonitorMutex)
+            : InstanceLockFile.TryAcquire(loaded.InstanceLockPath);
         if (instance is null)
         {
-            logger.LogWarning("Agent Glebosaurus już działa na tym koncie (usługa albo inne „run”) – kończę. Zatrzymanie: glebosaurus stop.");
+            logger.LogWarning(OperatingSystem.IsWindows()
+                ? "Agent Glebosaurus już działa na tym koncie (usługa albo inne „run”) – kończę. Zatrzymanie: glebosaurus stop."
+                : "Agent Glebosaurus z tą konfiguracją już działa (usługa albo inne „run”) – kończę. Zatrzymanie usługi: sudo systemctl stop glebosaurus.");
             return ExitCodes.AlreadyRunning;
         }
 
@@ -296,8 +302,11 @@ internal static class Cli
         if (options.Minutes is { } minutes) limit.CancelAfter(TimeSpan.FromMinutes(minutes));
         using var stopRequests = ListenForStopRequests(options.StopEvent, limit, logger);
 
-        using var ble = new BleHost();
-        await ble.EnsureAccessAsync();
+        // "bluetooth": false (np. Raspberry Pi jako sam nadawca) – BLE w ogóle nie jest otwierane, więc nie są potrzebne ani
+        // adapter, ani BlueZ, ani uprawnienia do nich.
+        using var ble = loaded.Config.Bluetooth ? new BleHost() : null;
+        if (ble is not null) await ble.EnsureAccessAsync();
+        else logger.LogInformation("Bluetooth wyłączony w konfiguracji (\"bluetooth\": false) – agent nie słucha i nie czyta czujników; synchronizuje się z chmurą, wysyła do niej dziennik, a z rolą nadawcy wysyła maile.");
         var store = new SqliteMonitorStore(loaded.DatabasePath);
         await store.InitializeAsync(limit.Token);
         return await CloudAgent.RunAsync(loaded, loaded.Config.Cloud!, ble, store, loggers, logger, limit.Token);

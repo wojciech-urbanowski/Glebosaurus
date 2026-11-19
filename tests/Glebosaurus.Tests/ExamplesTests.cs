@@ -26,6 +26,7 @@ public sealed class ExamplesTests : IDisposable
         Assert.Equal("abcdefghijklmnopqrst.supabase.co", config.Cloud!.ProjectUrl.Host);
         Assert.Null(config.Cloud.Backup);
         Assert.Null(config.Web);
+        Assert.True(config.Bluetooth);
     }
 
     [Fact]

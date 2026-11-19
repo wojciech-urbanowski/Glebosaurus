@@ -64,7 +64,8 @@ internal static class CloudAgent
     /// Praca ciągła: konfiguracja z chmury, synchronizacja, zbieracz i nadawca w jednym procesie; z sekcją
     /// <c>web</c> także lokalny panel i kopia odczytów wszystkich agentów, którą panel pokazuje.
     /// </summary>
-    public static async Task<int> RunAsync(LoadedConfig loaded, CloudAccessConfig cloud, BleHost ble, SqliteMonitorStore store,
+    /// <param name="ble">null – agent bez Bluetooth (<c>"bluetooth": false</c>): zbieracz bez radia, o czujniki się nie ubiega.</param>
+    public static async Task<int> RunAsync(LoadedConfig loaded, CloudAccessConfig cloud, BleHost? ble, SqliteMonitorStore store,
         ILoggerFactory loggers, ILogger logger, CancellationToken cancellationToken)
     {
         var protector = LocalProtectors.ForThisPlatform();
@@ -90,12 +91,15 @@ internal static class CloudAgent
         var notifierPolicy = new NotifierLockPolicy(clock, ledger);
         var hearing = new SensorHearingTracker(clock);
         var configSource = new CloudConfigSource(api, new CloudConfigCache(loaded.CloudConfigCachePath!, protector), loaded.Config, clock, logger);
-        var radio = new ShinySensorRadio(ble);
+        var radio = ble is null ? null : new ShinySensorRadio(ble);
+        var bluetooth = loaded.BluetoothText;
+        // Agent bez radia nie przekazuje czujników do przydziału – nie ubiega się o żaden (i tak by ich nie słyszał).
         var sync = new CloudSync(api, store, hearing, ledger, sensorPolicy, notifierPolicy,
-            () => configSource.Current?.Config.Sensors.Select(s => s.Id).ToList() ?? [],
-            () => new AgentStatus(AppInfo.Version, OperatingSystem.IsWindows() ? "windows" : "linux", BleHost.Backend),
+            () => radio is null ? [] : configSource.Current?.Config.Sensors.Select(s => s.Id).ToList() ?? [],
+            () => new AgentStatus(AppInfo.Version, OperatingSystem.IsWindows() ? "windows" : "linux", bluetooth),
             clock, logger);
-        var collector = new CollectorEngine(() => configSource.Current, store, new ListenThenReadSensorReader<SeenSensor>(radio, clock, logger),
+        var collector = new CollectorEngine(() => configSource.Current, store,
+            radio is null ? null : new ListenThenReadSensorReader<SeenSensor>(radio, clock, logger),
             radio, sensorPolicy, hearing, api, loaded.LogFiles, clock, logger);
         var notifier = new NotifierEngine(() => configSource.Current, api, notifierPolicy,
             credentials => new GmailSender(credentials.GmailAddress!, credentials.AppPassword!), new HealthchecksHeartbeat(http),
@@ -107,12 +111,18 @@ internal static class CloudAgent
         var runtime = new CloudRuntime(configSource, sync, collector, notifier, logger, mirror);
 
         WebPanel? panel = null;
-        if (withPanel)
+        var panelData = withPanel
+            ? new CloudPanel(cloud.ProjectUrl.Host, () => configSource.Current, store, api,
+                () => collector.State, () => sync.State, () => notifier.MailState, () => mirror!.State, sync.Wake, clock, logger)
+            : null;
+        runtime.Loaded = async ct =>
         {
-            var panelData = new CloudPanel(cloud.ProjectUrl.Host, () => configSource.Current, store, api,
-                () => collector.State, () => sync.State, () => notifier.MailState, () => mirror!.State, sync.Wake, clock, logger);
-            runtime.Loaded = async ct => panel = await AgentWebPanel.TryStartAsync(loaded, configSource, panelData, store, loggers, logger, ct);
-        }
+            if (radio is null && configSource.Current is { Agent.CanSendMail: false } current)
+                logger.LogWarning("Agent „{Agent}” nie ma ani Bluetooth (\"bluetooth\": false), ani roli nadawcy – poza wysyłaniem dziennika do chmury nic nie robi. " +
+                    "Rola nadawcy: glebosaurus cloud agent --admin PLIK --name {Agent} --sender-priority 1 --confirm (agent przejmie ją sam).",
+                    current.Agent.Name, current.Agent.Name);
+            if (panelData is not null) panel = await AgentWebPanel.TryStartAsync(loaded, configSource, panelData, store, loggers, logger, ct);
+        };
 
         logger.LogInformation("Chmura: projekt {Host}; token i kopia konfiguracji chronione ({Protection}).",
             cloud.ProjectUrl.Host, protector.Description);

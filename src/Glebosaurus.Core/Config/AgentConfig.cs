@@ -47,6 +47,17 @@ public sealed class AgentConfig
     public WebConfig? Web { get; set; }
 
     /// <summary>
+    /// Czy agent używa Bluetooth. <c>false</c> – agent bez radia (np. Raspberry Pi daleko od czujników jako sam nadawca
+    /// maili, ROADMAP 2.3a): <c>run</c> w ogóle nie otwiera BLE, nie słucha, nie ubiega się o czujniki i ich nie czyta, ale
+    /// synchronizuje się z chmurą, wysyła do niej swój dziennik, a z rolą nadawcy wysyła maile. Ustawienie urządzenia, nie
+    /// chmury – zależy od tego, gdzie stoi i co potrafi sprzęt.
+    /// </summary>
+    public bool Bluetooth { get; set; } = true;
+
+    /// <summary>Opis Bluetooth agenta bez radia – w sygnale życia (panel innych agentów) i we własnym panelu.</summary>
+    public const string BluetoothOffText = "wyłączony w konfiguracji (agent nie czyta czujników)";
+
+    /// <summary>
     /// Dostęp do chmury – w pliku agenta wymagany. Czujniki, harmonogramy, odbiorcy i sekrety przychodzą z chmury.
     /// </summary>
     public CloudAccessConfig? Cloud { get; set; }

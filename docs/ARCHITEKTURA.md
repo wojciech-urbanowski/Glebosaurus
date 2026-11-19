@@ -16,8 +16,8 @@ serwera).
         │ łączy się tylko agent z dzierżawą czujnika; słuchać mogą wszyscy
  ┌──────┴────────────┐ ┌───────────────────┐ ┌──────────────────────┐
  │ Windows 11        │ │ Android           │ │ Raspberry Pi 24/7    │  agenci .NET 10, bufor SQLite,
- │ zbieranie         │ │ zbieranie         │ │ zbieranie            │  panel lokalny (Windows/Pi)
- │ nadawca (prior. 2)│ │ bez maili         │ │ nadawca (prior. 1)   │
+ │ zbieranie         │ │ zbieranie         │ │ nadawca (prior. 1)   │  panel lokalny (Windows/Pi)
+ │ nadawca (prior. 2)│ │ bez maili         │ │ czujniki – faza 2.3b │
  └──────┬────────────┘ └─────────┬─────────┘ └──────────┬───────────┘
         └─── HTTPS, token agenta ┴ funkcje SQL ─────────┘  tylko ruch wychodzący
  ┌──────┴───────────────────────────────────────────────────────────┐
@@ -31,7 +31,8 @@ serwera).
 ```
 
 Agentów może być dowolnie wielu; każdy zbiera odczyty z czujników, które słyszy, a maile wysyła tylko ten, który trzyma
-blokadę nadawcy. Właściciel konfiguruje chmurę z własnego komputera: plik konfiguracji chmury (czujniki, progi, poczta) i
+blokadę nadawcy. Agent bez Bluetooth (`"bluetooth": false`, np. Raspberry Pi stojące daleko od czujników) jest samym
+nadawcą – czujniki czytają inni. Właściciel konfiguruje chmurę z własnego komputera: plik konfiguracji chmury (czujniki, progi, poczta) i
 polecenia `glebosaurus cloud …` z plikiem administratora (hasło bazy).
 
 ## Struktura repozytorium
@@ -53,7 +54,8 @@ supabase/prod-ca-2021.crt   certyfikat główny Supabase (publiczny, do 2031-04-
 tests/                      protokół i sesja na atrapie czujnika; Core na atrapach z ręcznie sterowanym czasem;
                             Glebosaurus.Cloud.Tests – funkcje SQL na próbnym projekcie Supabase (na żądanie)
 examples/                   wzory: plik agenta, plik konfiguracji chmury, plik administratora
-deploy/                     install-windows.ps1, package-windows.ps1, build-android.ps1, wzór unitu systemd
+deploy/                     install-windows.ps1, package-windows.ps1 (Windows); install-linux.sh, package-linux.ps1,
+                            test-install-linux.sh (Linux/Raspberry Pi, zasada 7); build-android.ps1
 .github/workflows/          ci.yml (build + testy, APK), release.yml (tag v* → testy, paczka, APK, próba instalacji, wydanie)
 ```
 
@@ -134,7 +136,7 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
    czysto zarządzany (`Glebosaurus.Tuya`) i nie zna biblioteki BLE. Zapasowo: SimpleSharpBLE (licencja BUSL-1.1, tylko
    użytek niekomercyjny) albo bezpośrednio WinRT + Linux.Bluetooth. Na Androidzie radio jest wprost na API systemu
    (Shiny nie filtruje tam skanu po MAC – zasada 12), za tymi samymi interfejsami.
-7. **Uruchamianie, instalacja i aktualizacje.** Raspberry Pi: usługa systemd (wzór w `deploy/`). Windows: zadanie
+7. **Uruchamianie, instalacja i aktualizacje.** Raspberry Pi i inny Linux: usługa systemd (niżej, „Linux”). Windows: zadanie
    Harmonogramu „Glebosaurus” uruchamia przy zalogowaniu `glebosaurus-service.exe` (projekt `Glebosaurus.Service`,
    podsystem okienkowy – bez okna konsoli), na koncie użytkownika, bez administratora. Nie usługa Windows: ta wymaga
    administratora, startuje przed zalogowaniem (BLE przez WinRT w sesji 0 – niesprawdzone) i potrzebowałaby hasła konta.
@@ -166,6 +168,39 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
      agenta i usługi uruchomionych z własnego `app\` (po ścieżce procesu) – muteksy są wspólne dla sesji.
    - **Bezpieczeństwo aktualizacji:** HTTPS do GitHuba i skrót SHA-256 z tego samego wydania chronią przed uszkodzonym
      pobraniem, nie przed przejęciem konta GitHub (podpis wydań – ROADMAP, faza 4). Skrypt nie zmienia Zapory.
+   - **Linux (Raspberry Pi OS 64-bit, inny Debian/Ubuntu arm64)** – `deploy/install-linux.sh` (bash, uruchamiany przez
+     sudo), ten sam podział ról co na Windows: skrypt instaluje i aktualizuje, a samoaktualizację uruchamia timer.
+     Paczka `Glebosaurus-<wersja>-linux-arm64.tar.gz` jest **zależna od frameworka** (decyzja użytkownika 2026-11-19:
+     mała paczka, ASP.NET Core Runtime 10 instaluje i aktualizuje właściciel – `dotnet-install.sh` do `/opt/dotnet`,
+     poza `/home`, bo usługa go nie widzi). Paczkę buduje `package-linux.ps1` (PowerShell 7, `System.Formats.Tar`), także
+     na Windows; uprawnienia plików ustawia skrypt instalacji.
+     - **Układ** `/opt/glebosaurus`: `app/` (program, właściciel root – usługa nie może go zmienić), `app.old/`, `data/`
+       (konfiguracja agenta, token, kopia konfiguracji z chmury, baza, dzienniki, sekrety panelu, kopie chmury; należy do
+       systemowego użytkownika `glebosaurus` bez logowania, prawa 700; aktualizacja nic w nim nie zmienia), `updates/`
+       (pobrane pliki, `install-last.log`, ślad próby `update-attempt`), `install.conf` (repozytorium, dotnet, runtime,
+       autoaktualizacje – odczytywany bez wykonywania), kopia skryptu.
+     - **Jednostki** (zapisuje je skrypt, każda aktualizacja nadpisuje; własne zmiany – `systemctl edit`):
+       `glebosaurus.service` – `dotnet app/glebosaurus.dll run --quiet` jako `glebosaurus`, `Restart=on-failure` co 60 s
+       bez limitu prób, `TimeoutStopSec=300` (SIGTERM = czyste zatrzymanie po bieżącym odczycie), `ConditionPathExists`
+       na konfigurację, utwardzenie `NoNewPrivileges`, `ProtectSystem=full`, `ProtectHome`, `PrivateTmp`;
+       `glebosaurus-update.timer` (5 min po starcie systemu i codziennie o 03:30, `Persistent`) →
+       `glebosaurus-update.service` (`install-linux.sh --auto-update`; brak sieci – ponowienie po 30 min). Polecenie
+       `/usr/local/bin/glebosaurus` uruchamia agenta jako `glebosaurus` w `data/` (`sudo glebosaurus enroll`).
+     - **Samoaktualizacja:** `SHA256SUMS` najnowszego wydania (`releases/latest/download`) mówi, jaka jest wersja paczki
+       dla tego systemu (bez API GitHuba i parsowania JSON w bashu); nowsza → skrypt **z tego wydania**, sprawdzony z jego
+       `SHA256SUMS`, ślad próby i przekazanie (`--unattended`, dziennik w `updates/install-last.log` i w journalctl).
+       Skrypt pobiera paczkę, sprawdza skrót, rozpakowuje, sprawdza wymagany runtime (`tfm` z `runtimeconfig.json`) i
+       uruchamia nowy program (`--version` jako `glebosaurus`) – wszystko **przed** zatrzymaniem agenta; potem
+       `systemctl stop`, podmiana `app/` (stara do `app.old/`), start. Gdy agent działał przed aktualizacją, nowa wersja
+       musi przepracować 45 s bez restartu – inaczej wraca poprzednia (nieudana zostaje w `app.failed/`). Każda porażka
+       zapisuje ślad: ta wersja czeka dobę (bez pętli), a agent wraca do pracy w dotychczasowej wersji.
+     - **Start:** bez konfiguracji albo bez tokenu agenta skrypt usługi nie uruchamia, tylko podaje kolejne kroki.
+     - **Jedna instancja:** nazwany muteks .NET z „Local\” obejmuje na Linuksie jedną sesję, a usługa i terminal to
+       różne sesje – dlatego `run` na Linuksie bierze blokadę pliku `glebosaurus.run.lock` obok konfiguracji
+       (`InstanceLockFile`, `FileShare.None` = `flock`); drugi agent z tą samą konfiguracją kończy się kodem 4.
+     - **Próby:** `deploy/test-install-linux.sh` – instalacja z paczki, samoaktualizacja z udawanego wydania (`file://`),
+       zepsute wydanie, powrót do starszej wersji, odinstalowanie; z `--systemd` (root) pełna usługa bez startu. CI
+       uruchamia go przy każdym pushu na `ubuntu-24.04-arm`, a wydanie instaluje swoją paczkę na arm64 przed publikacją.
 8. **Odczyty.** Agent słucha reklam i łączy się, gdy czujnik jest widoczny, a odczyt należny (odstęp od ostatniego
    odczytu w bazie – własnego albo z kopii odczytów innych agentów). **Nasłuch na przemian z odczytem**
    (`ListenThenReadSensorReader` w Core, radio za `ISensorRadio`): gdy w reklamach pojawi się którykolwiek z należnych
@@ -364,7 +399,11 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
       z chmury, bez niej z kopii, bez obu – czytelny błąd; odświeżanie przy nowej wersji albo zmienionej roli agenta.
     - **(d) Zbieracz** (`CollectorEngine`): cykl co 30 s, czyta tylko czujniki z dzierżawą starczającą na odczyt; co 3 min
       30 s nasłuchu wszystkich czujników (`ISensorListener`) dla przydziału; polecenia `read_now`, `release`, `send_log`;
-      dziennik z poprzedniego dnia do chmury. Alertów nie liczy.
+      dziennik z poprzedniego dnia do chmury. Alertów nie liczy. **Bez radia** (agent z `"bluetooth": false`, np.
+      Raspberry Pi jako sam nadawca – ROADMAP 2.3a): zbieracz dostaje `null` zamiast odczytu i nasłuchu – nie słucha i nie
+      czyta, a synchronizacja nie przekazuje czujników do przydziału, więc agent o żaden się nie ubiega; zlecony odczyt
+      (chmura kieruje go i tak do właściciela dzierżawy) zgłasza jako niewykonalny. Dziennik do chmury, `send_log`,
+      `release` i sprzątanie bazy działają jak zwykle, a sygnał życia ma „Bluetooth: wyłączony w konfiguracji”.
     - **(e) Nadawca** (`NotifierEngine`): pracuje tylko z blokadą ważną co najmniej minutę i z hasłem Gmaila na tę epokę.
       Każdy mail przez kolejkę: `mail_claim` → SMTP → `mail_sent`; pewna porażka SMTP (`MailTransportException.MaybeDelivered
       = false`) oddaje rezerwację i jest ponawiana po 5 min, niepewna zostawia rezerwację – mail może przepaść, ale nie
@@ -372,13 +411,18 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
       (75 h odczytów na wykres), log administratora osobno od każdego agenta, „agent milczy”, strażnik healthchecks.io.
 15. **Agent i narzędzia właściciela** (`src/Glebosaurus.Agent`).
     - **Plik agenta** (`AgentConfigLoader`): sekcja `cloud` (`url`, `publishableKey`, opcjonalnie `tokenFile`,
-      `configCacheFile`, `backup`) i ustawienia urządzenia (`database`, `retentionDays`, `logs`, `web`, `monitorName`).
+      `configCacheFile`, `backup`) i ustawienia urządzenia (`database`, `retentionDays`, `logs`, `web`, `monitorName`,
+      `bluetooth`). `"bluetooth": false` – agent bez radia (zasada 14d): `run` w ogóle nie otwiera BLE (nie potrzeba
+      adaptera, BlueZ ani uprawnień), a przy starcie ostrzega, gdy agent nie ma też roli nadawcy (wtedy poza dziennikiem
+      nic nie robi). To ustawienie urządzenia, nie rola w chmurze: zależy od tego, gdzie stoi i co potrafi sprzęt
+      (decyzja 2026-11-19 – bez migracji i zmian protokołu).
       Ustawienia wspólne dla agentów (`sensors`, `mail`, `reports`, `alerts`, `readIntervalMinutes`, `scanWindowSeconds`)
       są odrzucane z wyjaśnieniem – byłyby po cichu pomijane. Adres musi być projektem Supabase, a klucz publikowalnym.
     - **Rejestracja** (`enroll [--code KOD]`, bez `--code` pyta bez pokazywania): kod → token w
       `glebosaurus-cloud.token` obok konfiguracji (`AgentTokenStore`, `ProtectedFile`: nagłówek, DPAPI / prawa 600, zapis
       atomowy). Ponowna rejestracja zastępuje token.
-    - **Praca** (`run`): jeden agent na konto, sygnały zatrzymania, BLE, SQLite, potem `CloudRuntime`: konfiguracja z
+    - **Praca** (`run`): jeden agent na konto (Linux: na plik konfiguracji – zasada 7), sygnały zatrzymania, BLE (o ile
+      nie wyłączone), SQLite, potem `CloudRuntime`: konfiguracja z
       chmury albo z kopii, a obok siebie pętle synchronizacji, zbieracza i nadawcy; po każdej synchronizacji – odświeżenie
       konfiguracji i rozdział poleceń. Z sekcją `web` także panel i kopia odczytów wszystkich agentów; z `cloud.backup` –
       codzienna kopia chmury.
@@ -461,7 +505,10 @@ wracać na początku każdej sesji).
 
 ## Ryzyka
 
-- Shiny na Raspberry Pi (BlueZ, uprawnienia D-Bus) – niesprawdzone; plan zapasowy za `IGattLink`.
+- Shiny na Raspberry Pi (BlueZ, uprawnienia D-Bus) – niesprawdzone (ROADMAP 2.3b); plan zapasowy za `IGattLink`. Pi jako
+  sam nadawca (bez Bluetooth) BlueZ nie używa.
+- Raspberry Pi: runtime .NET (paczka zależna od frameworka) aktualizuje właściciel – samoaktualizacja Glebosaurusa tego
+  nie robi; wydanie na nowszym .NET czeka, aż właściciel doinstaluje runtime (skrypt to wyjaśnia, agent pracuje dalej).
 - BLE w usłudze Windows (sesja 0) – dlatego zadanie Harmonogramu.
 - Samoaktualizacja ufa kontu GitHub (skrót chroni przed uszkodzeniem, nie przed podmianą wydania); zepsute wydanie
   wstrzymuje się samo (stara wersja wraca, kolejna próba po dobie), ale wymaga nowego wydania z poprawką.

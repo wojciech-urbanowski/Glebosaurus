@@ -1,4 +1,3 @@
-using Glebosaurus.Agent.Ble;
 using Glebosaurus.Core.Charts;
 using Glebosaurus.Core.Cloud;
 using Glebosaurus.Core.Config;
@@ -34,7 +33,7 @@ internal static class AgentWebPanel
             var fingerprint = PanelCertificate.Fingerprint(certificate);
             if (created) logger.LogInformation("Panel WWW: utworzono nowy certyfikat HTTPS ({Path}).", loaded.WebCertificatePath);
 
-            var host = new MonitorHostInfo(BleHost.Backend, loaded.ConfigPath, loaded.DatabasePath, loaded.LogDirectory);
+            var host = new MonitorHostInfo(loaded.BluetoothText, loaded.ConfigPath, loaded.DatabasePath, loaded.LogDirectory);
             var started = await WebPanel.StartAsync(new WebPanelOptions
             {
                 Config = web,

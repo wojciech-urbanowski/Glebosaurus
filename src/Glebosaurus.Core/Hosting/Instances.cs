@@ -97,6 +97,41 @@ public sealed class SingleInstance : IDisposable
     }
 }
 
+/// <summary>
+/// „Jedna instancja” na Linuksie: wyłączna blokada pliku obok konfiguracji agenta (<c>FileShare.None</c> = <c>flock</c>).
+/// Nazwany muteks .NET z „Local\” obejmuje na Linuksie tylko jedną sesję, a usługa systemd i polecenie wpisane w terminalu
+/// (np. <c>sudo -u glebosaurus … run</c>) mają różne sesje – dwóch agentów dzieliłoby wtedy token i bazę. Blokadę zwalnia
+/// system, gdy proces zginie.
+/// </summary>
+public sealed class InstanceLockFile : IDisposable
+{
+    public const string FileName = "glebosaurus.run.lock";
+
+    private readonly FileStream stream;
+
+    private InstanceLockFile(FileStream stream) => this.stream = stream;
+
+    /// <summary>Null, gdy plik trzyma już inny proces.</summary>
+    public static InstanceLockFile? TryAcquire(string path)
+    {
+        try
+        {
+            var stream = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            stream.SetLength(0);
+            var pid = System.Text.Encoding.ASCII.GetBytes(Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture) + "\n");
+            stream.Write(pid);
+            stream.Flush();
+            return new InstanceLockFile(stream);
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+    }
+
+    public void Dispose() => stream.Dispose();
+}
+
 /// <summary>Nazwane zdarzenie „zatrzymaj się” (tylko Windows – na Linuksie zatrzymuje SIGTERM z systemd).</summary>
 [SupportedOSPlatform("windows")]
 public static class StopSignal

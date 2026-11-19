@@ -34,11 +34,23 @@ public sealed record CollectorOptions
 /// <c>release</c> i <c>send_log</c> i raz dziennie wysyła dziennik z poprzedniego dnia (nadawca zrobi z niego log
 /// administratora). Alertów nie liczy – to robi nadawca z odczytów wszystkich agentów.
 /// </summary>
+/// <param name="reader">Odczyt czujników; null razem z <paramref name="listener"/> – agent bez Bluetooth
+/// (<see cref="AgentConfig.Bluetooth"/> = false): nie słucha i nie czyta, zlecony odczyt zgłasza jako niewykonalny, a
+/// dziennik dnia poprzedniego, <c>send_log</c>, <c>release</c> i sprzątanie bazy działają jak zwykle.</param>
+/// <param name="listener">Nasłuch wszystkich czujników (słyszenia do przydziału); null – agent bez Bluetooth.</param>
 public sealed class CollectorEngine(
-    Func<CloudAgentConfig?> config, IMonitorStore store, ISensorReader reader, ISensorListener listener,
+    Func<CloudAgentConfig?> config, IMonitorStore store, ISensorReader? reader, ISensorListener? listener,
     SensorLeasePolicy leases, SensorHearingTracker hearing, ICloudApi api, ILogArchive? logs,
     TimeProvider clock, ILogger logger, CollectorOptions? options = null)
 {
+    /// <summary>Wynik zleconego odczytu na agencie bez Bluetooth (chmura kieruje odczyt do właściciela dzierżawy, więc
+    /// trafia tu tylko wyjątkowo – np. polecenie właściciela wskazujące tego agenta).</summary>
+    public const string NoRadioError = "agent bez Bluetooth (\"bluetooth\": false) – nie czyta czujników";
+
+    private readonly bool hasRadio = (reader is null) == (listener is null)
+        ? reader is not null
+        : throw new ArgumentException("Zbieracz ma radio do odczytu i nasłuchu albo nie ma go wcale (agent bez Bluetooth).", nameof(reader));
+
     private static readonly TimeSpan UnboundRetryDelay = TimeSpan.FromMinutes(30);
 
     /// <summary>Sesja urwana w trakcie historii czujnika: reszta i stan bieżący – szybko, przy następnej okazji.</summary>
@@ -72,6 +84,9 @@ public sealed class CollectorEngine(
     /// </summary>
     public MonitorRuntimeState State => state;
 
+    /// <summary>Czy agent ma radio (false – <c>"bluetooth": false</c>: nie słucha, nie czyta, nie ubiega się o czujniki).</summary>
+    public bool HasRadio => hasRadio;
+
     /// <summary>Po zapisaniu nowych odczytów (np. obudzenie synchronizacji).</summary>
     public Action? ReadingsStored { get; set; }
 
@@ -94,6 +109,11 @@ public sealed class CollectorEngine(
         switch (command.Kind)
         {
             case "read_now":
+                if (!hasRadio)
+                {
+                    await ReportAsync(command.Id, Failure(NoRadioError), cancellationToken);
+                    return true;
+                }
                 if (command.Sensor is not { } sensorId || current?.Config.Sensors.Any(s => s.Id == sensorId) != true)
                 {
                     await ReportAsync(command.Id, Failure("agent nie zna tego czujnika (wyłączony albo bez danych Tuya)"), cancellationToken);
@@ -170,7 +190,7 @@ public sealed class CollectorEngine(
         {
             await RetryReportsAsync(cancellationToken);
 
-            if (clock.GetUtcNow() - lastHearAt >= settings.HearEvery) await HearAsync(agent, cancellationToken);
+            if (hasRadio && clock.GetUtcNow() - lastHearAt >= settings.HearEvery) await HearAsync(agent, cancellationToken);
 
             Dictionary<string, List<long>> onRequest;
             lock (gate)
@@ -178,7 +198,7 @@ public sealed class CollectorEngine(
                 onRequest = new(requested, StringComparer.Ordinal);
                 requested.Clear();
             }
-            var due = await DueAsync(agent, onRequest, cancellationToken);
+            var due = hasRadio ? await DueAsync(agent, onRequest, cancellationToken) : [];
             if (due.Count > 0) await ReadAsync(agent, due, onRequest, cancellationToken);
             foreach (var (sensorId, ids) in onRequest.Where(r => due.All(d => d.Id != r.Key)))
                 foreach (var id in ids)
@@ -226,7 +246,7 @@ public sealed class CollectorEngine(
         IReadOnlyList<HeardSensor> heard;
         try
         {
-            heard = await listener.HearAsync(agent.Sensors, settings.HearWindow, cancellationToken);
+            heard = await listener!.HearAsync(agent.Sensors, settings.HearWindow, cancellationToken);
         }
         catch (Exception e) when (!cancellationToken.IsCancellationRequested)
         {
@@ -274,7 +294,7 @@ public sealed class CollectorEngine(
         Publish(agent);
         var reported = new HashSet<string>(StringComparer.Ordinal);
         var stored = false;
-        await foreach (var outcome in reader.ReadAsync(due, TimeSpan.FromSeconds(agent.ScanWindowSeconds), cancellationToken))
+        await foreach (var outcome in reader!.ReadAsync(due, TimeSpan.FromSeconds(agent.ScanWindowSeconds), cancellationToken))
         {
             var sensor = outcome.Sensor;
             reported.Add(sensor.Id);
