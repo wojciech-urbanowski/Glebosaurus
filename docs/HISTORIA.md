@@ -148,7 +148,10 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   Android w kodzie.
 - **2026-11-19** – telefon jako agent `mi11` w prawdziwym projekcie (10:45). **Usunięcie trybu samodzielnego i narzędzi
   przejścia na chmurę** (niżej); `cloud import` zastąpiło `cloud config` z plikiem konfiguracji chmury; dokumentacja pod
-  publikację (ten plik wydzielony z ARCHITEKTURY i ROADMAP).
+  publikację (ten plik wydzielony z ARCHITEKTURY i ROADMAP). Shiny.BluetoothLE 6.5.2 → 6.6.0 (reszta pakietów NuGet była
+  aktualna); sprawdzone na bestia5 buildem z repozytorium obok działającej usługi 0.2.1: `scan` (4 urządzenia Tuya) i
+  `read` Ziół o 13:25 – zaraz po odczycie usługi, żeby nie zabrać rekordów historii – wykrycie, połączenie, sesja Tuya 3.1 i
+  DP3/5/15/14 w ok. 20 s, wartości jak w odczycie usługi sprzed 30 s. Usługa dostanie 6.6.0 z następnym wydaniem.
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 
