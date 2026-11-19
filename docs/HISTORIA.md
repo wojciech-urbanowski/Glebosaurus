@@ -195,7 +195,10 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   `glebosaurus`, jednostki przechodzą `systemd-analyze verify`, `data/` 700, program należy do roota, usługa bez
   konfiguracji nie startuje, timer wyłączony przy `--auto-updates off`, aktualizacja usługi 0.0.1 → 0.0.2, polecenie
   `sudo glebosaurus`, odinstalowanie z danymi i użytkownikiem. W prawdziwym projekcie agent **`rasp3`** (nadawca,
-  priorytet 1; kod rejestracji w `local/`) – do pierwszej synchronizacji Pi blokadę trzyma bestia5. **Niesprawdzone:**
+  priorytet 1; kod rejestracji w `local/`) – do pierwszej synchronizacji Pi blokadę trzyma bestia5. **Wydanie 0.2.4**
+  (pierwsze z paczką linux-arm64 i `install-linux.sh`) opublikowane 20:05 z tagu `v0.2.4` – próba instalacji paczki na
+  arm64 w workflowie zielona; `install-linux.sh` w Git Bash pobrał z prawdziwego wydania (`latest/download`) wersję 0.2.4 i
+  zgodny skrót, a uruchomienia paczki arm64 na x64 słusznie odmówił przed podmianą. **Niesprawdzone:**
   prawdziwe Pi, start usługi z konfiguracją, samoaktualizacja z prawdziwego wydania, powrót poprzedniej wersji po
   nieudanym starcie.
 
