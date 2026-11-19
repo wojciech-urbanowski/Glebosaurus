@@ -17,6 +17,8 @@ Laurowiśnia szafka, Hortensje niskie, Trawa, Alpinarium). „Monitor” w stars
   Tuya) i jej pliki kluczy czujników (`data\*.credentials.json` – klucze są w chmurze) usunięte 2026-11-19.
 - **mi11** (Android 14, HyperOS) od 2026-11-19 10:45: agent `mi11`, tylko zbieracz, na razie przy bestia5; APK 0.2.3 od
   2026-11-19 16:48 (instalacja przez adb).
+- **rasp3** (Raspberry Pi, 64-bit, daleko od czujników): od 2026-11-19 agent `rasp3` w chmurze – nadawca z priorytetem 1,
+  bez Bluetooth (faza 2.3a); czeka na instalację na Pi (`install-linux.sh`) i `enroll`.
 - **Prawdziwy projekt Supabase**: 4 migracje (ostatnia `20261119120000_agent_device_status` od 2026-11-19 16:46), 9 czujników (5 sparowanych lokalnie: Cyprysek, Cisy, Zioła, Wiszący wejście,
   Laurowiśnia wejście; 4 zostawione w Smart Life i czytane kluczami z chmury Tuya: Laurowiśnia szafka, Hortensje niskie,
   Trawa, Alpinarium), odczyt co 2 h 5 min (od 2026-11-18 21:32), raporty o 07:00 i 19:00, strażnik healthchecks.io.
@@ -187,8 +189,15 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   0.0.2, bez systemd): instalacja z paczki, samoaktualizacja z udawanego wydania (`file://`) skryptem z wydania, zepsute
   wydanie (paczka z inną wersją w środku – wykryte przed podmianą, ślad próby, kolejna próba odłożona o dobę), jawny powrót
   do 0.0.1, odinstalowanie z danymi; paczka linux-arm64 na x64 słusznie odrzucona przed podmianą („architecture is not
-  compatible”). APK zbudowany po zmianach w Core (bez instalacji na telefonie). **Niesprawdzone:** systemd (CI po
-  pierwszym pushu), prawdziwe Pi, samoaktualizacja z prawdziwego wydania, powrót poprzedniej wersji po nieudanym starcie.
+  compatible”). APK zbudowany po zmianach w Core (bez instalacji na telefonie). **CI na `ubuntu-24.04-arm`** (po pushu
+  ok. 19:50): pierwszy przebieg zatrzymał shellcheck (SC1111 – „” tuż przy zmiennych w napisach), po poprawce cała próba
+  zielona – bez roota jak w Git Bash, ale na arm64 z prawdziwą paczką, oraz jako root z systemd: użytkownik
+  `glebosaurus`, jednostki przechodzą `systemd-analyze verify`, `data/` 700, program należy do roota, usługa bez
+  konfiguracji nie startuje, timer wyłączony przy `--auto-updates off`, aktualizacja usługi 0.0.1 → 0.0.2, polecenie
+  `sudo glebosaurus`, odinstalowanie z danymi i użytkownikiem. W prawdziwym projekcie agent **`rasp3`** (nadawca,
+  priorytet 1; kod rejestracji w `local/`) – do pierwszej synchronizacji Pi blokadę trzyma bestia5. **Niesprawdzone:**
+  prawdziwe Pi, start usługi z konfiguracją, samoaktualizacja z prawdziwego wydania, powrót poprzedniej wersji po
+  nieudanym starcie.
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 

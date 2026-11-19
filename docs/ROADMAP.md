@@ -6,7 +6,7 @@ użycie – [README](../README.md); kiedy co zrobiono i sprawdzono na sprzęcie 
 Wielkości: **S** – dzień lub mniej, **M** – kilka dni, **L** – tydzień lub więcej (przy pracy w wolnych chwilach).
 Stan: ✔ zrobione · ◐ w toku albo częściowo · ○ do zrobienia.
 
-## Stan w skrócie (wersja 0.2.3)
+## Stan w skrócie (wersja 0.2.4)
 
 **Działa i pracuje na co dzień** (u autora: komputer z Windows 11 jako nadawca i telefon z Androidem jako drugi
 zbieracz, 9 czujników):
@@ -122,8 +122,8 @@ użycie – README, „Raspberry Pi: nadawca maili”.
 | # | Zadanie | Stan | Wielkość |
 |---|---|---|---|
 | 1 | **Agent bez Bluetooth:** `"bluetooth": false` w pliku agenta – `run` nie otwiera BLE (BlueZ i grupa `bluetooth` niepotrzebne), nie słucha, nie ubiega się o czujniki i ich nie czyta; synchronizacja, dziennik do chmury, `send_log`, maile z rolą nadawcy, panel WWW i codzienna kopia chmury – jak zwykle. Na Linuksie jeden agent na plik konfiguracji (blokada pliku – usługa systemd i terminal to różne sesje). | ✔ 2026-11-19 (testy) | S |
-| 2 | **Instalacja i aktualizacje:** paczka `linux-arm64` zależna od frameworka w wydaniu (ASP.NET Core Runtime 10 instaluje i aktualizuje właściciel), `install-linux.sh` – instalacja = aktualizacja: użytkownik `glebosaurus`, `/opt/glebosaurus`, usługa systemd z `Restart`, polecenie `glebosaurus`, samoaktualizacja z timera (przy starcie i o 03:30; skrypt nowego wydania sprawdzony z `SHA256SUMS`, próba nowego programu przed zatrzymaniem agenta, powrót poprzedniej wersji, gdy usługa po aktualizacji nie działa, nieudana wersja czeka dobę). CI: próba na `ubuntu-24.04-arm` z systemd przy każdym pushu, w wydaniu próba instalacji na arm64. | ◐ zrobione 2026-11-19, sprawdzone w Git Bash (bez systemd); CI na arm64 i Pi ○ | M |
-| 3 | **Wdrożenie:** agent z priorytetem 1 (`cloud agent --sender-priority 1`), komputer z Windows z priorytetem 2; próba przejęcia blokady w obie strony (wyłączenie Pi → komputer po ok. 7 min; powrót Pi → oddanie po ok. 2 min); strażnik healthchecks.io wysyła ten, kto ma blokadę; codzienna kopia chmury – na jednym agencie (przenieść na Pi albo zostawić). | ○ | S |
+| 2 | **Instalacja i aktualizacje:** paczka `linux-arm64` zależna od frameworka w wydaniu (ASP.NET Core Runtime 10 instaluje i aktualizuje właściciel), `install-linux.sh` – instalacja = aktualizacja: użytkownik `glebosaurus`, `/opt/glebosaurus`, usługa systemd z `Restart`, polecenie `glebosaurus`, samoaktualizacja z timera (przy starcie i o 03:30; skrypt nowego wydania sprawdzony z `SHA256SUMS`, próba nowego programu przed zatrzymaniem agenta, powrót poprzedniej wersji, gdy usługa po aktualizacji nie działa, nieudana wersja czeka dobę). CI: próba na `ubuntu-24.04-arm` z systemd przy każdym pushu, w wydaniu próba instalacji na arm64. | ◐ zrobione 2026-11-19, sprawdzone w Git Bash i w CI na arm64 z systemd; na Pi ○ | M |
+| 3 | **Wdrożenie:** agent z priorytetem 1 (`cloud agent --sender-priority 1`), komputer z Windows z priorytetem 2; próba przejęcia blokady w obie strony (wyłączenie Pi → komputer po ok. 7 min; powrót Pi → oddanie po ok. 2 min); strażnik healthchecks.io wysyła ten, kto ma blokadę; codzienna kopia chmury – na jednym agencie (przenieść na Pi albo zostawić). | ◐ agent w chmurze utworzony 2026-11-19; instalacja na Pi ○ | S |
 
 **Kryterium:** Pi tydzień wysyła maile 24/7 bez dotykania; wyłączenie Pi przenosi wysyłkę na komputer w ok. 7 min; brak
 nadawcy zgłasza healthchecks.io; aktualizacja z wydania przechodzi sama.

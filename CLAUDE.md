@@ -110,11 +110,12 @@ bash deploy/test-install-linux.sh STARA NOWA [--systemd]   # próba install-linu
 - Czas przez `TimeProvider`, radio/baza/poczta/chmura przez interfejsy – dzięki temu silniki testują się bez sprzętu.
 - Każda zmiana zachowania dostaje test; sprawdzenia na sprzęcie i na żywo dopisuje się z datą do docs/HISTORIA.md, a
   ARCHITEKTURA.md opisuje stan obecny (bez dziennika).
-- Wersja (obecnie 0.2.3) jest w jednym miejscu: `Directory.Build.props`; widać ją w stopce każdego maila (`AppInfo.Version`).
+- Wersja (obecnie 0.2.4) jest w jednym miejscu: `Directory.Build.props`; widać ją w stopce każdego maila (`AppInfo.Version`).
   Podbijaj ją tylko na prośbę użytkownika (przy wydaniu paczki). Wydanie = tag `v<wersja>` (musi zgadzać się z
   `Directory.Build.props`) → Actions publikuje je, a zainstalowane usługi same się zaktualizują w ciągu doby.
 - Skrypty `.sh` – LF (`.gitattributes`), bez BOM, `set -Eeuo pipefail`, przechodzą `shellcheck -S warning` (CI); bez awk z
-  przedziałami `{n}` (mawk w Debianie). `install-linux.sh` nigdy nie wykonuje `install.conf` (czyta go `sed`).
+  przedziałami `{n}` (mawk w Debianie); bez „” tuż przy zmiennych w napisach w podwójnych cudzysłowach i w heredocach
+  (shellcheck SC1111 uznaje je za pomyłkę). `install-linux.sh` nigdy nie wykonuje `install.conf` (czyta go `sed`).
 - Skrypty `.ps1` zapisuj w UTF-8 **z BOM** (Windows PowerShell 5.1) i nie wstawiaj „” do napisów w podwójnych cudzysłowach –
   PowerShell traktuje je jak zwykły cudzysłów; tam poprzedzaj je odwrotnym apostrofem albo użyj napisu w pojedynczych
   cudzysłowach. Konfigurację w skrypcie czytaj tylko przez `Read-ConfigJson` (komentarze `//`): komunikat wyjątku
