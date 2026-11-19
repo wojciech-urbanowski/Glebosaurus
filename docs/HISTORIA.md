@@ -207,7 +207,12 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   dzienniku – widać je tylko w chmurze), a `rasp3` wziął ją o 21:33:13 (epoka 5, odnawiana co minutę) – sprawdzone
   zapytaniem tylko do odczytu w tabeli dzierżaw. **Niesprawdzone:**
   prawdziwe Pi, start usługi z konfiguracją, samoaktualizacja z prawdziwego wydania, powrót poprzedniej wersji po
-  nieudanym starcie.
+  nieudanym starcie. **Ostrzeżenia o telefonie (0.2.5)** – decyzje użytkownika: praca telefonu na baterii jest normalna
+  (nie zakładamy już, że stoi stale na ładowarce), a telefon może stać na tarasie (mróz, upał). Ostrzeżenie dopiero przy
+  baterii poniżej 30% bez ładowarki; obok gorącego akumulatora (od 45 °C) i przegrzewania według systemu doszedł
+  zmarznięty akumulator (poniżej 0 °C). Ostrzeżenia widać na ekranie aplikacji i w panelu WWW, bez osobnego maila –
+  użytkownikowi to na razie wystarcza; mail przychodzi dopiero, gdy telefon zamilknie na 30 min („agent milczy”). Testy
+  zielone, APK 0.2.5 zbudowany (bez instalacji na mi11); wydanie 0.2.5 z tagu `v0.2.5`.
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 
