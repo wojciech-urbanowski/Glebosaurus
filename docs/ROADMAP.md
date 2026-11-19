@@ -6,7 +6,7 @@ użycie – [README](../README.md); kiedy co zrobiono i sprawdzono na sprzęcie 
 Wielkości: **S** – dzień lub mniej, **M** – kilka dni, **L** – tydzień lub więcej (przy pracy w wolnych chwilach).
 Stan: ✔ zrobione · ◐ w toku albo częściowo · ○ do zrobienia.
 
-## Stan w skrócie (wersja 0.2.2)
+## Stan w skrócie (wersja 0.2.3)
 
 **Działa i pracuje na co dzień** (u autora: komputer z Windows 11 jako nadawca i telefon z Androidem jako drugi
 zbieracz, 9 czujników):
