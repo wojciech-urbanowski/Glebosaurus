@@ -100,7 +100,7 @@ dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self
 - Czas przez `TimeProvider`, radio/baza/poczta/chmura przez interfejsy – dzięki temu silniki testują się bez sprzętu.
 - Każda zmiana zachowania dostaje test; sprawdzenia na sprzęcie i na żywo dopisuje się z datą do docs/HISTORIA.md, a
   ARCHITEKTURA.md opisuje stan obecny (bez dziennika).
-- Wersja (obecnie 0.2.1) jest w jednym miejscu: `Directory.Build.props`; widać ją w stopce każdego maila (`AppInfo.Version`).
+- Wersja (obecnie 0.2.2) jest w jednym miejscu: `Directory.Build.props`; widać ją w stopce każdego maila (`AppInfo.Version`).
   Podbijaj ją tylko na prośbę użytkownika (przy wydaniu paczki). Wydanie = tag `v<wersja>` (musi zgadzać się z
   `Directory.Build.props`) → Actions publikuje je, a zainstalowane usługi same się zaktualizują w ciągu doby.
 - Skrypty `.ps1` zapisuj w UTF-8 **z BOM** (Windows PowerShell 5.1) i nie wstawiaj „” do napisów w podwójnych cudzysłowach –
