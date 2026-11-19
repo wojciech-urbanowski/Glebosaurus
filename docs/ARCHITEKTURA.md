@@ -298,7 +298,7 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
     `points`, zwraca je wprost, inaczej uśrednia w przedziałach z drabinki 30 min … 28 dni (średnia, min, max, liczba) w
     czasie lokalnym; dziura = odstęp dłuższy niż przedział + 3 interwały odczytu. Rysowanie: `wwwroot/charts.js`, czysty
     SVG, bez bibliotek; wilgotność `#2a78d6` (oś zawsze 0–100%), temperatura `#eb6834` (oś dopasowana, min. 2 °C).
-12. **Agent na Androida** – tylko zbieranie, bez roli nadawcy; telefon na Wi-Fi, stale na ładowarce. .NET for Android
+12. **Agent na Androida** – tylko zbieranie, bez roli nadawcy; telefon na Wi-Fi. .NET for Android
     (`src/Glebosaurus.Android`, `net10.0-android`, Android 10+, bez MAUI – jedna aktywność i usługa) z `Glebosaurus.Tuya`,
     częściami agenta z Core i buforem SQLite (`Glebosaurus.Data`) – protokół nie powstaje drugi raz. Projekt jest poza
     `Glebosaurus.slnx` (wymaga obciążenia `android`, JDK i Android SDK); buduje go `deploy/build-android.ps1`, w CI osobne
@@ -331,15 +331,16 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
     - **Sygnał życia telefonu** (`PhoneState`): bateria, ładowarka, temperatura akumulatora, stan cieplny systemu
       (`PowerManager.getCurrentThermalStatus`), rodzaj sieci i siła Wi-Fi, stan Bluetooth. Telefon niczego nie wystawia –
       dane jadą w każdym `agent_sync`, a chmura oddaje je innym agentom, więc panel WWW komputera pokazuje stan telefonu z
-      jego ostatniej synchronizacji. Opis i ostrzeżenia wspólne dla ekranu i panelu (`AgentDevice`): akumulator od 45 °C,
-      system ograniczający wydajność z powodu temperatury (od `moderate`), brak ładowarki, sieć komórkowa zamiast Wi-Fi.
-      Alertu mailowego o przegrzaniu jeszcze nie ma.
+      jego ostatniej synchronizacji. Opis i ostrzeżenia wspólne dla ekranu i panelu (`AgentDevice`; telefon może stać na
+      zewnątrz): akumulator od 45 °C albo poniżej 0 °C (w mrozie się nie ładuje, telefon potrafi się wyłączyć), system
+      ograniczający wydajność z powodu temperatury (od `moderate`), bateria poniżej 30% bez ładowarki (sama praca na baterii
+      nie jest ostrzeżeniem; na ładowarce słaba bateria się ładuje), sieć komórkowa zamiast Wi-Fi. Alertu mailowego o
+      temperaturze telefonu jeszcze nie ma.
     - **Wydania:** APK podpisany jednym kluczem wydań (jego utrata = aktualizacja tylko przez odinstalowanie i nową
       rejestrację); w wydaniu z tagu, gdy repozytorium ma sekrety `ANDROID_KEYSTORE_BASE64` i `ANDROID_KEYSTORE_PASSWORD`.
       Kod wersji z `Directory.Build.props` (0.2.1 → 201).
     - **Ograniczenia Androida/MIUI** (README): zabijanie aplikacji w tle (Autostart, oszczędzanie baterii „Bez ograniczeń”,
-      blokada w ostatnich aplikacjach), akumulator stale na ładowarce (ochrona akumulatora), Smart Life na tym samym
-      telefonie walczyłby o połączenia.
+      blokada w ostatnich aplikacjach), Smart Life na tym samym telefonie walczyłby o połączenia.
 13. **Schemat chmury** (`supabase/migrations/`; zastosowanej migracji nie wolno zmieniać – suma kontrolna – zmiana
     schematu to nowa migracja):
     - **Schemat `glebosaurus`** (Data API go nie wystawia, RLS na każdej tabeli bez żadnych zasad): `agents` (skrót tokenu,
@@ -519,5 +520,5 @@ wracać na początku każdej sesji).
   dniach, brak kopii zapasowych – zasada 10); bez Supabase nie wychodzi żaden mail (zgłasza to strażnik). Certyfikat
   główny Supabase wygasa 2031-04-26 (albo Supabase zmieni CA wcześniej) – połączenia właściciela z bazą przestaną wtedy
   działać, dopóki nie wbudujemy nowego (test przypomina pół roku wcześniej).
-- Android: MIUI/HyperOS zabija aplikacje w tle, ograniczenia skanu BLE, akumulator telefonu stale na ładowarce, start po
+- Android: MIUI/HyperOS zabija aplikacje w tle, ograniczenia skanu BLE, telefon na zewnątrz (mróz, upał), start po
   restarcie dopiero po odblokowaniu.

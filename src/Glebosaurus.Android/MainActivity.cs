@@ -260,7 +260,7 @@ public sealed class MainActivity : Activity
             (bluetooth ? "✓" : "✗") + $" Bluetooth: {host.Radio.State}",
             (battery ? "✓" : "✗") + " Bez optymalizacji baterii",
             "• MIUI/HyperOS: Autostart włączony i oszczędzanie baterii „Bez ograniczeń” – sprawdź ręcznie (przycisk „Autostart”).",
-            "• Zablokuj aplikację w ostatnich aplikacjach (kłódka), telefon zostaw na ładowarce, bez aplikacji Smart Life."
+            "• Zablokuj aplikację w ostatnich aplikacjach (kłódka); bez aplikacji Smart Life na tym telefonie."
         };
         AddSection("Przygotowanie telefonu", lines, !(radio && bluetooth && battery));
         var row = new LinearLayout(this) { Orientation = Orientation.Horizontal };

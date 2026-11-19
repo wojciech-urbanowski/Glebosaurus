@@ -27,8 +27,8 @@ internal static class AgentPermissions
 
 /// <summary>
 /// Usługa pierwszoplanowa typu <c>connectedDevice</c> ze stałym powiadomieniem (ARCHITEKTURA.md, zasada 12): trzyma agenta przy
-/// życiu przy zgaszonym ekranie i blokadę uśpienia procesora – telefon pracuje stale na ładowarce, więc bateria nie jest
-/// ograniczeniem, a bez blokady liczniki czasu potrafią stanąć na długie minuty. Zatrzymanie z ekranu przechodzi przez
+/// życiu przy zgaszonym ekranie i blokadę uśpienia procesora – bez niej liczniki czasu potrafią
+/// stanąć na długie minuty. Zatrzymanie z ekranu przechodzi przez
 /// <see cref="ActionStop"/>: agent kończy bieżący odczyt i oddaje dzierżawy, dopiero potem usługa znika.
 /// </summary>
 [Service(Exported = false, ForegroundServiceType = ForegroundService.TypeConnectedDevice)]

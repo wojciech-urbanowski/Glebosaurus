@@ -202,10 +202,10 @@ public sealed class AndroidAgentTests : IDisposable
     }
 
     [Fact]
-    public async Task Screen_WarnsFirst_WhenRevoked_OrPhoneHotAndUnplugged()
+    public async Task Screen_WarnsFirst_WhenRevoked_OrPhoneHotAndLowOnBattery()
     {
         var status = await StatusAsync(s => s with { Revoked = true });
-        var phone = new AgentStatus("0.2.1", "android") { BatteryPercent = 80, Charging = false, BatteryTemperatureCelsius = 46, ThermalStatus = "severe" };
+        var phone = new AgentStatus("0.2.1", "android") { BatteryPercent = 25, Charging = false, BatteryTemperatureCelsius = 46, ThermalStatus = "severe" };
 
         var sections = AgentScreenText.Build(status, phone, TimeZoneInfo.Utc);
 
@@ -215,7 +215,7 @@ public sealed class AndroidAgentTests : IDisposable
         Assert.True(telefon.Warning);
         Assert.Contains(telefon.Lines, l => l.StartsWith("Akumulator gorący (46,0 °C)", StringComparison.Ordinal));
         Assert.Contains("Telefon się przegrzewa (system: mocno ogranicza wydajność).", telefon.Lines);
-        Assert.Contains("Bez ładowarki – telefon ma pracować stale na ładowarce.", telefon.Lines);
+        Assert.Contains("Słaba bateria (25 %) – podłącz telefon do ładowarki.", telefon.Lines);
     }
 
     // ---- Stan urządzenia (ekran telefonu i panel WWW innego agenta) --------------------------------------------------------
@@ -237,15 +237,44 @@ public sealed class AndroidAgentTests : IDisposable
     }
 
     [Fact]
-    public void Device_WarnsWhenPhoneIsHot_Unplugged_OrOffWifi()
+    public void Device_WarnsWhenPhoneIsHot_LowOnBattery_OrOffWifi()
     {
         var cellular = AgentDevice.Describe(new AgentStatus("0.2.3", "android") { Network = "cellular", ThermalStatus = "light", BatteryTemperatureCelsius = 44.9 });
         Assert.Equal([new("Temperatura", "44,9 °C (akumulator) · system: ciepły"), new DeviceDetail("Sieć", "sieć komórkowa (bez Wi-Fi)")], cellular.Details);
         Assert.Equal(["Bez Wi-Fi – telefon wysyła dane przez sieć komórkową."], cellular.Warnings);
 
-        var hot = AgentDevice.Describe(new AgentStatus("0.2.3", "android") { ThermalStatus = "moderate", Network = "wifi", WifiDbm = -75, Charging = false });
-        Assert.Equal(["Telefon się przegrzewa (system: ogranicza wydajność).", "Bez ładowarki – telefon ma pracować stale na ładowarce."], hot.Warnings);
+        var hot = AgentDevice.Describe(new AgentStatus("0.2.3", "android")
+            { ThermalStatus = "moderate", Network = "wifi", WifiDbm = -75, BatteryPercent = 12, Charging = false });
+        Assert.Equal(["Telefon się przegrzewa (system: ogranicza wydajność).", "Słaba bateria (12 %) – podłącz telefon do ładowarki."], hot.Warnings);
         Assert.Contains(new DeviceDetail("Sieć", "Wi-Fi -75 dBm (słaby)"), hot.Details);
+    }
+
+    [Theory]
+    [InlineData(45.0, "Akumulator gorący (45,0 °C) – przenieś telefon w chłodniejsze miejsce.")]
+    [InlineData(44.9, null)]
+    [InlineData(0.0, null)]
+    [InlineData(-0.1, "Akumulator zmarznięty (-0,1 °C) – w mrozie się nie ładuje, telefon może się wyłączyć.")]
+    [InlineData(-12.5, "Akumulator zmarznięty (-12,5 °C) – w mrozie się nie ładuje, telefon może się wyłączyć.")]
+    public void Device_WarnsAboutHeatAndFrost_ByBatteryTemperature(double celsius, string? warning)
+    {
+        var device = AgentDevice.Describe(new AgentStatus("0.2.4", "android") { BatteryTemperatureCelsius = celsius, Network = "wifi" });
+
+        string[] expected = warning is null ? [] : [warning];
+        Assert.Equal(expected, device.Warnings);
+    }
+
+    [Theory]
+    [InlineData(80, false, false)]   // telefon na baterii – normalna rzecz
+    [InlineData(30, false, false)]
+    [InlineData(29, false, true)]
+    [InlineData(29, null, true)]     // bez informacji o ładowarce – jak bez niej
+    [InlineData(5, true, false)]     // na ładowarce słaba bateria się ładuje
+    public void Device_WarnsAboutBattery_OnlyBelow30PercentWithoutCharger(int percent, bool? charging, bool warns)
+    {
+        var device = AgentDevice.Describe(new AgentStatus("0.2.4", "android") { BatteryPercent = percent, Charging = charging, Network = "wifi" });
+
+        string[] expected = warns ? [$"Słaba bateria ({percent} %) – podłącz telefon do ładowarki."] : [];
+        Assert.Equal(expected, device.Warnings);
     }
 
     [Fact]

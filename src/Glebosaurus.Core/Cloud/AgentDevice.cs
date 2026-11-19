@@ -9,18 +9,27 @@ public sealed record DeviceDetail(string Label, string Value);
 /// <summary>Urządzenie agenta z jego ostatniego sygnału życia, gotowe do pokazania.</summary>
 /// <param name="Program">Np. „Glebosaurus 0.2.2 · Android”.</param>
 /// <param name="Details">Bateria, temperatura, sieć, Bluetooth – tylko to, co agent zgłosił.</param>
-/// <param name="Warnings">Co wymaga uwagi: gorący akumulator, przegrzanie, brak ładowarki, brak Wi-Fi.</param>
+/// <param name="Warnings">Co wymaga uwagi: gorący albo zmarznięty akumulator, przegrzanie, słaba bateria bez ładowarki, brak
+/// Wi-Fi.</param>
 public sealed record AgentDeviceStatus(string Program, IReadOnlyList<DeviceDetail> Details, IReadOnlyList<string> Warnings);
 
 /// <summary>
 /// Stan urządzenia agenta z sygnału życia (ARCHITEKTURA.md, zasada 12) – opis i ostrzeżenia wspólne dla ekranu telefonu
-/// (<see cref="AgentScreenText"/>) i lokalnego panelu WWW innego agenta (<see cref="CloudPanel"/>). Telefon ma pracować stale
-/// na ładowarce i na Wi-Fi, więc ostrzeżenia mówią, kiedy tak nie jest albo gdy się grzeje.
+/// (<see cref="AgentScreenText"/>) i lokalnego panelu WWW innego agenta (<see cref="CloudPanel"/>). Telefon ma być na Wi-Fi
+/// i może stać na zewnątrz; praca na baterii jest normalna – ostrzeżenie dopiero przy słabej baterii bez ładowarki, przy
+/// upale, mrozie i bez Wi-Fi.
 /// </summary>
 public static class AgentDevice
 {
     /// <summary>Od tej temperatury akumulatora – ostrzeżenie.</summary>
     public const double HotBatteryCelsius = 45;
+
+    /// <summary>Poniżej tej temperatury akumulatora – ostrzeżenie: akumulator litowy w mrozie się nie ładuje (Android
+    /// wstrzymuje ładowanie), szybko traci pojemność, a telefon potrafi się wyłączyć mimo zapasu baterii.</summary>
+    public const double ColdBatteryCelsius = 0;
+
+    /// <summary>Poniżej tego poziomu baterii telefonu bez ładowarki – ostrzeżenie.</summary>
+    public const int LowBatteryPercent = 30;
 
     /// <summary>Wartości <see cref="AgentStatus.Network"/> (te same przepuszcza baza – <c>glebosaurus.agent_status_view</c>).</summary>
     public static readonly IReadOnlyList<string> Networks = ["wifi", "cellular", "ethernet", "other"];
@@ -67,9 +76,13 @@ public static class AgentDevice
         var warnings = new List<string>();
         if (status.BatteryTemperatureCelsius is { } celsius and >= HotBatteryCelsius)
             warnings.Add($"Akumulator gorący ({Celsius(celsius)}) – przenieś telefon w chłodniejsze miejsce.");
+        else if (status.BatteryTemperatureCelsius is { } cold and < ColdBatteryCelsius)
+            warnings.Add($"Akumulator zmarznięty ({Celsius(cold)}) – w mrozie się nie ładuje, telefon może się wyłączyć.");
         if (ThermalLevel(status.ThermalStatus) is >= HotThermalLevel and var level)
             warnings.Add($"Telefon się przegrzewa (system: {ThermalTexts[level]}).");
-        if (status.Charging == false) warnings.Add("Bez ładowarki – telefon ma pracować stale na ładowarce.");
+        // Na ładowarce słaba bateria się ładuje; bez informacji o ładowarce (null) ostrzegamy jak bez niej.
+        if (status.BatteryPercent is { } percent and < LowBatteryPercent && status.Charging != true)
+            warnings.Add(string.Create(CultureInfo.InvariantCulture, $"Słaba bateria ({percent} %) – podłącz telefon do ładowarki."));
         if (status.Network == "cellular") warnings.Add("Bez Wi-Fi – telefon wysyła dane przez sieć komórkową.");
         return warnings;
     }

@@ -55,7 +55,7 @@ public sealed class CloudPanelTests : IDisposable
                  {
                      Status = new("0.2.3", "android", "ok")
                      {
-                         BatteryPercent = 80, Charging = false, BatteryTemperatureCelsius = 33.5, ThermalStatus = "none", Network = "wifi", WifiDbm = -58
+                         BatteryPercent = 25, Charging = false, BatteryTemperatureCelsius = 33.5, ThermalStatus = "none", Network = "wifi", WifiDbm = -58
                      }
                  }])
         };
@@ -168,9 +168,9 @@ public sealed class CloudPanelTests : IDisposable
         var phone = cloud.Agents.Single(a => a.Name == "telefon");
         Assert.Equal(Fixtures.T0.AddSeconds(-3600), phone.LastSeenAt);
         Assert.Equal("Glebosaurus 0.2.3 · Android", phone.Device!.Program);
-        Assert.Equal([new("Bateria", "80 % · bez ładowarki"), new("Temperatura", "33,5 °C (akumulator) · system: w normie"),
+        Assert.Equal([new("Bateria", "25 % · bez ładowarki"), new("Temperatura", "33,5 °C (akumulator) · system: w normie"),
             new("Sieć", "Wi-Fi -58 dBm (dobry)"), new DeviceDetail("Bluetooth", "ok")], phone.Device.Details);
-        Assert.Equal(["Bez ładowarki – telefon ma pracować stale na ładowarce."], phone.Device.Warnings);
+        Assert.Equal(["Słaba bateria (25 %) – podłącz telefon do ładowarki."], phone.Device.Warnings);
         Assert.Equal("Glebosaurus 0.2.3 · Windows", cloud.Agents.Single(a => a.IsMe).Device!.Program);
         Assert.Null(cloud.Agents.Single(a => a.Name == "pi").Device);   // bez sygnału życia (albo baza sprzed migracji)
         Assert.True(cloud.MirrorEnabled);

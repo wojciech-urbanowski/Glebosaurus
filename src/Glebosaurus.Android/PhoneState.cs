@@ -9,8 +9,8 @@ namespace Glebosaurus.Android;
 
 /// <summary>
 /// Sygnał życia telefonu (ARCHITEKTURA.md, zasady 3 i 12): wersja, stan Bluetooth, bateria, temperatura akumulatora, stan
-/// cieplny systemu, czy jest na ładowarce, rodzaj sieci i siła Wi-Fi. Telefon pracuje stale na ładowarce i na Wi-Fi – te pola
-/// mówią, czy wszystko w porządku. Jedzie w każdej synchronizacji z chmurą (telefon niczego nie wystawia), a chmura oddaje
+/// cieplny systemu, czy jest na ładowarce, rodzaj sieci i siła Wi-Fi. Telefon ma być na Wi-Fi – te pola mówią, czy wszystko
+/// w porządku (ostrzeżenia – <c>AgentDevice</c> w Core). Jedzie w każdej synchronizacji z chmurą (telefon niczego nie wystawia), a chmura oddaje
 /// go innym agentom – panel WWW na komputerze pokazuje stan telefonu.
 /// </summary>
 internal static class PhoneState

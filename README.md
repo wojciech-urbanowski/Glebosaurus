@@ -293,8 +293,9 @@ telefonie; strony odświeżają się same.
   najbliższy raport, końcówka dziennika, ustawienia.
 - **Stan telefonu i innych agentów:** w karcie każdego agenta wersja programu, a przy telefonie bateria, ładowarka,
   temperatura akumulatora i stan cieplny systemu, sieć i siła Wi-Fi – z jego ostatniej synchronizacji (telefon niczego
-  nie wystawia, dokłada to do zwykłej wymiany z chmurą). Gorący telefon, brak ładowarki albo brak Wi-Fi panel pokazuje
-  na górze strony.
+  nie wystawia, dokłada to do zwykłej wymiany z chmurą). Gorący albo zmarznięty telefon (akumulator od 45 °C albo
+  poniżej 0 °C, przegrzewanie według systemu), baterię poniżej 30% bez ładowarki albo brak Wi-Fi panel pokazuje na górze
+  strony (sama praca na baterii to nie problem).
 - **Strona czujnika:** stan teraz z sygnałem (tu i u najlepiej słyszącego innego agenta), przeglądalny wykres całej
   historii (3 doby … rok, przesuwanie przeciąganiem, Ctrl + kółko, dwa palce), ostatnie odczyty, diagnostyka, ustawienia
   i wpisy dziennika o tym czujniku.
@@ -341,7 +342,7 @@ zaufany agent, najlepiej ten, który pracuje stale. Odtwarzania z kopii jeszcze 
 
 ## Android: agent zbierający
 
-Telefon (Android 10+; sprawdzone na Xiaomi 11 Lite 5G NE z Androidem 14 i HyperOS) na Wi-Fi i **stale na ładowarce** zbiera
+Telefon (Android 10+; sprawdzone na Xiaomi 11 Lite 5G NE z Androidem 14 i HyperOS) na Wi-Fi zbiera
 odczyty jak każdy agent, ale nie wysyła maili. Przydaje się tam, gdzie komputer nie słyszy czujników. Projekt:
 [ARCHITEKTURA](docs/ARCHITEKTURA.md), zasada 12.
 
@@ -363,7 +364,7 @@ odczyty jak każdy agent, ale nie wysyła maili. Przydaje się tam, gdzie komput
    - „Bateria” → bez optymalizacji baterii;
    - MIUI/HyperOS: „Autostart” → włącz Glebosaurusa; Oszczędzanie baterii → **Bez ograniczeń**; w ostatnich aplikacjach
      przytrzymaj Glebosaurusa i zablokuj (kłódka);
-   - jeśli system ma ochronę akumulatora (ładowanie do 80%) – włącz ją: telefon wisi na ładowarce bez przerwy;
+   - jeśli telefon wisi na ładowarce bez przerwy, a system ma ochronę akumulatora (ładowanie do 80%) – włącz ją;
    - nie instaluj na tym telefonie Smart Life (walczyłaby o połączenia z czujnikami);
    - **blokada ekranu:** po restarcie telefonu agent rusza dopiero po pierwszym odblokowaniu (wcześniej Android nie
      udostępnia aplikacji jej danych); bez odblokowania po 30 min przyjdzie mail „agent milczy”.

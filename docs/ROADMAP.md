@@ -100,7 +100,7 @@ Tylko zbieranie, telefon na Wi-Fi (zasada 12; użycie – README, „Android”)
 | # | Zadanie | Stan | Wielkość |
 |---|---|---|---|
 | 1 | **Próba na telefonie:** instalacja, rejestracja QR, uprawnienia i ustawienia MIUI, skan i odczyty, zgaszony ekran, restart telefonu. | ◐ wszystko poza pracą przez całą noc | S–M |
-| 2 | **Agent:** usługa w tle, start po restarcie, rejestracja QR, synchronizacja, ekran stanu i zasięgu, stan telefonu w sygnale życia i w panelu WWW komputera (bateria, temperatura, stan cieplny, sieć). | ✔ ○ alert mailowy o przegrzaniu (nadawca ma już stan agentów z `agent_sync`); start bez odblokowania (Direct Boot) | L |
+| 2 | **Agent:** usługa w tle, start po restarcie, rejestracja QR, synchronizacja, ekran stanu i zasięgu, stan telefonu w sygnale życia i w panelu WWW komputera (bateria, temperatura, stan cieplny, sieć). | ✔ ○ alert mailowy o temperaturze telefonu – upał, mróz (nadawca ma już stan agentów z `agent_sync`); start bez odblokowania (Direct Boot) | L |
 | 3 | **Wydania:** APK z Actions podpisany kluczem wydań z sekretów repozytorium; powiadomienie o nowej wersji albo Obtainium. | ◐ workflowy gotowe, czekają na sekrety klucza | S |
 | 4 | **Praca obok komputera na tych samych czujnikach:** przejęcie czujników po wyłączeniu komputera, oddanie przy lepszym sygnale, żadnych równoczesnych połączeń. | ◐ pierwszy dzień bez kolizji | S + czas |
 

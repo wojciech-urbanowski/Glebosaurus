@@ -136,7 +136,7 @@ function renderBanner(status) {
     headline = 'Agent pracuje na lokalnej kopii konfiguracji';
     detail = `Przy starcie chmura była niedostępna; kopia z ${when(cloud.configCachedAt)}.`;
   } else {
-    // Urządzenie innego agenta (np. telefon za gorący, bez ładowarki) – z jego ostatniej synchronizacji.
+    // Urządzenie innego agenta (np. telefon za gorący, słaba bateria bez ładowarki) – z jego ostatniej synchronizacji.
     const troubled = cloud.agents.find((a) => a.device && a.device.warnings.length > 0 && !agentSilent(a));
     if (troubled) {
       tone = 'amber';

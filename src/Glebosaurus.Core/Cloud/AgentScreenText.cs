@@ -66,7 +66,8 @@ public static class AgentScreenText
     }
 
     /// <summary>Stan telefonu z sygnału życia (<see cref="AgentDevice"/> – to samo pokazuje panel WWW innego agenta); null, gdy
-    /// nic o nim nie wiadomo. Ostrzega przy gorącym telefonie, bez ładowarki i bez Wi-Fi.</summary>
+    /// nic o nim nie wiadomo. Ostrzega przy gorącym albo zmarzniętym telefonie, słabej baterii bez ładowarki i bez
+    /// Wi-Fi.</summary>
     public static ScreenSection? PhoneSection(AgentStatus phone)
     {
         var details = AgentDevice.Details(phone);

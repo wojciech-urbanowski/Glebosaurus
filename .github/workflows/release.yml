@@ -156,7 +156,7 @@ jobs:
           ``````
           Szczegóły (runtime .NET, konfiguracja, rejestracja, aktualizacje): README.md, sekcja "Raspberry Pi: nadawca maili".
 
-          **Android** (agent zbierający, telefon na ładowarce): Glebosaurus-$version-android.apk – instalacja i rejestracja kodem QR:
+          **Android** (agent zbierający): Glebosaurus-$version-android.apk – instalacja i rejestracja kodem QR:
           README.md, sekcja "Android: agent zbierający".
           "@
           $files = @("out/Glebosaurus-$version-win-x64.zip", 'out/install-windows.ps1', "out/Glebosaurus-$version-linux-arm64.tar.gz",
