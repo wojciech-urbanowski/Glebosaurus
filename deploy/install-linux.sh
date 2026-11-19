@@ -308,7 +308,7 @@ agent_enrolled() {
     [ -f "$token" ]
 }
 
-check_value() { case "$2" in *"'"*|*$'\n'*) die "$1: niedozwolony znak w „$2”" ;; esac; }
+check_value() { case "$2" in *"'"*|*$'\n'*) die "$1: wartość nie może zawierać apostrofu ani nowego wiersza ($2)" ;; esac; }
 
 write_conf() {
     local key tmp="$CONF.tmp"
@@ -421,7 +421,7 @@ EOF
     cat > "$WRAPPER.tmp" <<EOF
 #!/bin/sh
 # Glebosaurus (zapisane przez install-linux.sh): polecenia agenta jako użytkownik usługi, w katalogu danych – tam leży
-# glebosaurus.config.json, więc np. „sudo glebosaurus enroll” i „sudo glebosaurus web-password” trafiają w dane usługi.
+# glebosaurus.config.json, więc np. sudo glebosaurus enroll albo sudo glebosaurus web-password trafiają w dane usługi.
 if [ "\$(id -un)" != '$SERVICE_USER' ]; then exec sudo -u '$SERVICE_USER' -- '$WRAPPER' "\$@"; fi
 cd '$DATA' || exit 1
 exec '$DOTNET' '$APP/glebosaurus.dll' "\$@"
@@ -555,7 +555,7 @@ do_install() {
         rm -rf "$work"
         mkdir -p "$work"
         if [ -n "$opt_version" ]; then
-            [[ "$opt_version" =~ ^v?([0-9]+\.[0-9]+\.[0-9]+)$ ]] || die "--version: „$opt_version” nie jest numerem wersji (np. 0.2.4)"
+            [[ "$opt_version" =~ ^v?([0-9]+\.[0-9]+\.[0-9]+)$ ]] || die "--version: $opt_version nie jest numerem wersji (oczekiwano np. 0.2.4)"
             fetch "$RELEASE_BASE/download/v${BASH_REMATCH[1]}/SHA256SUMS" "$work/SHA256SUMS"
         else
             fetch "$RELEASE_BASE/latest/download/SHA256SUMS" "$work/SHA256SUMS"
