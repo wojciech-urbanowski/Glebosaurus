@@ -13,9 +13,6 @@ public sealed record ScreenSection(string Title, IReadOnlyList<string> Lines, bo
 /// </summary>
 public static class AgentScreenText
 {
-    /// <summary>Od tej temperatury akumulatora ekran ostrzega (telefon stale na ładowarce).</summary>
-    public const double HotBatteryCelsius = 45;
-
     public static IReadOnlyList<ScreenSection> Build(MonitorStatus status, AgentStatus? phone, TimeZoneInfo zone)
     {
         var now = status.Monitor.Now;
@@ -68,29 +65,14 @@ public static class AgentScreenText
         return new("Agent", lines);
     }
 
-    /// <summary>Stan telefonu z sygnału życia; null, gdy nic o nim nie wiadomo. Ostrzega przy gorącym akumulatorze i bez ładowarki.</summary>
+    /// <summary>Stan telefonu z sygnału życia (<see cref="AgentDevice"/> – to samo pokazuje panel WWW innego agenta); null, gdy
+    /// nic o nim nie wiadomo. Ostrzega przy gorącym telefonie, bez ładowarki i bez Wi-Fi.</summary>
     public static ScreenSection? PhoneSection(AgentStatus phone)
     {
-        var parts = new List<string>();
-        if (phone.BatteryPercent is { } battery) parts.Add($"bateria {battery} %");
-        if (phone.Charging is { } charging) parts.Add(charging ? "ładuje się" : "NIE ładuje się");
-        if (phone.BatteryTemperatureCelsius is { } temperature) parts.Add(Celsius(temperature));
-        if (phone.WifiDbm is { } wifi) parts.Add($"Wi-Fi {SignalStats.Format(wifi)}");
-        if (phone.Ble is { } ble) parts.Add($"Bluetooth: {ble}");
-        if (parts.Count == 0) return null;
-        var lines = new List<string> { Capitalize(string.Join(" · ", parts)) };
-        var warning = false;
-        if (phone.BatteryTemperatureCelsius is >= HotBatteryCelsius)
-        {
-            lines.Add($"Akumulator gorący ({Celsius(phone.BatteryTemperatureCelsius.Value)}) – przenieś telefon w chłodniejsze miejsce.");
-            warning = true;
-        }
-        if (phone.Charging == false)
-        {
-            lines.Add("Telefon ma pracować stale na ładowarce.");
-            warning = true;
-        }
-        return new("Telefon", lines, warning);
+        var details = AgentDevice.Details(phone);
+        if (details.Count == 0) return null;
+        var warnings = AgentDevice.Warnings(phone);
+        return new("Telefon", [.. details.Select(d => $"{d.Label}: {d.Value}"), .. warnings], warnings.Count > 0);
     }
 
     private static ScreenSection Sensors(MonitorStatus status, DateTimeOffset now, TimeZoneInfo zone)
@@ -134,9 +116,7 @@ public static class AgentScreenText
         return $"{string.Join(" · ", parts)} ({Ago(reading.At, now)})";
     }
 
-    private static string Celsius(double value) => value.ToString("0.0", CultureInfo.InvariantCulture).Replace('.', ',') + " °C";
-
-    private static string Capitalize(string text) => text.Length == 0 ? text : char.ToUpperInvariant(text[0]) + text[1..];
+    private static string Celsius(double value) => AgentDevice.Celsius(value);
 
     /// <summary>Godzina dzisiaj, dzień i godzina wcześniej – w strefie telefonu.</summary>
     internal static string Clock(DateTimeOffset at, DateTimeOffset now, TimeZoneInfo zone, bool seconds = false)

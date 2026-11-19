@@ -67,7 +67,11 @@ public sealed class CloudApiClientTests(CloudDatabase db) : IDisposable
 
         var now = DateTimeOffset.FromUnixTimeMilliseconds(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());   // jak w SQLite
         var reading = new StoredReading(sensor, now.AddMinutes(-1), 41, 21.5m, 80, 2);
-        var sync = await api.SyncAsync(new SyncRequest(new AgentStatus("0.2.0-test", "test"))
+        var heartbeat = new AgentStatus("0.2.0-test", "android", "ok")
+        {
+            BatteryPercent = 80, BatteryTemperatureCelsius = 31.5, Charging = true, Network = "wifi", WifiDbm = -58, ThermalStatus = "none"
+        };
+        var sync = await api.SyncAsync(new SyncRequest(heartbeat)
         {
             Sightings = [new(sensor, -77, 12.5, 60, 60, 0)],
             Readings = [ReadingReport.From(reading), new("brak-takiego", now, 1, null, null, null)],
@@ -81,6 +85,7 @@ public sealed class CloudApiClientTests(CloudDatabase db) : IDisposable
         Assert.True(lease.Granted);
         Assert.Equal(1800, lease.ValidSeconds);
         Assert.Equal(config.Agent.Name, Assert.Single(sync.Sensors, s => s.Sensor == sensor).Holder);
+        Assert.Equal(heartbeat, Assert.Single(sync.Agents, a => a.Name == config.Agent.Name).Status);   // sygnał życia dla innych agentów
         Assert.InRange((sync.ServerTime - now).Duration(), TimeSpan.Zero, TimeSpan.FromMinutes(2));
 
         var stored = Assert.Single(await api.ReadingsRangeAsync([sensor], now.AddHours(-1), now.AddHours(1), ct));

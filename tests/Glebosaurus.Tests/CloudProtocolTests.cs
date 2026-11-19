@@ -10,7 +10,7 @@ public sealed class CloudProtocolTests
     [Fact]
     public void SyncRequest_UsesFieldNamesOfSqlFunction()
     {
-        var request = new SyncRequest(new AgentStatus("0.2.0", "windows") { Charging = true })
+        var request = new SyncRequest(new AgentStatus("0.2.0", "android") { Charging = true, Network = "wifi", WifiDbm = -60, ThermalStatus = "none" })
         {
             Sightings = [new("cisy", -78, 12.5, 60, null, 1)],
             Readings = [ReadingReport.From(new("cisy", Fixtures.T0.AddTicks(1234), 41, 21.45m, 80, 2))],
@@ -21,8 +21,10 @@ public sealed class CloudProtocolTests
         var json = JsonSerializer.SerializeToNode(request, CloudJsonContext.Default.SyncRequest)!.AsObject();
 
         Assert.Equal(1, (int)json["protocol"]!);
-        Assert.Equal("windows", (string?)json["status"]!["platform"]);
+        Assert.Equal("android", (string?)json["status"]!["platform"]);
         Assert.True((bool)json["status"]!["charging"]!);
+        Assert.Equal(("wifi", -60, "none"), ((string?)json["status"]!["network"], (int)json["status"]!["wifiDbm"]!, (string?)json["status"]!["thermalStatus"]));
+        Assert.False(json["status"]!.AsObject().ContainsKey("batteryPercent"));
         Assert.Equal(12.5, (double)json["sightings"]![0]!["heardSecondsAgo"]!);
         Assert.False(json["sightings"]![0]!.AsObject().ContainsKey("lastSuccessSecondsAgo"));
         var reading = json["readings"]![0]!;
@@ -47,7 +49,10 @@ public sealed class CloudProtocolTests
              "sensors": [{"sensor": "trawa", "holder": "bestia5", "holderExpiresInSeconds": 1800, "bestOther": {"agent": "android", "rssi": -70, "heardSecondsAgo": 20}},
                          {"sensor": "cisy", "holder": null, "holderExpiresInSeconds": null, "bestOther": null}],
              "notifier": {"holder": "pi", "epoch": 9, "expiresInSeconds": 120},
-             "agents": [{"name": "pi", "canSendMail": true, "senderPriority": 1, "lastSeenSecondsAgo": 30}]}
+             "agents": [{"name": "mi11", "canSendMail": false, "senderPriority": null, "lastSeenSecondsAgo": 30,
+                         "status": {"version": "0.2.3", "platform": "android", "ble": "ok", "batteryPercent": 80, "batteryTemperatureCelsius": 31.5,
+                                    "charging": true, "network": "wifi", "wifiDbm": -58, "thermalStatus": "light"}},
+                        {"name": "pi", "canSendMail": true, "senderPriority": 1, "lastSeenSecondsAgo": null, "status": null}]}
             """;
 
         var response = JsonSerializer.Deserialize(json, CloudJsonContext.Default.SyncResponse)!;
@@ -61,7 +66,12 @@ public sealed class CloudProtocolTests
         Assert.Equal(new OtherHearing("android", -70, 20), response.Sensors[0].BestOther);
         Assert.Null(response.Sensors[1].Holder);
         Assert.Equal(9, response.Notifier!.Epoch);
-        Assert.Equal(30, Assert.Single(response.Agents).LastSeenSecondsAgo);
+        Assert.Equal(30, response.Agents[0].LastSeenSecondsAgo);
+        Assert.Equal(new AgentStatus("0.2.3", "android", "ok")
+        {
+            BatteryPercent = 80, BatteryTemperatureCelsius = 31.5, Charging = true, Network = "wifi", WifiDbm = -58, ThermalStatus = "light"
+        }, response.Agents[0].Status);
+        Assert.Null(response.Agents[1].Status);
     }
 
     [Fact]

@@ -6,7 +6,12 @@ namespace Glebosaurus.Core.Cloud;
 
 /// <param name="LastSeenAt">Ostatnia synchronizacja agenta (według zegara tego agenta, przeliczona z odpowiedzi chmury).</param>
 /// <param name="HeldSensors">Ile czujników ma teraz w dzierżawie.</param>
-public sealed record CloudAgentStatus(string Name, bool CanSendMail, int? SenderPriority, DateTimeOffset? LastSeenAt, bool IsMe, int HeldSensors);
+public sealed record CloudAgentStatus(string Name, bool CanSendMail, int? SenderPriority, DateTimeOffset? LastSeenAt, bool IsMe, int HeldSensors)
+{
+    /// <summary>Urządzenie agenta z jego ostatniej synchronizacji (program; telefon: bateria, temperatura, sieć) – agent
+    /// dokłada sygnał życia do każdego <c>agent_sync</c>, a chmura oddaje go innym agentom; null – jeszcze nie wiadomo.</summary>
+    public AgentDeviceStatus? Device { get; init; }
+}
 
 /// <summary>Chmura w statusie lokalnego panelu – bez sekretów (token, hasło Gmaila, klucze Tuya nie mają tu pola).</summary>
 /// <param name="Project">Adres (host) projektu Supabase.</param>
@@ -113,7 +118,10 @@ public sealed class CloudPanel(
             view?.Notifier?.Holder, view?.Notifier?.Holder == me && view?.Notifier is not null,
             view?.Notifier is { } notifier ? view.At.AddSeconds(notifier.ExpiresInSeconds) : null,
             [.. (view?.Agents ?? []).Select(a => new CloudAgentStatus(a.Name, a.CanSendMail, a.SenderPriority,
-                a.LastSeenSecondsAgo is { } ago ? view!.At.AddSeconds(-ago) : null, a.Name == me, held.GetValueOrDefault(a.Name)))],
+                a.LastSeenSecondsAgo is { } ago ? view!.At.AddSeconds(-ago) : null, a.Name == me, held.GetValueOrDefault(a.Name))
+            {
+                Device = a.Status is { } device ? AgentDevice.Describe(device) : null
+            })],
             mirrorState is not null, mirrorState?.LastSuccessAt,
             mirrorState is { LastError: { } error } && (mirrorState.LastSuccessAt is null || mirrorState.LastAttemptAt > mirrorState.LastSuccessAt) ? error : null);
 

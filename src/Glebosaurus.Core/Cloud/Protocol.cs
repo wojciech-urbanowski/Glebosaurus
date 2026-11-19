@@ -26,13 +26,25 @@ public static class CloudProtocol
 
 /// <param name="Version">Wersja programu agenta.</param>
 /// <param name="Ble">Stan radia, np. „ok”, „błąd skanu”.</param>
+/// <remarks>Inni agenci dostają go w liście agentów z <c>agent_sync</c> – baza oddaje tylko znane pola o właściwym typie
+/// (<c>glebosaurus.agent_status_view</c>), więc nowe pole wymaga też migracji.</remarks>
 public sealed record AgentStatus(string Version, string Platform, string? Ble = null)
 {
-    // Telefon (agent Android): stan zasilania i Wi-Fi w sygnale życia.
+    // Telefon (agent Android): stan zasilania, temperatura i sieć w sygnale życia.
     public int? BatteryPercent { get; init; }
     public double? BatteryTemperatureCelsius { get; init; }
+
+    /// <summary>Podłączony do ładowarki (ochrona akumulatora potrafi wstrzymać ładowanie – to nie błąd).</summary>
     public bool? Charging { get; init; }
+
+    /// <summary>Rodzaj aktywnej sieci – <see cref="AgentDevice.Networks"/>.</summary>
+    public string? Network { get; init; }
+
+    /// <summary>Siła Wi-Fi (tylko gdy aktywna sieć to Wi-Fi).</summary>
     public int? WifiDbm { get; init; }
+
+    /// <summary>Stan cieplny systemu (Android <c>PowerManager.getCurrentThermalStatus</c>) – <see cref="AgentDevice.ThermalStatuses"/>.</summary>
+    public string? ThermalStatus { get; init; }
 }
 
 /// <summary>Słyszenie czujnika przez agenta. Czasy względne („tyle sekund temu”), bo zegar agenta może się rozjechać z bazą.</summary>
@@ -91,7 +103,12 @@ public sealed record SensorLeaseView(string Sensor, string? Holder, double? Hold
 
 public sealed record NotifierView(string Holder, long Epoch, double ExpiresInSeconds);
 
-public sealed record AgentView(string Name, bool CanSendMail, int? SenderPriority, double? LastSeenSecondsAgo);
+public sealed record AgentView(string Name, bool CanSendMail, int? SenderPriority, double? LastSeenSecondsAgo)
+{
+    /// <summary>Sygnał życia z ostatniej synchronizacji agenta; null – jeszcze go nie wysłał (albo baza sprzed migracji
+    /// 20261119120000).</summary>
+    public AgentStatus? Status { get; init; }
+}
 
 public sealed record SyncResponse(int Protocol, DateTimeOffset ServerTime, long ConfigVersion, AgentIdentity Agent)
 {

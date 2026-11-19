@@ -183,6 +183,7 @@ button:disabled { opacity: 0.6; cursor: default; }
 .action-note.tone-amber { background: var(--amber-soft); border-color: var(--amber-mid); color: var(--amber-ink); }
 .action-note.tone-red { background: var(--red-soft); border-color: var(--red-mid); color: var(--red-ink); }
 .card > .muted.small { margin-top: 10px; }
+.device-warning { margin-top: 6px; font-weight: 600; color: var(--amber-ink); }
 /* Potwierdzenie akcji, która wysyła prawdziwy mail (bez display – atrybut hidden musi działać). */
 .confirm { padding: 10px 12px; margin-bottom: 8px; border: 1px solid var(--amber-mid); border-left-width: 5px; background: var(--amber-soft); color: var(--amber-ink); font-size: 14px; overflow-wrap: anywhere; }
 .confirm-actions { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }

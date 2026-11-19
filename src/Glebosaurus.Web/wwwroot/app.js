@@ -135,6 +135,14 @@ function renderBanner(status) {
     tone = 'amber';
     headline = 'Agent pracuje na lokalnej kopii konfiguracji';
     detail = `Przy starcie chmura była niedostępna; kopia z ${when(cloud.configCachedAt)}.`;
+  } else {
+    // Urządzenie innego agenta (np. telefon za gorący, bez ładowarki) – z jego ostatniej synchronizacji.
+    const troubled = cloud.agents.find((a) => a.device && a.device.warnings.length > 0 && !agentSilent(a));
+    if (troubled) {
+      tone = 'amber';
+      headline = `Agent ${troubled.name} wymaga uwagi`;
+      detail = `${troubled.device.warnings.join(' ')} Stan z ${when(troubled.lastSeenAt, true)}.`;
+    }
   }
 
   const problems = status.sensors.filter((s) => s.failures > 0).length;
@@ -253,6 +261,11 @@ function renderMail(status) {
 
 // ---- chmura i agenci ----------------------------------------------------------------------------------------
 
+/** Agent bez synchronizacji ponad 30 min (tyle samo liczy mail „agent milczy”). */
+function agentSilent(agent) {
+  return !agent.lastSeenAt || now() - new Date(agent.lastSeenAt) > 30 * 60 * 1000;
+}
+
 function roleText(agent) {
   return agent.canSendMail ? `zbiera i może wysyłać maile (priorytet ${agent.senderPriority})` : 'zbiera odczyty';
 }
@@ -284,8 +297,9 @@ function renderCloud(status) {
     parts.push(warnings);
   }
   for (const agent of cloud.agents) {
-    const silent = !agent.lastSeenAt || now() - new Date(agent.lastSeenAt) > 30 * 60 * 1000;
-    const box = h('div', `card accent-${silent ? 'amber' : 'green'}`);
+    const silent = agentSilent(agent);
+    const device = agent.device;
+    const box = h('div', `card accent-${silent || (device && device.warnings.length > 0) ? 'amber' : 'green'}`);
     const title = h('div', null, h('strong', null, agent.name));
     if (agent.isMe) title.append(' ', badge('ten agent', 'grey'));
     if (agent.name === cloud.notifier) title.append(' ', badge('wysyła maile', 'green'));
@@ -294,6 +308,11 @@ function renderCloud(status) {
       `${agent.heldSensors} ${plural(agent.heldSensors, 'czujnik', 'czujniki', 'czujników')} w dzierżawie`,
       agent.lastSeenAt ? `ostatnio ${ago(agent.lastSeenAt)}` : 'jeszcze się nie synchronizował'
     ].join(' · ')));
+    // Urządzenie z ostatniej synchronizacji agenta (telefon: bateria, temperatura, sieć) – stan sprzed „ostatnio …”.
+    if (device) {
+      box.append(kv([['Program', device.program], ...device.details.map((d) => [d.label, d.value])]));
+      for (const warning of device.warnings) box.append(h('div', 'small device-warning', warning));
+    }
     parts.push(box);
   }
   $('cloud').replaceChildren(...parts);

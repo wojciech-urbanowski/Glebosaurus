@@ -110,10 +110,11 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
 3. **Synchronizacja agent ↔ Supabase.** Tylko ruch wychodzący: HTTPS do funkcji SQL (`/rest/v1/rpc/…`) zwykłym
    `HttpClient` z kluczem publikowalnym projektu (`sb_publishable_…` w nagłówku `apikey`, rola `anon`) i tokenem agenta –
    bez SDK i bez hasła bazy na urządzeniach. Główne wywołanie `agent_sync` co ok. 60 s: sygnał życia (wersja, stan BLE;
-   telefon także bateria, temperatura, ładowanie, Wi-Fi), słyszenia, paczka odczytów z lokalnego bufora, odnowienie
-   dzierżaw → w odpowiedzi przydziały z epoką i czasem ważności, wersja konfiguracji i polecenia. Odczyty są idempotentne
-   po `(sensor_id, at)` – ten sam klucz co lokalnie – a lokalny SQLite jest buforem i pełną kopią odczytów agenta, więc
-   przerwa sieci kończy się dosłaniem bez strat. Dzienne logi agentów trafiają spakowane do tabeli w bazie, a nadawca
+   telefon także bateria, ładowarka, temperatura akumulatora, stan cieplny, sieć i siła Wi-Fi), słyszenia, paczka odczytów
+   z lokalnego bufora, odnowienie dzierżaw → w odpowiedzi przydziały z epoką i czasem ważności, wersja konfiguracji,
+   polecenia i lista agentów z ich ostatnim sygnałem życia. Odczyty są idempotentne po `(sensor_id, at)` – ten sam klucz
+   co lokalnie – a lokalny SQLite jest buforem i pełną kopią odczytów agenta, więc przerwa sieci kończy się dosłaniem bez
+   strat. Dzienne logi agentów trafiają spakowane do tabeli w bazie, a nadawca
    wysyła z nich log administratora – osobny mail z dziennika każdego agenta. Protokół jest wersjonowany (`v1`).
 4. **Uwierzytelnianie.** Agent: jednorazowy kod rejestracji od właściciela (`cloud agent`; na Androidzie kod QR) →
    `enroll` → własny token, w bazie tylko jego skrót, odwoływalny w każdej chwili (`cloud agent --revoke`); lokalnie DPAPI
@@ -243,8 +244,9 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
     `no-store`. Panel nigdy nie zatrzymuje agenta: brak hasła czy zajęty port to tylko wpis w dzienniku.
     **Dane:** `CloudPanel` składa status z konfiguracji z chmury, lokalnej bazy (własne odczyty i kopia odczytów innych
     agentów), migawki zbieracza (`CollectorEngine.State`: próby, ponowienia, sygnał, trwający odczyt), obrazu ostatniej
-    synchronizacji (kto ma dzierżawę każdego czujnika, kto poza tym agentem słyszy go najlepiej, kto jest nadawcą, agenci),
-    stanu poczty nadawcy i alertów ze wspólnego stanu w chmurze (`alert_list`, najwyżej co 30 s). Wspólną część (czujniki
+    synchronizacji (kto ma dzierżawę każdego czujnika, kto poza tym agentem słyszy go najlepiej, kto jest nadawcą, agenci z
+    urządzeniem z ich sygnału życia – `AgentDevice`: program, bateria, temperatura, sieć i ostrzeżenia, które pokazuje też
+    baner strony), stanu poczty nadawcy i alertów ze wspólnego stanu w chmurze (`alert_list`, najwyżej co 30 s). Wspólną część (czujniki
     i ich odczyty) składa `MonitorStatusBuilder` – pole po polu, nigdy przez serializację `AgentConfig`, więc klucze
     czujników i hasło Gmaila nie mają którędy wyjść (test). **Kopia odczytów wszystkich agentów** (`CloudReadingMirror`,
     tylko z sekcją `web`): co 2 min odczyty przyjęte przez chmurę po ostatnim znanym numerze (`readings_feed`, paczki po
@@ -291,8 +293,12 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
     - **Ekran:** ten sam `MonitorStatus` co w panelu, jako tekst (`AgentScreenText`): ostrzeżenia, agent, telefon,
       czujniki, alerty, agenci, „Przygotowanie telefonu” i ostatnie wpisy dziennika. **Podgląd zasięgu**: 3 min skanu bez
       filtra z mocą sygnału na żywo – do wyboru miejsca na telefon.
-    - **Sygnał życia telefonu:** bateria, temperatura akumulatora, ładowarka, siła Wi-Fi, stan Bluetooth (ekran ostrzega od
-      45 °C; alertu mailowego o przegrzaniu jeszcze nie ma).
+    - **Sygnał życia telefonu** (`PhoneState`): bateria, ładowarka, temperatura akumulatora, stan cieplny systemu
+      (`PowerManager.getCurrentThermalStatus`), rodzaj sieci i siła Wi-Fi, stan Bluetooth. Telefon niczego nie wystawia –
+      dane jadą w każdym `agent_sync`, a chmura oddaje je innym agentom, więc panel WWW komputera pokazuje stan telefonu z
+      jego ostatniej synchronizacji. Opis i ostrzeżenia wspólne dla ekranu i panelu (`AgentDevice`): akumulator od 45 °C,
+      system ograniczający wydajność z powodu temperatury (od `moderate`), brak ładowarki, sieć komórkowa zamiast Wi-Fi.
+      Alertu mailowego o przegrzaniu jeszcze nie ma.
     - **Wydania:** APK podpisany jednym kluczem wydań (jego utrata = aktualizacja tylko przez odinstalowanie i nową
       rejestrację); w wydaniu z tagu, gdy repozytorium ma sekrety `ANDROID_KEYSTORE_BASE64` i `ANDROID_KEYSTORE_PASSWORD`.
       Kod wersji z `Directory.Build.props` (0.2.1 → 201).
@@ -316,6 +322,10 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
       (`heardSecondsAgo`), bo jego zegar może się rozjechać z bazą; odczyty z przyszłości (ponad 10 min), sprzed 2020 i spoza
       zakresów baza odrzuca z powodem, żeby agent ich nie ponawiał. `agent_sync` najpierw oddaje, potem bierze dzierżawy w
       stałej kolejności (bez zakleszczeń).
+    - **Lista agentów** w odpowiedzi `agent_sync` niesie ich ostatni sygnał życia przez `glebosaurus.agent_status_view`:
+      tylko znane pola o właściwym typie, w zakresie i o ograniczonej długości (bez wersji i platformy – nic), bo status
+      zapisuje każdy agent dowolnym obiektem, a pole złego typu nie może zepsuć synchronizacji innym. Nowe pole sygnału
+      życia = nowa migracja.
     - **Alerty:** czytać może każdy agent, otwierać, zamykać i oznaczać – tylko obecny nadawca. Otwarcie już otwartego
       zwraca istniejący alert, więc restart nadawcy nie tworzy drugiego epizodu.
     - **Polecenia** (`read_now`, `report_now`, `release`, `pair`, `send_log`): bez wskazanego agenta trafiają tam, gdzie jest

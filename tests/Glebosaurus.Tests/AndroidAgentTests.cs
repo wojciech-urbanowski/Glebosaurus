@@ -179,7 +179,10 @@ public sealed class AndroidAgentTests : IDisposable
     public async Task Screen_ShowsWhoReadsEachSensor_LatestReading_AndPhone()
     {
         var status = await StatusAsync();
-        var phone = new AgentStatus("0.2.1", "android", "ok") { BatteryPercent = 100, Charging = true, BatteryTemperatureCelsius = 31.5, WifiDbm = -55 };
+        var phone = new AgentStatus("0.2.1", "android", "ok")
+        {
+            BatteryPercent = 100, Charging = true, BatteryTemperatureCelsius = 31.5, ThermalStatus = "none", Network = "wifi", WifiDbm = -55
+        };
 
         var sections = AgentScreenText.Build(status, phone, TimeZoneInfo.Utc);
         var text = Text(sections);
@@ -187,7 +190,8 @@ public sealed class AndroidAgentTests : IDisposable
         Assert.Contains("„mi11” w abcdefghijklmnopqrst.supabase.co – tylko zbiera odczyty", text);
         Assert.Contains("Synchronizacja: 05:59 (przed chwilą)", text);
         Assert.Contains("Maile wysyła: bestia5", text);
-        Assert.Contains("Bateria 100 % · ładuje się · 31,5 °C · Wi-Fi -55 dBm · Bluetooth: ok", text);
+        Assert.Contains("[Telefon]\nBateria: 100 % · na ładowarce\nTemperatura: 31,5 °C (akumulator) · system: w normie\n" +
+            "Sieć: Wi-Fi -55 dBm (dobry)\nBluetooth: ok\n", text);
         Assert.Contains("Cisy – czyta ten telefon (dzierżawa do 06:25)", text);
         Assert.Contains("   54 % · 12,3 °C · bateria 40 % (12 min temu)", text);
         Assert.Contains("słyszę -72 dBm (12 min temu); bestia5: -81 dBm", text);
@@ -201,7 +205,7 @@ public sealed class AndroidAgentTests : IDisposable
     public async Task Screen_WarnsFirst_WhenRevoked_OrPhoneHotAndUnplugged()
     {
         var status = await StatusAsync(s => s with { Revoked = true });
-        var phone = new AgentStatus("0.2.1", "android") { BatteryPercent = 80, Charging = false, BatteryTemperatureCelsius = 46 };
+        var phone = new AgentStatus("0.2.1", "android") { BatteryPercent = 80, Charging = false, BatteryTemperatureCelsius = 46, ThermalStatus = "severe" };
 
         var sections = AgentScreenText.Build(status, phone, TimeZoneInfo.Utc);
 
@@ -210,7 +214,48 @@ public sealed class AndroidAgentTests : IDisposable
         var telefon = Assert.Single(sections, s => s.Title == "Telefon");
         Assert.True(telefon.Warning);
         Assert.Contains(telefon.Lines, l => l.StartsWith("Akumulator gorący (46,0 °C)", StringComparison.Ordinal));
-        Assert.Contains(telefon.Lines, l => l.Contains("ładowarce", StringComparison.Ordinal));
+        Assert.Contains("Telefon się przegrzewa (system: mocno ogranicza wydajność).", telefon.Lines);
+        Assert.Contains("Bez ładowarki – telefon ma pracować stale na ładowarce.", telefon.Lines);
+    }
+
+    // ---- Stan urządzenia (ekran telefonu i panel WWW innego agenta) --------------------------------------------------------
+
+    [Fact]
+    public void Device_DescribesOnlyWhatTheAgentReported()
+    {
+        var windows = AgentDevice.Describe(new AgentStatus("0.2.3", "windows", "Shiny (WinRT)"));
+        Assert.Equal("Glebosaurus 0.2.3 · Windows", windows.Program);
+        Assert.Equal([new DeviceDetail("Bluetooth", "Shiny (WinRT)")], windows.Details);
+        Assert.Empty(windows.Warnings);
+
+        // Telefon 0.2.2 wysyła siłę Wi-Fi bez rodzaju sieci i bez stanu cieplnego.
+        var old = AgentDevice.Describe(new AgentStatus("0.2.2", "android", "ok") { BatteryPercent = 80, Charging = true, BatteryTemperatureCelsius = 30, WifiDbm = -66 });
+        Assert.Equal("Glebosaurus 0.2.2 · Android", old.Program);
+        Assert.Equal([new("Bateria", "80 % · na ładowarce"), new("Temperatura", "30,0 °C (akumulator)"), new DeviceDetail("Sieć", "Wi-Fi -66 dBm (średni)"),
+            new("Bluetooth", "ok")], old.Details);
+        Assert.Empty(old.Warnings);
+    }
+
+    [Fact]
+    public void Device_WarnsWhenPhoneIsHot_Unplugged_OrOffWifi()
+    {
+        var cellular = AgentDevice.Describe(new AgentStatus("0.2.3", "android") { Network = "cellular", ThermalStatus = "light", BatteryTemperatureCelsius = 44.9 });
+        Assert.Equal([new("Temperatura", "44,9 °C (akumulator) · system: ciepły"), new DeviceDetail("Sieć", "sieć komórkowa (bez Wi-Fi)")], cellular.Details);
+        Assert.Equal(["Bez Wi-Fi – telefon wysyła dane przez sieć komórkową."], cellular.Warnings);
+
+        var hot = AgentDevice.Describe(new AgentStatus("0.2.3", "android") { ThermalStatus = "moderate", Network = "wifi", WifiDbm = -75, Charging = false });
+        Assert.Equal(["Telefon się przegrzewa (system: ogranicza wydajność).", "Bez ładowarki – telefon ma pracować stale na ładowarce."], hot.Warnings);
+        Assert.Contains(new DeviceDetail("Sieć", "Wi-Fi -75 dBm (słaby)"), hot.Details);
+    }
+
+    [Fact]
+    public void Device_ThermalStatusNames_FollowAndroidCodes()
+    {
+        Assert.Equal(["none", "light", "moderate", "severe", "critical", "emergency", "shutdown"],
+            Enumerable.Range(0, 7).Select(AgentDevice.ThermalStatusName).ToList());
+        Assert.Null(AgentDevice.ThermalStatusName(7));
+        Assert.Null(AgentDevice.ThermalStatusName(-1));
+        Assert.Equal(("dobry", "średni", "słaby"), (AgentDevice.WifiQuality(-60), AgentDevice.WifiQuality(-70), AgentDevice.WifiQuality(-71)));
     }
 
     [Fact]

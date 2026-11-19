@@ -287,6 +287,10 @@ telefonie; strony odświeżają się same.
 - **Pulpit:** karta każdego czujnika (alerty, wilgotność, temperatura, bateria, wiek odczytu, który agent go czyta, problem
   z ostatnią próbą) z wykresem ostatnich 3 dób; otwarte alerty, chmura i agenci (synchronizacja, bufor, nadawca), poczta,
   najbliższy raport, końcówka dziennika, ustawienia.
+- **Stan telefonu i innych agentów:** w karcie każdego agenta wersja programu, a przy telefonie bateria, ładowarka,
+  temperatura akumulatora i stan cieplny systemu, sieć i siła Wi-Fi – z jego ostatniej synchronizacji (telefon niczego
+  nie wystawia, dokłada to do zwykłej wymiany z chmurą). Gorący telefon, brak ładowarki albo brak Wi-Fi panel pokazuje
+  na górze strony.
 - **Strona czujnika:** stan teraz z sygnałem (tu i u najlepiej słyszącego innego agenta), przeglądalny wykres całej
   historii (3 doby … rok, przesuwanie przeciąganiem, Ctrl + kółko, dwa palce), ostatnie odczyty, diagnostyka, ustawienia
   i wpisy dziennika o tym czujniku.
@@ -362,8 +366,8 @@ odczyty jak każdy agent, ale nie wysyła maili. Przydaje się tam, gdzie komput
 5. **Miejsce na telefon:** „Zasięg czujników” – podgląd na żywo (3 min) mocy sygnału każdego czujnika.
 
 Ekran pokazuje to samo co panel WWW (który agent czyta który czujnik, ostatnie odczyty wszystkich agentów, synchronizacja,
-alerty, agenci), stan telefonu (bateria, temperatura akumulatora, ładowarka, Wi-Fi – idą też w sygnale życia do chmury) i
-ostatnie wpisy dziennika. Agent pracuje jako usługa ze stałym powiadomieniem; „Zatrzymaj agenta” kończy bieżący odczyt i
+alerty, agenci), stan telefonu (bateria, ładowarka, temperatura akumulatora i stan cieplny systemu, sieć i siła Wi-Fi –
+idą też w sygnale życia do chmury, więc widać je w panelu WWW komputera) i ostatnie wpisy dziennika. Agent pracuje jako usługa ze stałym powiadomieniem; „Zatrzymaj agenta” kończy bieżący odczyt i
 oddaje czujniki innym. Token i kopia konfiguracji z kluczami Tuya są zaszyfrowane kluczem z Android Keystore (odinstalowanie
 aplikacji je kasuje – potem nowa rejestracja). Dziennik: `adb logcat -s Glebosaurus`.
 

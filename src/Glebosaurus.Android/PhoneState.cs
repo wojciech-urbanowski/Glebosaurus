@@ -8,8 +8,10 @@ using Microsoft.Extensions.Logging;
 namespace Glebosaurus.Android;
 
 /// <summary>
-/// Sygnał życia telefonu (ARCHITEKTURA.md, zasady 3 i 12): wersja, stan Bluetooth, bateria, temperatura akumulatora, czy jest
-/// na ładowarce i siła Wi-Fi. Telefon pracuje stale na ładowarce – temperatura i ładowanie mówią, czy wszystko w porządku.
+/// Sygnał życia telefonu (ARCHITEKTURA.md, zasady 3 i 12): wersja, stan Bluetooth, bateria, temperatura akumulatora, stan
+/// cieplny systemu, czy jest na ładowarce, rodzaj sieci i siła Wi-Fi. Telefon pracuje stale na ładowarce i na Wi-Fi – te pola
+/// mówią, czy wszystko w porządku. Jedzie w każdej synchronizacji z chmurą (telefon niczego nie wystawia), a chmura oddaje
+/// go innym agentom – panel WWW na komputerze pokazuje stan telefonu.
 /// </summary>
 internal static class PhoneState
 {
@@ -32,10 +34,23 @@ internal static class PhoneState
                 Charging = plugged
             };
         }
+        // Stan cieplny całego telefonu (Android 10+): od „moderate” system ogranicza wydajność.
+        if (context.GetSystemService(Context.PowerService) is PowerManager power)
+            status = status with { ThermalStatus = AgentDevice.ThermalStatusName((int)power.CurrentThermalStatus) };
         if (context.GetSystemService(Context.ConnectivityService) is ConnectivityManager connectivity
-            && connectivity.GetNetworkCapabilities(connectivity.ActiveNetwork) is { } network
-            && network.HasTransport(TransportType.Wifi) && network.SignalStrength != int.MinValue)
-            status = status with { WifiDbm = network.SignalStrength };
+            && connectivity.GetNetworkCapabilities(connectivity.ActiveNetwork) is { } network)
+        {
+            var wifi = network.HasTransport(TransportType.Wifi);
+            status = status with
+            {
+                Network = wifi ? "wifi"
+                    : network.HasTransport(TransportType.Cellular) ? "cellular"
+                    : network.HasTransport(TransportType.Ethernet) ? "ethernet"
+                    : "other",
+                // SIGNAL_STRENGTH_UNSPECIFIED = Integer.MIN_VALUE.
+                WifiDbm = wifi && network.SignalStrength != int.MinValue ? network.SignalStrength : null
+            };
+        }
         return status;
     }
 }

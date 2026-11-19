@@ -18,7 +18,8 @@ zbieracz, 9 czujników):
 - maile pod telefon: alerty, raporty z wykresem 3 dób, log administratora, „agent milczy”;
 - agent na Windows jako usługa bez okna z samoaktualizacją z wydań GitHuba; lokalny panel WWW (HTTPS, hasło) z wykresami,
   odczytem i raportem na żądanie;
-- agent na Androida (tylko zbieranie) z rejestracją kodem QR i podglądem zasięgu;
+- agent na Androida (tylko zbieranie) z rejestracją kodem QR i podglądem zasięgu; stan telefonu (bateria, temperatura,
+  Wi-Fi) w panelu WWW komputera;
 - CI na każdy push, wydania z tagu `v*`.
 
 **Niesprawdzone na żywo:**
@@ -96,7 +97,7 @@ Tylko zbieranie, telefon na Wi-Fi, stale na ładowarce (zasada 12; użycie – R
 | # | Zadanie | Stan | Wielkość |
 |---|---|---|---|
 | 1 | **Próba na telefonie:** instalacja, rejestracja QR, uprawnienia i ustawienia MIUI, skan i odczyty, zgaszony ekran, restart telefonu. | ◐ wszystko poza nocą na ładowarce | S–M |
-| 2 | **Agent:** usługa w tle, start po restarcie, rejestracja QR, synchronizacja, ekran stanu i zasięgu, stan telefonu w sygnale życia. | ✔ ○ alert mailowy o przegrzaniu (nadawca potrzebuje stanu agentów – nowa funkcja SQL); start bez odblokowania (Direct Boot) | L |
+| 2 | **Agent:** usługa w tle, start po restarcie, rejestracja QR, synchronizacja, ekran stanu i zasięgu, stan telefonu w sygnale życia i w panelu WWW komputera (bateria, temperatura, stan cieplny, sieć). | ✔ ○ alert mailowy o przegrzaniu (nadawca ma już stan agentów z `agent_sync`); start bez odblokowania (Direct Boot) | L |
 | 3 | **Wydania:** APK z Actions podpisany kluczem wydań z sekretów repozytorium; powiadomienie o nowej wersji albo Obtainium. | ◐ workflowy gotowe, czekają na sekrety klucza | S |
 | 4 | **Praca obok komputera na tych samych czujnikach:** przejęcie czujników po wyłączeniu komputera, oddanie przy lepszym sygnale, żadnych równoczesnych połączeń. | ◐ pierwszy dzień bez kolizji | S + czas |
 

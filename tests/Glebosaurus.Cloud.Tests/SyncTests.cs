@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 
 namespace Glebosaurus.Cloud.Tests;
@@ -133,6 +134,48 @@ public sealed class SyncTests(CloudDatabase db)
 
         var status = await db.AdminAsync("select last_status::text from glebosaurus.agents where name = @n", null, ("n", a.Name));
         Assert.Equal("0.2.0", status.Text("version"));
+    }
+
+    [Fact]
+    public async Task AgentsList_HasEachAgentsHeartbeat_OnlyKnownFieldsOfRightType()
+    {
+        db.SkipIfUnavailable();
+        var s = new Scenario(db, CloudDatabase.NextTime());
+        var phone = await s.AgentAsync("telefon");
+        var pc = await s.AgentAsync("pc");
+        var odd = await s.AgentAsync("dziwny");
+        await s.SyncAsync(phone, s.T0, new()
+        {
+            ["status"] = new JsonObject
+            {
+                ["version"] = "0.2.3", ["platform"] = "android", ["ble"] = "ok", ["batteryPercent"] = 80, ["batteryTemperatureCelsius"] = 31.46,
+                ["charging"] = true, ["network"] = "wifi", ["wifiDbm"] = -58, ["thermalStatus"] = "light", ["inne"] = "nie przechodzi"
+            }
+        });
+        // Zły typ albo wartość spoza zakresu nie może zepsuć innym agentom synchronizacji – pole znika.
+        await s.SyncAsync(pc, s.T0, new()
+        {
+            ["status"] = new JsonObject
+            {
+                ["version"] = "0.2.3", ["platform"] = "windows", ["ble"] = 1, ["batteryPercent"] = "80", ["batteryTemperatureCelsius"] = 400,
+                ["charging"] = "tak", ["network"] = "5g", ["wifiDbm"] = 12.5, ["thermalStatus"] = 3
+            }
+        });
+        await s.SyncAsync(odd, s.T0, new() { ["status"] = new JsonObject { ["ble"] = "ok", ["batteryPercent"] = 50 } });   // bez wersji
+
+        // Listę czyta inny agent – synchronizacja bez statusu nadpisuje własny sygnał życia pytającego.
+        var agents = (await s.SyncAsync(await s.AgentAsync("panel"), s.At(Minute))).GetProperty("agents");
+
+        var phoneStatus = agents.Single("name", phone.Name).GetProperty("status");
+        Assert.Equal(["batteryPercent", "batteryTemperatureCelsius", "ble", "charging", "network", "platform", "thermalStatus", "version", "wifiDbm"],
+            phoneStatus.EnumerateObject().Select(p => p.Name).Order(StringComparer.Ordinal).ToArray());
+        Assert.Equal((80, 31.5, true, -58), (phoneStatus.GetProperty("batteryPercent").GetInt32(),
+            phoneStatus.GetProperty("batteryTemperatureCelsius").GetDouble(), phoneStatus.GetProperty("charging").GetBoolean(),
+            phoneStatus.GetProperty("wifiDbm").GetInt32()));
+        Assert.Equal(("android", "wifi", "light"), (phoneStatus.Text("platform"), phoneStatus.Text("network"), phoneStatus.Text("thermalStatus")));
+        Assert.Equal(["platform", "version"],
+            agents.Single("name", pc.Name).GetProperty("status").EnumerateObject().Select(p => p.Name).Order(StringComparer.Ordinal).ToArray());
+        Assert.Equal(JsonValueKind.Null, agents.Single("name", odd.Name).GetProperty("status").ValueKind);
     }
 
     [Fact]

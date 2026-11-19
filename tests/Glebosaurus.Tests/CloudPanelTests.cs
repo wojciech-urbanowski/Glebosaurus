@@ -50,7 +50,14 @@ public sealed class CloudPanelTests : IDisposable
             View = new(clock.GetUtcNow(), new("bestia5", true, 2),
                 [new("s1", "bestia5", 1500, new OtherHearing("telefon", -71, 40)), new("s2", "telefon", 600, null)],
                 notifier is null ? null : new(notifier, 3, 240),
-                [new("bestia5", true, 2, 0), new("pi", true, 1, 30), new("telefon", false, null, 3600)])
+                [new("bestia5", true, 2, 0) { Status = new("0.2.3", "windows", "Shiny (WinRT)") }, new("pi", true, 1, 30),
+                 new("telefon", false, null, 3600)
+                 {
+                     Status = new("0.2.3", "android", "ok")
+                     {
+                         BatteryPercent = 80, Charging = false, BatteryTemperatureCelsius = 33.5, ThermalStatus = "none", Network = "wifi", WifiDbm = -58
+                     }
+                 }])
         };
     }
 
@@ -158,7 +165,14 @@ public sealed class CloudPanelTests : IDisposable
         Assert.Equal(["Czujnik „Stary” pominięty: brak danych Tuya."], cloud.ConfigWarnings);
         Assert.Equal([("bestia5", true, 1), ("pi", false, 0), ("telefon", false, 1)],
             cloud.Agents.Select(a => (a.Name, a.IsMe, a.HeldSensors)).ToList());
-        Assert.Equal(Fixtures.T0.AddSeconds(-3600), cloud.Agents.Single(a => a.Name == "telefon").LastSeenAt);
+        var phone = cloud.Agents.Single(a => a.Name == "telefon");
+        Assert.Equal(Fixtures.T0.AddSeconds(-3600), phone.LastSeenAt);
+        Assert.Equal("Glebosaurus 0.2.3 · Android", phone.Device!.Program);
+        Assert.Equal([new("Bateria", "80 % · bez ładowarki"), new("Temperatura", "33,5 °C (akumulator) · system: w normie"),
+            new("Sieć", "Wi-Fi -58 dBm (dobry)"), new DeviceDetail("Bluetooth", "ok")], phone.Device.Details);
+        Assert.Equal(["Bez ładowarki – telefon ma pracować stale na ładowarce."], phone.Device.Warnings);
+        Assert.Equal("Glebosaurus 0.2.3 · Windows", cloud.Agents.Single(a => a.IsMe).Device!.Program);
+        Assert.Null(cloud.Agents.Single(a => a.Name == "pi").Device);   // bez sygnału życia (albo baza sprzed migracji)
         Assert.True(cloud.MirrorEnabled);
         Assert.Equal(Fixtures.T0, cloud.MirrorAt);
 
