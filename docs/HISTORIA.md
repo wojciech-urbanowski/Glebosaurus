@@ -12,9 +12,9 @@ Laurowiśnia szafka, Hortensje niskie, Trawa, Alpinarium). „Monitor” w stars
 ## Wdrożenie autora – stan na 2026-11-19
 
 - **bestia5** (Windows 11, usługa w `%LOCALAPPDATA%\Glebosaurus` od 2026-11-15, wersja 0.2.2 od 2026-11-19 13:45): agent
-  `bestia5`, nadawca z priorytetem 2, panel WWW w sieci lokalnej, codzienna kopia chmury do `data\backups`. W `data\` leży
-  jeszcze `glebosaurus.standalone.config.json` – konfiguracja trybu samodzielnego sprzed przejścia na chmurę (z hasłem
-  Gmaila i kluczami Tuya; droga powrotu, której od 0.3 już nie ma – do usunięcia przez właściciela).
+  `bestia5`, nadawca z priorytetem 2, panel WWW w sieci lokalnej, codzienna kopia chmury do `data\backups`. Konfiguracja
+  trybu samodzielnego sprzed przejścia na chmurę (`data\glebosaurus.standalone.config.json`, z hasłem Gmaila i kluczami
+  Tuya) i jej pliki kluczy czujników (`data\*.credentials.json` – klucze są w chmurze) usunięte 2026-11-19.
 - **mi11** (Android 14, HyperOS) od 2026-11-19 10:45: agent `mi11`, tylko zbieracz, na razie przy bestia5.
 - **Prawdziwy projekt Supabase**: 3 migracje, 9 czujników (5 sparowanych lokalnie: Cyprysek, Cisy, Zioła, Wiszący wejście,
   Laurowiśnia wejście; 4 zostawione w Smart Life i czytane kluczami z chmury Tuya: Laurowiśnia szafka, Hortensje niskie,
@@ -157,6 +157,8 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   Plik agenta usługi (tylko `cloud`, `logs`, `monitorName`, `web`) przyjęty przez nowy loader; konfiguracja z chmury
   (wersja 60, 9 czujników), panel WWW i kopia odczytów od razu, blokada nadawcy (epoka 3) po 3,5 min, log administratora
   za 18.11 nie powtórzony, bez ostrzeżeń w dzienniku. Telefon mi11 został na APK zbudowanym z repozytorium przed 0.2.2.
+  Stare pliki trybu samodzielnego (`glebosaurus.standalone.config.json` i 5 plików `*.credentials.json` w `data\` usługi,
+  `glebosaurus.collect.config.json` w `local/`) usunięte do Kosza; usługa pracuje dalej bez zmian.
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 
