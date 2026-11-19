@@ -38,7 +38,7 @@ zbieracz, 9 czujników):
 
 1. **Tydzień próby chmury** (kryterium fazy 2.1) i **tydzień telefonu obok komputera** (2.2.4).
 2. **2.3a – Raspberry Pi 24/7 jako nadawca maili** (bez Bluetooth; komputer z Windows zostaje zapasowym): w kodzie, z próbą
-   skryptu w CI na arm64 – zostało wdrożenie na Pi (README, „Raspberry Pi: nadawca maili”) i tydzień pracy.
+   skryptu w CI na arm64; od 2026-11-19 nadawcą jest Pi – zostało przejęcie w drugą stronę i tydzień pracy.
 3. **Faza 3** – interfejs WWW w chmurze, przede wszystkim edytor konfiguracji (dziś plik konfiguracji chmury i `cloud config`).
 4. **Odtwarzanie z kopii zapasowej** (faza 4) – kopia jest, odtwarzania i jego próby jeszcze nie ma.
 5. **2.3b – czujniki na Raspberry Pi**, gdy Pi stanie w ich zasięgu (albo drugie, 32-bitowe Pi jako zbieracz).
@@ -95,11 +95,11 @@ godzinna przerwa sieci kończy się dosłaniem bez strat; restarty nie dublują 
 
 ### 2.2 – agent na Androida
 
-Tylko zbieranie, telefon na Wi-Fi, stale na ładowarce (zasada 12; użycie – README, „Android”).
+Tylko zbieranie, telefon na Wi-Fi (zasada 12; użycie – README, „Android”).
 
 | # | Zadanie | Stan | Wielkość |
 |---|---|---|---|
-| 1 | **Próba na telefonie:** instalacja, rejestracja QR, uprawnienia i ustawienia MIUI, skan i odczyty, zgaszony ekran, restart telefonu. | ◐ wszystko poza nocą na ładowarce | S–M |
+| 1 | **Próba na telefonie:** instalacja, rejestracja QR, uprawnienia i ustawienia MIUI, skan i odczyty, zgaszony ekran, restart telefonu. | ◐ wszystko poza pracą przez całą noc | S–M |
 | 2 | **Agent:** usługa w tle, start po restarcie, rejestracja QR, synchronizacja, ekran stanu i zasięgu, stan telefonu w sygnale życia i w panelu WWW komputera (bateria, temperatura, stan cieplny, sieć). | ✔ ○ alert mailowy o przegrzaniu (nadawca ma już stan agentów z `agent_sync`); start bez odblokowania (Direct Boot) | L |
 | 3 | **Wydania:** APK z Actions podpisany kluczem wydań z sekretów repozytorium; powiadomienie o nowej wersji albo Obtainium. | ◐ workflowy gotowe, czekają na sekrety klucza | S |
 | 4 | **Praca obok komputera na tych samych czujnikach:** przejęcie czujników po wyłączeniu komputera, oddanie przy lepszym sygnale, żadnych równoczesnych połączeń. | ◐ pierwszy dzień bez kolizji | S + czas |
@@ -123,7 +123,7 @@ użycie – README, „Raspberry Pi: nadawca maili”.
 |---|---|---|---|
 | 1 | **Agent bez Bluetooth:** `"bluetooth": false` w pliku agenta – `run` nie otwiera BLE (BlueZ i grupa `bluetooth` niepotrzebne), nie słucha, nie ubiega się o czujniki i ich nie czyta; synchronizacja, dziennik do chmury, `send_log`, maile z rolą nadawcy, panel WWW i codzienna kopia chmury – jak zwykle. Na Linuksie jeden agent na plik konfiguracji (blokada pliku – usługa systemd i terminal to różne sesje). | ✔ 2026-11-19 (testy) | S |
 | 2 | **Instalacja i aktualizacje:** paczka `linux-arm64` zależna od frameworka w wydaniu (ASP.NET Core Runtime 10 instaluje i aktualizuje właściciel), `install-linux.sh` – instalacja = aktualizacja: użytkownik `glebosaurus`, `/opt/glebosaurus`, usługa systemd z `Restart`, polecenie `glebosaurus`, samoaktualizacja z timera (przy starcie i o 03:30; skrypt nowego wydania sprawdzony z `SHA256SUMS`, próba nowego programu przed zatrzymaniem agenta, powrót poprzedniej wersji, gdy usługa po aktualizacji nie działa, nieudana wersja czeka dobę). CI: próba na `ubuntu-24.04-arm` z systemd przy każdym pushu, w wydaniu próba instalacji na arm64. | ◐ zrobione 2026-11-19, sprawdzone w Git Bash i w CI na arm64 z systemd; na Pi ○ | M |
-| 3 | **Wdrożenie:** agent z priorytetem 1 (`cloud agent --sender-priority 1`), komputer z Windows z priorytetem 2; próba przejęcia blokady w obie strony (wyłączenie Pi → komputer po ok. 7 min; powrót Pi → oddanie po ok. 2 min); strażnik healthchecks.io wysyła ten, kto ma blokadę; codzienna kopia chmury – na jednym agencie (przenieść na Pi albo zostawić). | ◐ agent w chmurze utworzony 2026-11-19; instalacja na Pi ○ | S |
+| 3 | **Wdrożenie:** agent z priorytetem 1 (`cloud agent --sender-priority 1`), komputer z Windows z priorytetem 2; próba przejęcia blokady w obie strony (wyłączenie Pi → komputer po ok. 7 min; powrót Pi → oddanie po ok. 2 min); strażnik healthchecks.io wysyła ten, kto ma blokadę; codzienna kopia chmury – na jednym agencie (przenieść na Pi albo zostawić). | ◐ 2026-11-19: agent na Pi, przejęcie blokady od komputera (ok. 6 min od pierwszej synchronizacji); w drugą stronę i kopia chmury ○ | S |
 
 **Kryterium:** Pi tydzień wysyła maile 24/7 bez dotykania; wyłączenie Pi przenosi wysyłkę na komputer w ok. 7 min; brak
 nadawcy zgłasza healthchecks.io; aktualizacja z wydania przechodzi sama.
@@ -228,7 +228,7 @@ zobaczyć alert, zmienić odbiorców.
 - **Okno parowania ok. 20 s** – zdalne parowanie (3d) musi być bardzo szybkie i dobrze opisane użytkownikowi.
 - **Utrata kluczy czujników** – są w Vault i w plikach `*.credentials.json` właściciela, a codzienna kopia chmury zawiera je
   odszyfrowane; utrata wszystkich kopii oznacza reset czujnika.
-- **Android/MIUI** – zabijanie aplikacji w tle, ograniczenia skanu BLE, akumulator telefonu stale na ładowarce.
+- **Android/MIUI** – zabijanie aplikacji w tle, ograniczenia skanu BLE, telefon na zewnątrz (mróz, upał, zużycie baterii).
 - **Darmowy Supabase** – 500 MB (potem tylko odczyt), uśpienie po 7 dniach bez ruchu, brak kopii zapasowych; konto Supabase
   jest kluczem do wszystkich sekretów (logowanie dwuetapowe).
 - **Dryf wskazań wilgotności** – bez kalibracji progi nie są porównywalne między doniczkami.

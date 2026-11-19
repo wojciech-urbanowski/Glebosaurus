@@ -17,8 +17,9 @@ Laurowiśnia szafka, Hortensje niskie, Trawa, Alpinarium). „Monitor” w stars
   Tuya) i jej pliki kluczy czujników (`data\*.credentials.json` – klucze są w chmurze) usunięte 2026-11-19.
 - **mi11** (Android 14, HyperOS) od 2026-11-19 10:45: agent `mi11`, tylko zbieracz, na razie przy bestia5; APK 0.2.3 od
   2026-11-19 16:48 (instalacja przez adb).
-- **rasp3** (Raspberry Pi, 64-bit, daleko od czujników): od 2026-11-19 agent `rasp3` w chmurze – nadawca z priorytetem 1,
-  bez Bluetooth (faza 2.3a); czeka na instalację na Pi (`install-linux.sh`) i `enroll`.
+- **rasp3** (Raspberry Pi, 64-bit, daleko od czujników) od 2026-11-19 ok. 21:27: agent `rasp3`, **główny nadawca**
+  (priorytet 1), bez Bluetooth (faza 2.3a); wersja 0.2.4 z `install-linux.sh` (usługa systemd, samoaktualizacja z timera).
+  bestia5 zostaje nadawcą zapasowym.
 - **Prawdziwy projekt Supabase**: 4 migracje (ostatnia `20261119120000_agent_device_status` od 2026-11-19 16:46), 9 czujników (5 sparowanych lokalnie: Cyprysek, Cisy, Zioła, Wiszący wejście,
   Laurowiśnia wejście; 4 zostawione w Smart Life i czytane kluczami z chmury Tuya: Laurowiśnia szafka, Hortensje niskie,
   Trawa, Alpinarium), odczyt co 2 h 5 min (od 2026-11-18 21:32), raporty o 07:00 i 19:00, strażnik healthchecks.io.
@@ -198,7 +199,13 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   priorytet 1; kod rejestracji w `local/`) – do pierwszej synchronizacji Pi blokadę trzyma bestia5. **Wydanie 0.2.4**
   (pierwsze z paczką linux-arm64 i `install-linux.sh`) opublikowane 20:05 z tagu `v0.2.4` – próba instalacji paczki na
   arm64 w workflowie zielona; `install-linux.sh` w Git Bash pobrał z prawdziwego wydania (`latest/download`) wersję 0.2.4 i
-  zgodny skrót, a uruchomienia paczki arm64 na x64 słusznie odmówił przed podmianą. **Niesprawdzone:**
+  zgodny skrót, a uruchomienia paczki arm64 na x64 słusznie odmówił przed podmianą. **Na żywo na Pi (rasp3, 64-bit):**
+  użytkownik zainstalował 0.2.4 skryptem z wydania; pierwszy `enroll` padł na „Request headers must contain only ASCII
+  characters” – w `cloud.publishableKey` wkleił się nadmiarowy znak (odczyt konfiguracji sprawdza tylko przedrostek
+  `sb_publishable_`); po poprawce `enroll` przeszedł tym samym kodem. Pierwsza synchronizacja `rasp3` ok. 21:27; bestia5
+  oddał blokadę nadawcy ważniejszemu kandydatowi ok. 21:31 (po 2 min jego obecności; bestia5 nie zapisuje oddania w
+  dzienniku – widać je tylko w chmurze), a `rasp3` wziął ją o 21:33:13 (epoka 5, odnawiana co minutę) – sprawdzone
+  zapytaniem tylko do odczytu w tabeli dzierżaw. **Niesprawdzone:**
   prawdziwe Pi, start usługi z konfiguracją, samoaktualizacja z prawdziwego wydania, powrót poprzedniej wersji po
   nieudanym starcie.
 
