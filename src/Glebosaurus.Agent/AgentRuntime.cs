@@ -18,10 +18,10 @@ internal sealed record LoadedConfig(AgentConfig Config, string ConfigPath, strin
     /// <summary>Certyfikat HTTPS panelu WWW z kluczem prywatnym (PFX bez hasła – chroniony prawami pliku, jak klucze czujników).</summary>
     public string WebCertificatePath => Path.Combine(Path.GetDirectoryName(ConfigPath)!, "glebosaurus-web.pfx");
 
-    /// <summary>Tryb chmurowy: plik z tokenem agenta (tworzy go enroll); null bez sekcji „cloud”.</summary>
+    /// <summary>Plik z tokenem agenta (tworzy go enroll); null bez sekcji „cloud”.</summary>
     public string? CloudTokenPath => Config.Cloud is { } cloud ? AgentConfigLoader.ResolveRelative(ConfigPath, cloud.TokenFile) : null;
 
-    /// <summary>Tryb chmurowy: ostatnia dobra konfiguracja z chmury (z kluczami Tuya); null bez sekcji „cloud”.</summary>
+    /// <summary>Ostatnia dobra konfiguracja z chmury (z kluczami Tuya); null bez sekcji „cloud”.</summary>
     public string? CloudConfigCachePath => Config.Cloud is { } cloud ? AgentConfigLoader.ResolveRelative(ConfigPath, cloud.ConfigCacheFile) : null;
 
     /// <summary>Codzienna kopia chmury: plik administratora z hasłem bazy; null bez sekcji „cloud.backup”.</summary>
@@ -39,7 +39,7 @@ internal static class AgentRuntime
     {
         var configPath = Path.GetFullPath(path ?? DefaultConfigFile);
         if (!File.Exists(configPath))
-            throw new FileNotFoundException($"Nie znaleziono pliku konfiguracji {configPath}. Wskaż go przez --config (wzór: examples/glebosaurus.config.json).");
+            throw new FileNotFoundException($"Nie znaleziono pliku konfiguracji agenta {configPath}. Wskaż go przez --config (wzór: examples/glebosaurus.config.json).");
         var config = AgentConfigLoader.Load(configPath);
         return new(config, configPath, AgentConfigLoader.ResolveDatabasePath(config, configPath));
     }

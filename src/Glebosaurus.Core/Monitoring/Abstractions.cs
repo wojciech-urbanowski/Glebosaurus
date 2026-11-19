@@ -54,7 +54,7 @@ public interface ISensorReader
 public sealed record HeardSensor(string SensorId, int? Rssi, int Packets);
 
 /// <summary>
-/// Sam nasłuch reklam (bez łączenia) – do przydziału czujników w trybie chmurowym: kto i jak dobrze słyszy który czujnik.
+/// Sam nasłuch reklam (bez łączenia) – do przydziału czujników między agentów: kto i jak dobrze słyszy który czujnik.
 /// </summary>
 public interface ISensorListener
 {
@@ -62,14 +62,17 @@ public interface ISensorListener
     Task<IReadOnlyList<HeardSensor>> HearAsync(IReadOnlyList<SensorConfig> sensors, TimeSpan window, CancellationToken cancellationToken);
 }
 
-/// <summary>Archiwum dziennika agenta, z którego silnik bierze log z poprzedniego dnia dla administratora.</summary>
+/// <summary>Archiwum dziennika agenta, z którego zbieracz bierze dziennik z poprzedniego dnia (do chmury, dla administratora).</summary>
 public interface ILogArchive
 {
     /// <returns>Pełna treść dziennika z <paramref name="day"/> (dzień czasu lokalnego) albo null, gdy tego dnia nic nie zapisano (agent nie działał).</returns>
     Task<string?> ReadDayAsync(DateOnly day, CancellationToken cancellationToken);
 }
 
-/// <summary>Lokalny magazyn monitora. W fazie 2 odczyty i alerty trafią także do chmury, a „claimy” zastąpią lokalne znaczniki.</summary>
+/// <summary>
+/// Lokalna baza agenta: własne odczyty (bufor do wysłania do chmury) i kopia odczytów innych agentów. Alerty, raporty i
+/// znaczniki wysyłek są wspólne – w chmurze.
+/// </summary>
 public interface IMonitorStore
 {
     Task InitializeAsync(CancellationToken cancellationToken);
@@ -85,14 +88,6 @@ public interface IMonitorStore
     /// <summary>Czas najstarszego i najnowszego odczytu czujnika w bazie; null = brak odczytów.</summary>
     Task<(DateTimeOffset First, DateTimeOffset Last)?> GetReadingBoundsAsync(string sensorId, CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<AlertRecord>> GetOpenAlertsAsync(CancellationToken cancellationToken);
-    Task<AlertRecord> OpenAlertAsync(string sensorId, AlertKind kind, string detail, DateTimeOffset at, CancellationToken cancellationToken);
-    Task ResolveAlertAsync(long alertId, DateTimeOffset at, CancellationToken cancellationToken);
-    Task MarkNotifiedAsync(IReadOnlyCollection<long> alertIds, DateTimeOffset at, CancellationToken cancellationToken);
-
-    Task<bool> HasReportRunAsync(string key, CancellationToken cancellationToken);
-    Task RecordReportRunAsync(string key, DateTimeOffset at, CancellationToken cancellationToken);
-
-    /// <summary>Usuwa odczyty starsze niż podana chwila oraz zamknięte alerty i wpisy raportów starsze niż ta chwila.</summary>
+    /// <summary>Usuwa odczyty starsze niż podana chwila.</summary>
     Task PurgeAsync(DateTimeOffset olderThan, CancellationToken cancellationToken);
 }

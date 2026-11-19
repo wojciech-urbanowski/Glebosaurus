@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using Glebosaurus.Agent.Ble;
 using Glebosaurus.Core.Config;
 using Glebosaurus.Core.Monitoring;
@@ -12,7 +11,7 @@ namespace Glebosaurus.Agent;
 /// potem weryfikacja na nowym połączeniu. Klucz trafia do pliku PRZED wysłaniem do czujnika, więc przerwane parowanie
 /// wznawia się tym samym kluczem (ponowne uruchomienie tego samego polecenia).
 /// </summary>
-internal static partial class PairCommand
+internal static class PairCommand
 {
     /// <summary>Po zobaczeniu pierwszego kandydata czekamy chwilę, czy nie ma drugiego – nie chcemy sparować niewłaściwego czujnika.</summary>
     private static readonly TimeSpan CompetitorWindow = TimeSpan.FromSeconds(1.5);
@@ -30,13 +29,14 @@ internal static partial class PairCommand
         if (!options.ConfirmBind)
             throw new ArgumentException("pair zmienia przypisanie czujnika. Dodaj --confirm-bind i uruchom polecenie, gdy czujnik jest w trybie parowania (po włożeniu baterii nadaje tylko ok. 20 s).");
         var id = options.Id ?? throw new ArgumentException("Podaj identyfikator czujnika: --id monstera.");
-        if (!IdPattern().IsMatch(id)) throw new ArgumentException("--id: tylko litery, cyfry, '.', '_' i '-'.");
+        if (!CloudSetupLoader.IsValidSensorId(id)) throw new ArgumentException($"--id: {CloudSetupLoader.SensorIdRule}.");
         ulong? wantedMac = null;
         if (options.Mac is { } macText)
             wantedMac = BleAddress.TryParse(macText, out var parsed) ? parsed : throw new ArgumentException("--mac: nieprawidłowy adres, np. DC:23:51:CB:F7:7D.");
 
-        var configDirectory = options.Config is { } config ? Path.GetDirectoryName(Path.GetFullPath(config))! : Directory.GetCurrentDirectory();
-        var path = Path.GetFullPath(options.Credentials ?? Path.Combine(configDirectory, $"{id}.credentials.json"));
+        // Klucz leży obok pliku konfiguracji chmury – tuyaFile w tym pliku jest względny od jego katalogu.
+        var setupDirectory = Path.GetDirectoryName(options.SetupPath)!;
+        var path = Path.GetFullPath(options.Credentials ?? Path.Combine(setupDirectory, $"{id}.credentials.json"));
         // Istniejący plik klucza = ten sam czujnik: nigdy nie wymyślamy drugiego klucza. Dotyczy to i przerwanego parowania,
         // i czujnika, który stracił przypisanie (kasuje je reset przyciskiem, wymiana baterii nie) – wtedy przypisujemy ten sam klucz jeszcze raz.
         var credentials = File.Exists(path) ? TuyaCredentials.Load(path) : null;
@@ -93,7 +93,7 @@ internal static partial class PairCommand
             await Task.Delay(SettleDelay, cancellationToken);
         }
 
-        return await VerifyAsync(ble, credentials, path, id, options, configDirectory, cancellationToken);
+        return await VerifyAsync(ble, credentials, path, id, options, setupDirectory, cancellationToken);
     }
 
     /// <summary>
@@ -141,7 +141,7 @@ internal static partial class PairCommand
     }
 
     private static async Task<int> VerifyAsync(
-        BleHost ble, TuyaCredentials credentials, string path, string id, CliOptions options, string configDirectory, CancellationToken cancellationToken)
+        BleHost ble, TuyaCredentials credentials, string path, string id, CliOptions options, string setupDirectory, CancellationToken cancellationToken)
     {
         Console.WriteLine($"Weryfikuję klucz na nowym połączeniu (czekam do {VerifyScanSeconds} s – tuż po przypisaniu czujnik reklamuje się rzadko)...");
         SeenSensor? target = null;
@@ -170,7 +170,7 @@ internal static partial class PairCommand
         credentials.Verified = true;
         credentials.Save(path);
 
-        var relative = Path.GetRelativePath(configDirectory, path);
+        var relative = Path.GetRelativePath(setupDirectory, path);
         var reference = relative.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(relative) ? path : relative;
         Console.WriteLine();
         Console.WriteLine("Sparowano i zweryfikowano.");
@@ -178,11 +178,9 @@ internal static partial class PairCommand
         Console.WriteLine($"  Temperatura gleby: {reading.SoilTemperatureCelsius?.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) ?? "brak"} °C");
         Console.WriteLine($"  Bateria          : {reading.BatteryPercent?.ToString() ?? "brak"} %");
         Console.WriteLine();
-        Console.WriteLine("Dodaj czujnik do listy \"sensors\" w pliku konfiguracji:");
+        Console.WriteLine($"Dodaj czujnik do listy \"sensors\" w pliku konfiguracji chmury ({options.SetupPath}):");
         Console.WriteLine($"  {{ \"id\": \"{id}\", \"name\": \"{(options.Name ?? id).Replace("\"", "\\\"")}\", \"tuyaFile\": \"{reference.Replace("\\", "/")}\" }}");
+        Console.WriteLine("i wyślij go do chmury: glebosaurus cloud config --admin PLIK --file PLIK --confirm (agenci przejmą czujnik sami).");
         return 0;
     }
-
-    [GeneratedRegex("^[A-Za-z0-9._-]+$")]
-    private static partial Regex IdPattern();
 }

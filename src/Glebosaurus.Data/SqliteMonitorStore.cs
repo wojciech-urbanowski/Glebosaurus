@@ -8,9 +8,9 @@ namespace Glebosaurus.Data;
 
 /// <summary>
 /// Magazyn w pliku SQLite z trybem WAL. Czasy zapisane jako unix-milisekundy UTC, temperatura jako dziesiąte części
-/// stopnia (liczby całkowite zamiast zmiennoprzecinkowych). Każda operacja otwiera krótkie połączenie. W trybie chmurowym
-/// jest też buforem odczytów do wysłania (<see cref="IReadingOutbox"/>, kolumna <c>sync_state</c>) i kopią odczytów innych
-/// agentów (<see cref="IReadingMirrorStore"/>, tabela <c>cloud_feed</c> z numerem ostatniego odczytu z chmury).
+/// stopnia (liczby całkowite zamiast zmiennoprzecinkowych). Każda operacja otwiera krótkie połączenie. Baza jest buforem
+/// odczytów do wysłania (<see cref="IReadingOutbox"/>, kolumna <c>sync_state</c>) i kopią odczytów innych agentów
+/// (<see cref="IReadingMirrorStore"/>, tabela <c>cloud_feed</c> z numerem ostatniego odczytu z chmury).
 /// </summary>
 public sealed class SqliteMonitorStore(string databasePath) : IMonitorStore, IReadingOutbox, IReadingMirrorStore
 {
@@ -37,26 +37,7 @@ public sealed class SqliteMonitorStore(string databasePath) : IMonitorStore, IRe
         if (version > SchemaVersion)
             throw new InvalidOperationException($"Baza {databasePath} pochodzi z nowszej wersji programu (schemat {version}).");
         if (version < SchemaVersion) await CreateSchemaAsync(connection, cancellationToken);
-        await EnsureSyncStateAsync(connection, cancellationToken);
-        // Kopia odczytów z chmury (faza 2.1.4): nowa tabela, której wersja 0.1.x nie zna i nie rusza – user_version bez zmian.
-        await ExecuteAsync(connection, "CREATE TABLE IF NOT EXISTS cloud_feed (source TEXT PRIMARY KEY, last_seq INTEGER NOT NULL);",
-            cancellationToken);
-    }
-
-    /// <summary>
-    /// Stan wysłania do chmury (faza 2.1.3): kolumna dodawana, gdy jej brak – zmiana zgodna wstecz, więc <c>user_version</c>
-    /// zostaje 1 i wersja 0.1.x po ewentualnym powrocie dalej otwiera bazę (jej INSERT wymienia kolumny, więc nowe odczyty
-    /// dostają domyślne „do wysłania”). Istniejące odczyty też są „do wysłania” – historia trafi do chmury tą samą drogą.
-    /// </summary>
-    private static async Task EnsureSyncStateAsync(SqliteConnection connection, CancellationToken cancellationToken)
-    {
-        var present = Convert.ToInt64(await ScalarAsync(connection,
-            "SELECT COUNT(*) FROM pragma_table_info('readings') WHERE name = 'sync_state';", cancellationToken), CultureInfo.InvariantCulture);
-        if (present > 0) return;
-        await ExecuteAsync(connection, """
-            ALTER TABLE readings ADD COLUMN sync_state INTEGER NOT NULL DEFAULT 0;
-            CREATE INDEX IF NOT EXISTS ix_readings_unsent ON readings (at) WHERE sync_state = 0;
-            """, cancellationToken);
+        else await UpgradeAsync(connection, cancellationToken);
     }
 
     private static async Task CreateSchemaAsync(SqliteConnection connection, CancellationToken cancellationToken)
@@ -70,24 +51,31 @@ public sealed class SqliteMonitorStore(string databasePath) : IMonitorStore, IRe
                 temp_tenths   INTEGER NULL,
                 battery       INTEGER NULL,
                 battery_state INTEGER NULL,
+                sync_state    INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY (sensor_id, at)
             ) WITHOUT ROWID;
-            CREATE TABLE IF NOT EXISTS alerts (
-                id               INTEGER PRIMARY KEY AUTOINCREMENT,
-                sensor_id        TEXT    NOT NULL,
-                kind             TEXT    NOT NULL,
-                detail           TEXT    NOT NULL,
-                opened_at        INTEGER NOT NULL,
-                last_notified_at INTEGER NULL,
-                resolved_at      INTEGER NULL
-            );
-            CREATE UNIQUE INDEX IF NOT EXISTS ux_alerts_open ON alerts (sensor_id, kind) WHERE resolved_at IS NULL;
-            CREATE TABLE IF NOT EXISTS report_runs (
-                key     TEXT    PRIMARY KEY,
-                sent_at INTEGER NOT NULL
-            );
+            CREATE INDEX IF NOT EXISTS ix_readings_unsent ON readings (at) WHERE sync_state = 0;
+            CREATE TABLE IF NOT EXISTS cloud_feed (source TEXT PRIMARY KEY, last_seq INTEGER NOT NULL);
             PRAGMA user_version = 1;
             """, cancellationToken);
+    }
+
+    /// <summary>
+    /// Bazy z wersji sprzed 0.2.0 (bez chmury) dostają kolumnę <c>sync_state</c> – ich odczyty są „do wysłania”, więc historia
+    /// trafia do chmury tą samą drogą – i tabelę <c>cloud_feed</c>. Ich tabele <c>alerts</c> i <c>report_runs</c> zostają
+    /// nieużywane (stan alertów i raportów jest w chmurze).
+    /// </summary>
+    private static async Task UpgradeAsync(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        var present = Convert.ToInt64(await ScalarAsync(connection,
+            "SELECT COUNT(*) FROM pragma_table_info('readings') WHERE name = 'sync_state';", cancellationToken), CultureInfo.InvariantCulture);
+        if (present == 0)
+            await ExecuteAsync(connection, """
+                ALTER TABLE readings ADD COLUMN sync_state INTEGER NOT NULL DEFAULT 0;
+                CREATE INDEX IF NOT EXISTS ix_readings_unsent ON readings (at) WHERE sync_state = 0;
+                """, cancellationToken);
+        await ExecuteAsync(connection, "CREATE TABLE IF NOT EXISTS cloud_feed (source TEXT PRIMARY KEY, last_seq INTEGER NOT NULL);",
+            cancellationToken);
     }
 
     public async Task AddReadingAsync(StoredReading reading, CancellationToken cancellationToken)
@@ -139,61 +127,6 @@ public sealed class SqliteMonitorStore(string databasePath) : IMonitorStore, IRe
             result.Add(new(sensorId, DateTimeOffset.FromUnixTimeMilliseconds(reader.GetInt64(0)),
                 Nullable(reader, 1), reader.IsDBNull(2) ? null : reader.GetInt32(2) / 10m, Nullable(reader, 3), Nullable(reader, 4)));
         return result;
-    }
-
-    public async Task<IReadOnlyList<AlertRecord>> GetOpenAlertsAsync(CancellationToken cancellationToken)
-    {
-        await using var connection = await OpenAsync(cancellationToken);
-        await using var command = Command(connection,
-            "SELECT id, sensor_id, kind, detail, opened_at, last_notified_at FROM alerts WHERE resolved_at IS NULL ORDER BY id;");
-        var result = new List<AlertRecord>();
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        while (await reader.ReadAsync(cancellationToken))
-            result.Add(new(reader.GetInt64(0), reader.GetString(1), Enum.Parse<AlertKind>(reader.GetString(2)), reader.GetString(3),
-                DateTimeOffset.FromUnixTimeMilliseconds(reader.GetInt64(4)),
-                reader.IsDBNull(5) ? null : DateTimeOffset.FromUnixTimeMilliseconds(reader.GetInt64(5)), null));
-        return result;
-    }
-
-    public async Task<AlertRecord> OpenAlertAsync(string sensorId, AlertKind kind, string detail, DateTimeOffset at, CancellationToken cancellationToken)
-    {
-        await using var connection = await OpenAsync(cancellationToken);
-        await using var command = Command(connection,
-            "INSERT INTO alerts (sensor_id, kind, detail, opened_at) VALUES ($s, $k, $d, $at); SELECT last_insert_rowid();",
-            ("$s", sensorId), ("$k", kind.ToString()), ("$d", detail), ("$at", at.ToUnixTimeMilliseconds()));
-        var id = Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken), CultureInfo.InvariantCulture);
-        return new(id, sensorId, kind, detail, at, null, null);
-    }
-
-    public async Task ResolveAlertAsync(long alertId, DateTimeOffset at, CancellationToken cancellationToken)
-    {
-        await using var connection = await OpenAsync(cancellationToken);
-        await ExecuteAsync(connection, "UPDATE alerts SET resolved_at = $at WHERE id = $id AND resolved_at IS NULL;", cancellationToken,
-            ("$at", at.ToUnixTimeMilliseconds()), ("$id", alertId));
-    }
-
-    public async Task MarkNotifiedAsync(IReadOnlyCollection<long> alertIds, DateTimeOffset at, CancellationToken cancellationToken)
-    {
-        await using var connection = await OpenAsync(cancellationToken);
-        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
-        foreach (var id in alertIds)
-            await ExecuteAsync(connection, "UPDATE alerts SET last_notified_at = $at WHERE id = $id;", cancellationToken, transaction,
-                ("$at", at.ToUnixTimeMilliseconds()), ("$id", id));
-        await transaction.CommitAsync(cancellationToken);
-    }
-
-    public async Task<bool> HasReportRunAsync(string key, CancellationToken cancellationToken)
-    {
-        await using var connection = await OpenAsync(cancellationToken);
-        await using var command = Command(connection, "SELECT 1 FROM report_runs WHERE key = $k;", ("$k", key));
-        return await command.ExecuteScalarAsync(cancellationToken) is not null;
-    }
-
-    public async Task RecordReportRunAsync(string key, DateTimeOffset at, CancellationToken cancellationToken)
-    {
-        await using var connection = await OpenAsync(cancellationToken);
-        await ExecuteAsync(connection, "INSERT OR REPLACE INTO report_runs (key, sent_at) VALUES ($k, $at);", cancellationToken,
-            ("$k", key), ("$at", at.ToUnixTimeMilliseconds()));
     }
 
     public async Task<IReadOnlyList<StoredReading>> GetUnsentAsync(int limit, CancellationToken cancellationToken)
@@ -270,11 +203,7 @@ public sealed class SqliteMonitorStore(string databasePath) : IMonitorStore, IRe
     {
         var limit = olderThan.ToUnixTimeMilliseconds();
         await using var connection = await OpenAsync(cancellationToken);
-        await ExecuteAsync(connection, """
-            DELETE FROM readings    WHERE at < $limit;
-            DELETE FROM alerts      WHERE resolved_at IS NOT NULL AND resolved_at < $limit;
-            DELETE FROM report_runs WHERE sent_at < $limit;
-            """, cancellationToken, ("$limit", limit));
+        await ExecuteAsync(connection, "DELETE FROM readings WHERE at < $limit;", cancellationToken, ("$limit", limit));
     }
 
     private static int? Nullable(SqliteDataReader reader, int ordinal) => reader.IsDBNull(ordinal) ? null : reader.GetInt32(ordinal);

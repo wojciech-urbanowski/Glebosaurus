@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Glebosaurus.Tests;
 
-/// <summary>Agent w trybie chmurowym: sekcja „cloud”, chroniony token i spięcie części w <see cref="CloudRuntime"/>.</summary>
+/// <summary>Agent: plik konfiguracji z sekcją „cloud”, chroniony token i spięcie części w <see cref="CloudRuntime"/>.</summary>
 public sealed class CloudAgentTests : IDisposable
 {
     private static readonly CancellationToken Ct = CancellationToken.None;
@@ -32,25 +32,36 @@ public sealed class CloudAgentTests : IDisposable
     // ---- Sekcja „cloud” ------------------------------------------------------------------------------------------------
 
     [Fact]
-    public void CloudConfig_NeedsNoSensors_AndResolvesFilesNextToConfig()
+    public void AgentFile_NeedsNoSensors_AndResolvesFilesNextToConfig()
     {
-        var path = Write($$"""{ {{Cloud}}, "database": "bufor.db" }""");
+        var path = Write($$"""
+            {
+              // komentarz
+              {{Cloud}}, "database": "dane/bufor.db", "logs": { "retentionDays": 14 },
+            }
+            """);
 
         var config = AgentConfigLoader.Load(path);
 
         Assert.Empty(config.Sensors);
         Assert.Equal("abcdefghijklmnopqrst.supabase.co", config.Cloud!.ProjectUrl.Host);
         Assert.Equal(Path.Combine(directory, "glebosaurus-cloud.token"), AgentConfigLoader.ResolveRelative(path, config.Cloud.TokenFile));
+        Assert.Equal(Path.Combine(directory, "dane", "bufor.db"), AgentConfigLoader.ResolveDatabasePath(config, path));
+        Assert.Equal(14, config.Logs.RetentionDays);
     }
 
     [Theory]
     [InlineData(""" "mail": { "gmailAddress": "a@gmail.com", "appPassword": "x", "alertRecipients": ["b@example.com"] } """, "„mail”")]
     [InlineData(""" "sensors": [ { "id": "s1", "tuya": { "uuid": "07aaad78f40b0a74", "deviceId": "x", "localKeyHex": "a1b2c3d4e5f6", "productId": "gvygg3m8" } } ] """, "„sensors”")]
-    public void CloudConfig_WithLocalMailOrSensors_IsRejected(string extra, string named)
+    [InlineData(""" "reports": { "times": ["07:00"] } """, "„reports”")]
+    [InlineData(""" "ReadIntervalMinutes": 30 """, "„ReadIntervalMinutes”")]
+    public void AgentFile_WithSettingsThatLiveInTheCloud_IsRejected(string extra, string named)
     {
         var path = Write($$"""{ {{Cloud}}, {{extra}} }""");
 
-        Assert.Contains(named, Assert.Throws<InvalidDataException>(() => AgentConfigLoader.Load(path)).Message);
+        var message = Assert.Throws<InvalidDataException>(() => AgentConfigLoader.Load(path)).Message;
+        Assert.Contains(named, message);
+        Assert.Contains("cloud config", message);
     }
 
     [Theory]
@@ -65,10 +76,17 @@ public sealed class CloudAgentTests : IDisposable
     }
 
     [Fact]
-    public void StandaloneConfig_StillNeedsSensors()
+    public void AgentFile_WithoutCloudSection_IsRejected()
     {
-        Assert.Throws<InvalidDataException>(() => AgentConfigLoader.Load(Write("{ }")));
+        Assert.Contains("„cloud”", Assert.Throws<InvalidDataException>(() => AgentConfigLoader.Load(Write("{ }"))).Message);
+        Assert.Contains("Nieprawidłowy JSON", Assert.Throws<InvalidDataException>(() => AgentConfigLoader.Load(Write("{ nie json"))).Message);
     }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(366)]
+    public void AgentFile_LogRetentionMustBeSensible(int days) =>
+        Assert.Contains("retentionDays", Assert.Throws<InvalidDataException>(() => AgentConfigLoader.Load(Write($$"""{ {{Cloud}}, "logs": { "retentionDays": {{days}} } }"""))).Message);
 
     // ---- Token -------------------------------------------------------------------------------------------------------
 

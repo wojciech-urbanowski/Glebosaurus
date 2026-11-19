@@ -72,7 +72,7 @@ public enum MailOutcome
 }
 
 /// <summary>
-/// Nadawca w trybie chmurowym (ARCHITEKTURA.md, zasady 2 i 14, kawałek e): pracuje tylko z blokadą nadawcy (z co najmniej
+/// Nadawca (ARCHITEKTURA.md, zasady 2 i 14, kawałek e): pracuje tylko z blokadą nadawcy (z co najmniej
 /// minutą ważności) i z hasłem Gmaila pobranym na tę epokę. Liczy alerty z odczytów wszystkich agentów i zapisuje je we
 /// wspólnym stanie w chmurze, wysyła maile o alertach (z przypomnieniami), raporty o stałych porach i na żądanie, log
 /// administratora (osobno z dziennika każdego agenta), „agent milczy” i sygnał dla strażnika. Każdy mail idzie przez
@@ -406,7 +406,7 @@ public sealed class NotifierEngine(
         var now = clock.GetUtcNow();
         var sensors = current.Config.Sensors;
         var history = sensors.Count == 0 ? [] : await api.ReadingsRangeAsync([.. sensors.Select(s => s.Id)],
-            now - SnapshotBuilder.HistoryWindow, now + TimeSpan.FromMinutes(10), cancellationToken);
+            now - SensorSnapshot.HistoryWindow, now + TimeSpan.FromMinutes(10), cancellationToken);
         var open = await api.AlertListAsync(cancellationToken);
         return [.. sensors.Select(sensor =>
         {
@@ -418,7 +418,7 @@ public sealed class NotifierEngine(
 
     // ---- Log administratora i cisza agentów ---------------------------------------------------------------------------
 
-    /// <summary>Log z wczoraj – osobny mail z dziennika każdego agenta (ten sam szablon co w trybie samodzielnym).</summary>
+    /// <summary>Log z wczoraj – osobny mail z dziennika każdego agenta.</summary>
     private async Task SendAdminLogsAsync(CloudAgentConfig current, long epoch, CancellationToken cancellationToken)
     {
         if (current.Mail is not { AdminRecipients.Count: > 0 } mail) return;

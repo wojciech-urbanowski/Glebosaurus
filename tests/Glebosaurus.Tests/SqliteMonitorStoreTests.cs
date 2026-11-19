@@ -74,58 +74,15 @@ public class SqliteMonitorStoreTests
     }
 
     [Fact]
-    public async Task OnlyOneOpenAlertPerSensorAndKindAndItCanReopenAfterResolve()
-    {
-        using var db = new TempStore();
-        var first = await db.Store.OpenAlertAsync("s1", AlertKind.NeedsWater, "18%", Fixtures.T0, Ct);
-        await Assert.ThrowsAsync<SqliteException>(() => db.Store.OpenAlertAsync("s1", AlertKind.NeedsWater, "17%", Fixtures.T0, Ct));
-        await db.Store.OpenAlertAsync("s1", AlertKind.LowBattery, "15%", Fixtures.T0, Ct); // inny rodzaj - dozwolone
-
-        await db.Store.ResolveAlertAsync(first.Id, Fixtures.T0.AddHours(1), Ct);
-        var again = await db.Store.OpenAlertAsync("s1", AlertKind.NeedsWater, "16%", Fixtures.T0.AddHours(2), Ct);
-
-        var open = await db.Store.GetOpenAlertsAsync(Ct);
-        Assert.Equal(2, open.Count);
-        Assert.Contains(open, a => a.Id == again.Id && a.Kind == AlertKind.NeedsWater);
-        Assert.DoesNotContain(open, a => a.Id == first.Id);
-    }
-
-    [Fact]
-    public async Task MarkNotifiedStoresTheMoment()
-    {
-        using var db = new TempStore();
-        var alert = await db.Store.OpenAlertAsync("s1", AlertKind.NeedsWater, "18%", Fixtures.T0, Ct);
-        Assert.Null(Assert.Single(await db.Store.GetOpenAlertsAsync(Ct)).LastNotifiedAt);
-
-        await db.Store.MarkNotifiedAsync([alert.Id], Fixtures.T0.AddMinutes(5), Ct);
-
-        Assert.Equal(Fixtures.T0.AddMinutes(5), Assert.Single(await db.Store.GetOpenAlertsAsync(Ct)).LastNotifiedAt);
-    }
-
-    [Fact]
-    public async Task ReportRunsAreRecordedByKey()
-    {
-        using var db = new TempStore();
-        Assert.False(await db.Store.HasReportRunAsync("07:00|2026-11-13", Ct));
-        await db.Store.RecordReportRunAsync("07:00|2026-11-13", Fixtures.T0, Ct);
-        Assert.True(await db.Store.HasReportRunAsync("07:00|2026-11-13", Ct));
-        Assert.False(await db.Store.HasReportRunAsync("07:00|2026-11-14", Ct));
-    }
-
-    [Fact]
     public async Task PurgeRemovesOldDataOnly()
     {
         using var db = new TempStore();
         await db.Store.AddReadingAsync(Fixtures.Reading("s1", Fixtures.T0.AddDays(-500)), Ct);
         await db.Store.AddReadingAsync(Fixtures.Reading("s1", Fixtures.T0), Ct);
-        var oldAlert = await db.Store.OpenAlertAsync("s1", AlertKind.NeedsWater, "x", Fixtures.T0.AddDays(-500), Ct);
-        await db.Store.ResolveAlertAsync(oldAlert.Id, Fixtures.T0.AddDays(-499), Ct);
-        var openAlert = await db.Store.OpenAlertAsync("s1", AlertKind.LowBattery, "y", Fixtures.T0.AddDays(-500), Ct); // otwarty zostaje
 
         await db.Store.PurgeAsync(Fixtures.T0.AddDays(-400), Ct);
 
         Assert.Single(await db.Store.GetRecentAsync("s1", 10, Ct));
-        Assert.Equal(openAlert.Id, Assert.Single(await db.Store.GetOpenAlertsAsync(Ct)).Id);
     }
 
     [Fact]
@@ -146,12 +103,12 @@ public class SqliteMonitorStoreTests
     }
 
     [Fact]
-    public async Task DatabaseOfVersion011_GetsSyncState_StaysOpenableByOldVersion()
+    public async Task DatabaseFromBeforeTheCloud_GetsSyncStateAndFeed_AndItsHistoryGoesToTheCloud()
     {
         var path = Fixtures.TempDatabase();
         try
         {
-            // Baza i zapis dokładnie jak w wersji 0.1.1 (bez sync_state).
+            // Baza dokładnie jak w wersji 0.1.1 (bez chmury: bez sync_state i cloud_feed).
             await ExecuteAsync(path, """
                 CREATE TABLE readings (sensor_id TEXT NOT NULL, at INTEGER NOT NULL, moisture INTEGER NULL, temp_tenths INTEGER NULL,
                     battery INTEGER NULL, battery_state INTEGER NULL, PRIMARY KEY (sensor_id, at)) WITHOUT ROWID;
@@ -167,9 +124,8 @@ public class SqliteMonitorStoreTests
             await store.InitializeAsync(Ct);   // ponowne otwarcie nie dodaje kolumny drugi raz
 
             Assert.Equal("s1", Assert.Single(await store.GetUnsentAsync(10, Ct)).SensorId);   // historia też pójdzie do chmury
-            Assert.Equal(1L, await ScalarAsync(path, "PRAGMA user_version;"));                 // 0.1.x dalej ją otworzy
-            await ExecuteAsync(path, "INSERT INTO readings (sensor_id, at, moisture, temp_tenths, battery, battery_state) VALUES ('s1', 2000, 41, NULL, NULL, NULL);");
-            Assert.Equal(2, await store.CountUnsentAsync(Ct));                                 // zapis starej wersji = do wysłania
+            Assert.Equal(1L, await ScalarAsync(path, "PRAGMA user_version;"));
+            Assert.Null(await store.GetFeedCursorAsync("projekt", Ct));                         // tabela cloud_feed jest
         }
         finally { Fixtures.DeleteDatabase(path); }
     }

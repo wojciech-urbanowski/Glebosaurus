@@ -1,0 +1,64 @@
+// Wzór pliku konfiguracji chmury (komentarze i końcowe przecinki są dozwolone). Trzyma go właściciel – obok pliku
+// administratora (cloud-admin.json) i plików kluczy czujników z `glebosaurus pair`. Zapis w chmurze:
+//   glebosaurus cloud config --admin cloud-admin.json --file cloud-config.json            (bez --confirm tylko plan)
+//   glebosaurus cloud config --admin cloud-admin.json --file cloud-config.json --confirm
+// Agenci przejmują zmiany sami (ok. minuty). Czujnik usunięty z pliku zostaje w chmurze. Plik zawiera sekrety (hasło
+// aplikacji Gmail, a przez tuyaFile – klucze czujników): nie dodawaj go do repozytorium.
+{
+  // Strefa czasowa raportów (nazwa IANA). Bez niej – strefa komputera, z którego idzie `cloud config`.
+  "timeZone": "Europe/Warsaw",
+
+  // Domyślny odstęp między odczytami czujnika (minuty, min. 0,5; domyślnie 125 = 2 h 5 min). Czujnik sam zapisuje rekord
+  // co godzinę i oddaje go przy połączeniu, więc rzadszy odczyt nie gubi przebiegu, a częstszy szybciej wyczerpuje baterię.
+  "readIntervalMinutes": 125,
+
+  // Jak długo łącznie (sekundy, 5–120) agent nasłuchuje reklam BLE w poszukiwaniu czujników czekających na odczyt.
+  "scanWindowSeconds": 60,
+
+  "sensors": [
+    {
+      "id": "monstera",                 // w chmurze: małe litery, cyfry, „_” i „-” (do 40 znaków)
+      "name": "Monstera w salonie",     // nazwa w mailach i w panelu
+
+      // Dane przypisania czujnika: plik utworzony przez `glebosaurus pair` (ścieżka względna od katalogu tego pliku).
+      // Gotowy wpis do wklejenia podaje samo polecenie pair.
+      "tuyaFile": "monstera.credentials.json",
+      // Alternatywnie dane wprost (zamiast tuyaFile, nie oba naraz) – np. klucz czujnika zostawionego w Smart Life:
+      // "tuya": { "mac": "DC:23:51:CC:03:C9", "uuid": "0123456789abcdef", "deviceId": "…", "localKeyHex": "…", "productId": "gvygg3m8" },
+
+      // Wszystko poniżej jest opcjonalne (podane wartości domyślne).
+      "wateringBelowPercent": 25,       // alert „czas podlać”, gdy wilgotność < 25% przez kilka odczytów z rzędu
+      "wateringClearAbovePercent": 35,  // alert wygasa dopiero powyżej 35% (histereza)
+      "consecutiveReadings": 2,
+      "lowBatteryPercent": 18,
+      "silentAfterHours": 6,            // alert „brak odczytów” po tylu godzinach bez udanego odczytu
+      "readIntervalMinutes": null       // własny odstęp dla tego czujnika
+    }
+  ],
+
+  // Konto nadawcy i odbiorcy. Hasło aplikacji (https://myaccount.google.com/apppasswords) trafia do Vault w chmurze.
+  // Bez tej sekcji `cloud config` nie zmienia poczty. Sprawdzenie przed zapisem: glebosaurus mail-test --file <ten plik>.
+  "mail": {
+    "gmailAddress": "nadawca@gmail.com",
+    "appPassword": "HASLO_APLIKACJI",
+    "alertRecipients": ["ja@example.com"],   // odbiorcy alertów (co najmniej jeden); można podać kilku
+    "reportRecipients": [],                  // odbiorcy raportów; puste = ci sami, co alertów
+    // Administrator dostaje techniczny dziennik każdego agenta z całego poprzedniego dnia (osobny mail od każdego agenta).
+    // Puste = dzienniki nie są wysyłane.
+    "adminRecipients": ["admin@example.com"]
+  },
+
+  "reports": {
+    "times": ["07:00", "19:00"],        // pory raportów (HH:mm, w strefie timeZone); pusta lista wyłącza raporty
+    "catchUpHours": 3                   // nadrabiaj raport spóźniony o tyle godzin (np. gdy nadawca był wyłączony), potem pomiń
+  },
+
+  "alerts": {
+    "reminderHours": 24                 // co ile przypominać o wciąż otwartym alercie
+  },
+
+  // Ile dni chmura trzyma dzienniki agentów (1–30).
+  "logs": {
+    "retentionDays": 7
+  }
+}

@@ -6,7 +6,6 @@ using Glebosaurus.Core;
 using Glebosaurus.Core.Config;
 using Glebosaurus.Core.Hosting;
 using Glebosaurus.Core.Mail;
-using Glebosaurus.Core.Monitoring;
 using Glebosaurus.Data;
 using Glebosaurus.Mail;
 using Glebosaurus.Tuya;
@@ -18,56 +17,46 @@ namespace Glebosaurus.Agent;
 
 internal sealed record CliOptions(
     string Command, int? Seconds, int Timeout, string? Credentials, string? Config, string? Output, bool Verbose, bool Quiet,
-    int? Minutes, bool ConfirmBind, string? Id, string? Name, string? Mac, int? Linger, bool Samples, string? Date, string? StopEvent,
-    string? Code = null, string? Subcommand = null, string? Admin = null, bool Confirm = false, int? SenderPriority = null, string? TimeZone = null,
-    int? Keep = null, bool Revoke = false, int? ReadInterval = null, string? Qr = null);
+    int? Minutes, bool ConfirmBind, string? Id, string? Name, string? Mac, int? Linger, bool Samples, string? StopEvent,
+    string? Code = null, string? Subcommand = null, string? Admin = null, bool Confirm = false, int? SenderPriority = null,
+    int? Keep = null, bool Revoke = false, int? ReadInterval = null, string? Qr = null, string? File = null)
+{
+    /// <summary>Plik konfiguracji chmury (<c>--file</c>, domyślnie <see cref="CloudSetupLoader.DefaultFile"/> w bieżącym katalogu).</summary>
+    public string SetupPath => Path.GetFullPath(File ?? CloudSetupLoader.DefaultFile);
+}
 
 internal static class Cli
 {
     private static readonly string Help = $"""
-        Glebosaurus {AppInfo.Version} – monitor czujników gleby Tuya BLE (BLE: {BleHost.Backend})
+        Glebosaurus {AppInfo.Version} – agent czujników gleby Tuya BLE (BLE: {BleHost.Backend})
 
-        Praca ciągła:
-          glebosaurus run [--config PLIK] [--quiet] [--minutes N]
-              Czyta czujniki co ustalony odstęp, zapisuje odczyty w SQLite, pilnuje alertów i wysyła maile/raporty.
-              Dziennik trafia do katalogu logs/ obok pliku konfiguracji; --quiet wyłącza wyjście na konsolę;
-              --minutes N kończy pracę (czysto, z rozłączeniem czujnika) po N minutach – do prób i diagnostyki.
-              Na jednym koncie działa naraz tylko jeden monitor (drugi kończy się kodem 4) – także obok usługi Windows.
-          glebosaurus stop [--seconds N]
-              Windows: czysto zatrzymuje działający monitor i usługę Glebosaurus (sygnał, potem czeka na koniec, domyślnie
-              do 240 s). Usługa wróci przy następnym zalogowaniu albo po uruchomieniu zadania Harmonogramu „Glebosaurus”.
-              Kod 2: nic nie działa. Na Linuksie: systemctl stop glebosaurus.
-          glebosaurus status [--config PLIK]
-              Ostatnie odczyty i otwarte alerty z lokalnej bazy (bez użycia radia).
-          glebosaurus report [--config PLIK] [--out raport.html]
-              Pokazuje raport (albo zapisuje jako HTML) bez wysyłania.
-          glebosaurus mail-test [--config PLIK] [--samples]
-              Wysyła PRAWDZIWĄ wiadomość próbną do odbiorców alertów (sprawdza konto Gmail i hasło aplikacji).
-              Z --samples wysyła też przykładowy alert i raport ze zmyślonymi danymi (oznaczone „[PRZYKŁAD]”) –
-              do obejrzenia wyglądu maili na telefonie – oraz, gdy jest mail.adminRecipients, przykładowy log administratora.
-          glebosaurus mail-preview [--out KATALOG]
-              Zapisuje przykładowe maile (wiadomość próbna, alert, raport, log administratora, „agent milczy” z trybu
-              chmurowego; HTML i tekst) w katalogu
-              (domyślnie mail-preview/). Niczego nie wysyła i nie wymaga konfiguracji.
-          glebosaurus send-log [--date RRRR-MM-DD] [--config PLIK]
-              Wysyła PRAWDZIWY dziennik agenta z danego dnia (domyślnie wczorajszego) do administratora (mail.adminRecipients),
-              z pełnym dziennikiem w załączniku. Zwykle robi to sam monitor w pierwszym przebiegu każdego dnia; to polecenie
-              jest na żądanie i do sprawdzenia poczty (nie zmienia znacznika automatycznej wysyłki). Kod 2: brak dziennika z tego dnia.
-
-        Tryb chmurowy (wielu agentów, Supabase – sekcja "cloud" w konfiguracji zamiast "sensors" i "mail"):
+        Agent (plik konfiguracji agenta z sekcją "cloud"; wzór: examples/glebosaurus.config.json):
           glebosaurus enroll [--code KOD] [--config PLIK]
               Rejestruje tego agenta w chmurze jednorazowym kodem od właściciela (bez --code pyta, nie pokazując go).
-              Token zapisuje obok konfiguracji (glebosaurus-cloud.token; Windows: DPAPI, Linux: plik tylko dla
-              właściciela). Potem „run” bierze czujniki, harmonogramy i odbiorców z chmury, czyta czujniki, na które ma
-              dzierżawę, a z rolą nadawcy wysyła maile (najwyżej raz, przez kolejkę w chmurze).
+              Token zapisuje obok konfiguracji (glebosaurus-cloud.token; Windows: DPAPI, Linux: plik tylko dla właściciela).
+          glebosaurus run [--config PLIK] [--quiet] [--minutes N]
+              Praca ciągła: czujniki, harmonogramy i odbiorców bierze z chmury, czyta czujniki, na które ma dzierżawę, wysyła
+              odczyty do chmury, a z rolą nadawcy wysyła maile (najwyżej raz, przez kolejkę w chmurze). Dziennik trafia do
+              katalogu logs/ obok pliku konfiguracji; --quiet wyłącza wyjście na konsolę; --minutes N kończy pracę (czysto,
+              z rozłączeniem czujnika) po N minutach – do prób i diagnostyki. Na jednym koncie działa naraz tylko jeden agent
+              (drugi kończy się kodem 4) – także obok usługi Windows.
+          glebosaurus stop [--seconds N]
+              Windows: czysto zatrzymuje działającego agenta i usługę Glebosaurus (sygnał, potem czeka na koniec, domyślnie
+              do 240 s). Usługa wróci przy następnym zalogowaniu albo po uruchomieniu zadania Harmonogramu „Glebosaurus”.
+              Kod 2: nic nie działa. Na Linuksie: systemctl stop glebosaurus.
+          glebosaurus web-password [--config PLIK]
+              Ustawia hasło do panelu WWW (co najmniej {PanelPassword.MinLength} znaków; zapisuje tylko jego skrót w pliku
+              glebosaurus-web.password obok konfiguracji) i przygotowuje certyfikat HTTPS (glebosaurus-web.pfx). Wypisuje
+              adresy panelu i odcisk certyfikatu do porównania z tym, który pokaże przeglądarka. Panel działa w ramach „run”,
+              gdy konfiguracja ma sekcję "web" (port domyślnie {WebConfig.DefaultPort}); odpowiada tylko na połączenia z sieci lokalnej.
 
-        Właściciel chmury (plik administratora z hasłem bazy, np. local/cloud-admin.json; bez --confirm tylko pokazują plan):
+        Właściciel chmury (plik administratora z hasłem bazy, np. cloud-admin.json; bez --confirm polecenia tylko pokazują plan):
           glebosaurus cloud migrate --admin PLIK [--confirm]
               Pokazuje zastosowane i czekające migracje schematu; z --confirm stosuje czekające.
-          glebosaurus cloud import --admin PLIK [--config PLIK] [--time-zone STREFA] [--confirm]
-              Przenosi do chmury konfigurację trybu samodzielnego: ustawienia, odbiorców, czujniki z kluczami Tuya, hasło
-              Gmaila i adres sygnału healthchecks.io (z pliku administratora). Sekretów nie wypisuje; nic nie usuwa.
-              Strefa raportów: --time-zone (IANA, np. Europe/Warsaw), domyślnie strefa tego komputera.
+          glebosaurus cloud config --admin PLIK [--file PLIK] [--confirm]
+              Zapisuje w chmurze plik konfiguracji chmury (domyślnie {CloudSetupLoader.DefaultFile}; wzór: examples/cloud-config.json):
+              ustawienia, odbiorców, czujniki z kluczami Tuya, hasło Gmaila i adres sygnału healthchecks.io (z pliku
+              administratora). Sekretów nie wypisuje; czujników, których nie ma w pliku, nie usuwa. Agenci przejmą zmiany sami.
           glebosaurus cloud settings --admin PLIK [--read-interval MINUTY [--confirm]]
               Bez --read-interval: wspólne ustawienia z chmury (odstęp odczytów, raporty, strefa) i czujniki z własnym
               odstępem. Z --read-interval i --confirm zmienia sam odstęp odczytów (np. 125 = 2 h 5 min); reszty
@@ -86,20 +75,22 @@ internal static class Cli
               jednym pliku ZIP (domyślnie katalog backups/ obok pliku administratora), zostawia N najnowszych (domyślnie 14).
               Tylko czyta bazę. Plik zawiera klucze Tuya i hasło Gmaila – trzymaj go jak cloud-admin.json. Codziennie robi
               ją sam agent z sekcją "backup" wewnątrz "cloud" (adminFile – plik z hasłem bazy) w konfiguracji.
-
-        Panel WWW (diagnostyka w przeglądarce: stan, historia, dziennik, odczyt czujników na żądanie):
-          glebosaurus web-password [--config PLIK]
-              Ustawia hasło do panelu (co najmniej {PanelPassword.MinLength} znaków; zapisuje tylko jego skrót w pliku
-              glebosaurus-web.password obok konfiguracji) i przygotowuje certyfikat HTTPS (glebosaurus-web.pfx). Wypisuje
-              adresy panelu i odcisk certyfikatu do porównania z tym, który pokaże przeglądarka. Panel działa w ramach „run”,
-              gdy konfiguracja ma sekcję "web" (port domyślnie {WebConfig.DefaultPort}); odpowiada tylko na połączenia z sieci lokalnej.
+          glebosaurus mail-test [--file PLIK] [--samples]
+              Wysyła PRAWDZIWĄ wiadomość próbną z konta Gmail z pliku konfiguracji chmury do odbiorców alertów (sprawdza
+              hasło aplikacji, zanim trafi do chmury). Z --samples wysyła też przykładowy alert i raport ze zmyślonymi danymi
+              (oznaczone „[PRZYKŁAD]”) – do obejrzenia wyglądu maili na telefonie – oraz, gdy jest mail.adminRecipients,
+              przykładowy log administratora.
+          glebosaurus mail-preview [--out KATALOG]
+              Zapisuje przykładowe maile (wiadomość próbna, alert, raport, log administratora, „agent milczy”; HTML i tekst)
+              w katalogu (domyślnie mail-preview/). Niczego nie wysyła i nie wymaga konfiguracji.
 
         Nowy czujnik:
-          glebosaurus pair --id ID [--name "Nazwa"] [--config PLIK] [--credentials PLIK] [--mac ADRES] [--seconds N] --confirm-bind
+          glebosaurus pair --id ID [--name "Nazwa"] [--file PLIK] [--credentials PLIK] [--mac ADRES] [--seconds N] --confirm-bind
               Paruje czujnik lokalnie, bez konta i aplikacji Tuya: skan rusza od razu, potem wkładasz baterie do czujnika
-              (po włożeniu nadaje tylko ok. 20 s). Zapisuje klucz w ID.credentials.json (obok konfiguracji), sprawdza go na
-              nowym połączeniu i podaje wpis do listy "sensors". Przerwane parowanie wznawia się tym samym poleceniem.
-              Przy kilku niesparowanych czujnikach w zasięgu wymaga --mac (żeby nie sparować niewłaściwego).
+              (po włożeniu nadaje tylko ok. 20 s). Zapisuje klucz w ID.credentials.json (obok pliku konfiguracji chmury),
+              sprawdza go na nowym połączeniu i podaje wpis do listy "sensors" tego pliku (potem: cloud config).
+              Przerwane parowanie wznawia się tym samym poleceniem. Przy kilku niesparowanych czujnikach w zasięgu
+              wymaga --mac (żeby nie sparować niewłaściwego).
 
         Diagnostyka:
           glebosaurus scan [--seconds N] [--verbose]
@@ -112,7 +103,8 @@ internal static class Cli
               czujnika, surowe bajty). Sprawdza, czy czujnik oddaje zaległe pomiary. Nic do czujnika nie wysyła poza
               zwykłym uwierzytelnieniem i prośbą o stan; --out dopisuje wynik do pliku. Kosztuje trochę baterii.
 
-        --config PLIK    plik konfiguracji JSON (domyślnie {AgentRuntime.DefaultConfigFile} w bieżącym katalogu)
+        --config PLIK    plik konfiguracji agenta (domyślnie {AgentRuntime.DefaultConfigFile} w bieżącym katalogu)
+        --file PLIK      plik konfiguracji chmury (domyślnie {CloudSetupLoader.DefaultFile} w bieżącym katalogu)
         --seconds N      czas skanowania w sekundach (scan: 20, read i listen: 60, pair: 120)
         --timeout N      limit odpowiedzi czujnika w sekundach (domyślnie 12)
         --linger N       listen: ile sekund ciszy po ostatniej ramce kończy nasłuch (domyślnie 20)
@@ -122,7 +114,7 @@ internal static class Cli
         --version        sam numer wersji
 
         Kody wyjścia: 0 sukces, 1 błąd, 2 nie znaleziono czujnika (stop: nic nie działa), 3 czujnik niesparowany, brak danych
-        lub nieudane parowanie, 4 monitor już działa, 130 przerwano.
+        lub nieudane parowanie, 4 agent już działa, 130 przerwano.
         """;
 
     public static async Task<int> RunAsync(string[] args, CancellationToken cancellationToken)
@@ -130,14 +122,11 @@ internal static class Cli
         var options = Parse(args);
         switch (options.Command)
         {
-            case "run": return await RunMonitorAsync(options, cancellationToken);
+            case "run": return await RunAgentAsync(options, cancellationToken);
             case "enroll": return await CloudAgent.EnrollAsync(options, cancellationToken);
             case "cloud": return await CloudAdminCommands.RunAsync(options, cancellationToken);
-            case "status": return await StatusAsync(options, cancellationToken);
-            case "report": return await ReportAsync(options, cancellationToken);
             case "mail-test": return await MailTestAsync(options, cancellationToken);
             case "mail-preview": return await MailPreviewAsync(options, cancellationToken);
-            case "send-log": return await SendLogAsync(options, cancellationToken);
             case "web-password": return await WebPasswordAsync(options, cancellationToken);
             case "pair": return await PairCommand.RunAsync(options, cancellationToken);
             case "scan": return await ScanAsync(options, cancellationToken);
@@ -157,12 +146,12 @@ internal static class Cli
     {
         var hasCommand = args.Length > 0 && !args[0].StartsWith('-');
         var command = hasCommand ? args[0].ToLowerInvariant() : "help";
-        // „cloud migrate|import|settings|agent|backup” – polecenie z podpoleceniem.
+        // „cloud migrate|config|settings|agent|backup” – polecenie z podpoleceniem.
         var subcommand = command == "cloud" && args.Length > 1 && !args[1].StartsWith('-') ? args[1].ToLowerInvariant() : null;
         int? seconds = null, minutes = null, linger = null;
         var timeout = 12;
-        string? credentials = null, config = null, output = null, id = null, name = null, mac = null, date = null, stopEvent = null, code = null;
-        string? admin = null, timeZone = null, qr = null;
+        string? credentials = null, config = null, output = null, id = null, name = null, mac = null, stopEvent = null, code = null;
+        string? admin = null, qr = null, file = null;
         int? senderPriority = null, keep = null, readInterval = null;
         bool verbose = false, quiet = false, confirmBind = false, samples = false, confirm = false, revoke = false;
         for (var i = (hasCommand ? 1 : 0) + (subcommand is null ? 0 : 1); i < args.Length; i++)
@@ -181,17 +170,16 @@ internal static class Cli
                 case "--linger": linger = Number(args, ++i, "--linger", 120); break;
                 case "--credentials": credentials = Value(args, ++i, "--credentials"); break;
                 case "--config": config = Value(args, ++i, "--config"); break;
+                case "--file": file = Value(args, ++i, "--file"); break;
                 case "--out": output = Value(args, ++i, "--out"); break;
                 case "--id": id = Value(args, ++i, "--id"); break;
                 case "--name": name = Value(args, ++i, "--name"); break;
                 case "--mac": mac = Value(args, ++i, "--mac"); break;
-                case "--date": date = Value(args, ++i, "--date"); break;
                 case "--code": code = Value(args, ++i, "--code"); break;
                 case "--admin": admin = Value(args, ++i, "--admin"); break;
                 case "--confirm": confirm = true; break;
                 case "--revoke": revoke = true; break;
                 case "--sender-priority": senderPriority = Number(args, ++i, "--sender-priority", 9); break;
-                case "--time-zone": timeZone = Value(args, ++i, "--time-zone"); break;
                 case "--keep": keep = Number(args, ++i, "--keep", 365); break;
                 case "--read-interval": readInterval = Number(args, ++i, "--read-interval", 1440); break;
                 case "--qr": qr = Value(args, ++i, "--qr"); break;
@@ -200,8 +188,8 @@ internal static class Cli
                 default: throw new ArgumentException($"Nieznany parametr {args[i]}. Użyj --help.");
             }
         }
-        return new(command, seconds, timeout, credentials, config, output, verbose, quiet, minutes, confirmBind, id, name, mac, linger, samples, date, stopEvent, code,
-            subcommand, admin, confirm, senderPriority, timeZone, keep, revoke, readInterval, qr);
+        return new(command, seconds, timeout, credentials, config, output, verbose, quiet, minutes, confirmBind, id, name, mac, linger, samples, stopEvent, code,
+            subcommand, admin, confirm, senderPriority, keep, revoke, readInterval, qr, file);
     }
 
     private static string Value(string[] args, int index, string flag) =>
@@ -216,7 +204,7 @@ internal static class Cli
     private static async Task<int> WebPasswordAsync(CliOptions options, CancellationToken cancellationToken)
     {
         var loaded = AgentRuntime.LoadConfig(options.Config);
-        Console.WriteLine($"Hasło do panelu WWW monitora „{loaded.Config.MonitorName}” (co najmniej {PanelPassword.MinLength} znaków; nie będzie widać wpisywanych znaków).");
+        Console.WriteLine($"Hasło do panelu WWW agenta „{loaded.Config.MonitorName}” (co najmniej {PanelPassword.MinLength} znaków; nie będzie widać wpisywanych znaków).");
         var password = await ReadSecretAsync("Nowe hasło: ", cancellationToken);
         if (PanelPassword.Problem(password) is { } problem)
         {
@@ -242,14 +230,14 @@ internal static class Cli
 
         if (loaded.Config.Web is { Enabled: true } web)
         {
-            Console.WriteLine($"Panel (po ponownym uruchomieniu monitora): {string.Join("  ", AgentWebPanel.Urls(web.Port))}");
+            Console.WriteLine($"Panel (po ponownym uruchomieniu agenta): {string.Join("  ", AgentWebPanel.Urls(web.Port))}");
             if (OperatingSystem.IsWindows())
                 Console.WriteLine($"Dostęp z innych urządzeń wymaga reguły Zapory Windows (PowerShell jako administrator):{Environment.NewLine}" +
                     $"  New-NetFirewallRule -DisplayName \"Glebosaurus panel\" -Direction Inbound -Protocol TCP -LocalPort {web.Port} -Profile Private -RemoteAddress LocalSubnet -Action Allow");
         }
         else
         {
-            Console.WriteLine($"Panel jest wyłączony – dodaj do konfiguracji sekcję  \"web\": {{ \"port\": {WebConfig.DefaultPort} }}  i uruchom monitor ponownie.");
+            Console.WriteLine($"Panel jest wyłączony – dodaj do konfiguracji sekcję  \"web\": {{ \"port\": {WebConfig.DefaultPort} }}  i uruchom agenta ponownie.");
         }
         return 0;
     }
@@ -284,22 +272,21 @@ internal static class Cli
 
     // ---- praca ciągła --------------------------------------------------------------------------------------------
 
-    private static async Task<int> RunMonitorAsync(CliOptions options, CancellationToken cancellationToken)
+    private static async Task<int> RunAgentAsync(CliOptions options, CancellationToken cancellationToken)
     {
         var loaded = AgentRuntime.LoadConfig(options.Config);
         using var loggers = AgentRuntime.CreateLogging(loaded.LogFiles, loaded.Config.Logs.RetentionDays, console: !options.Quiet);
         var logger = loggers.CreateLogger("Glebosaurus");
         logger.LogInformation("Konfiguracja: {Config}; baza: {Database}; dziennik: {Logs}; BLE: {Backend}.",
             loaded.ConfigPath, loaded.DatabasePath, loaded.LogDirectory, BleHost.Backend);
-        logger.LogInformation("Dziennik: pliki dzienne, trzymane {Days} dni; log z poprzedniego dnia dla administratora: {Admin}.",
-            loaded.Config.Logs.RetentionDays,
-            loaded.Config.Cloud is not null ? "przez chmurę (nadawca)" : loaded.Config.Mail is { AdminRecipients.Count: > 0 } ? "włączony" : "wyłączony");
+        logger.LogInformation("Dziennik: pliki dzienne, trzymane {Days} dni; wczorajszy trafia do chmury, a nadawca wysyła go administratorowi.",
+            loaded.Config.Logs.RetentionDays);
 
-        // Dwa monitory na jednym koncie (np. deweloperski „run” obok usługi) walczyłyby o czujniki i wysyłały maile podwójnie.
+        // Dwóch agentów na jednym koncie (np. deweloperski „run” obok usługi) dzieliłoby bazę, token i panel.
         using var instance = SingleInstance.TryAcquire(InstanceNames.MonitorMutex);
         if (instance is null)
         {
-            logger.LogWarning("Monitor Glebosaurus już działa na tym koncie (usługa albo inne „run”) – kończę. Zatrzymanie: glebosaurus stop.");
+            logger.LogWarning("Agent Glebosaurus już działa na tym koncie (usługa albo inne „run”) – kończę. Zatrzymanie: glebosaurus stop.");
             return ExitCodes.AlreadyRunning;
         }
 
@@ -311,20 +298,12 @@ internal static class Cli
         await ble.EnsureAccessAsync();
         var store = new SqliteMonitorStore(loaded.DatabasePath);
         await store.InitializeAsync(limit.Token);
-        if (loaded.Config.Cloud is { } cloud) return await CloudAgent.RunAsync(loaded, cloud, ble, store, loggers, logger, limit.Token);
-
-        IMailGateway? mail = loaded.Config.Mail is { } m ? new GmailSender(m.GmailAddress, m.AppPassword) : null;
-        if (mail is null) logger.LogWarning("Sekcja „mail” nie jest skonfigurowana – alerty i raporty będą tylko w dzienniku.");
-        var engine = new MonitorEngine(loaded.Config, store, new ListenThenReadSensorReader<SeenSensor>(new ShinySensorRadio(ble), TimeProvider.System, logger), mail, TimeProvider.System, logger, logs: loaded.LogFiles);
-        // Panel zamyka się dopiero po czystym zatrzymaniu silnika (koniec bloku).
-        await using var panel = await AgentWebPanel.TryStartAsync(loaded, engine, store, loggers, logger, limit.Token);
-        await engine.RunAsync(limit.Token);
-        return 0;
+        return await CloudAgent.RunAsync(loaded, loaded.Config.Cloud!, ble, store, loggers, logger, limit.Token);
     }
 
     /// <summary>
     /// Windows: czyste zatrzymanie na prośbę z zewnątrz – wspólny sygnał (polecenie <c>stop</c>, skrypt instalacyjny) i
-    /// prywatny sygnał od usługi, która uruchomiła ten monitor. Na Linuksie tę rolę pełni SIGTERM (Program.cs).
+    /// prywatny sygnał od usługi, która uruchomiła tego agenta. Na Linuksie tę rolę pełni SIGTERM (Program.cs).
     /// </summary>
     private static DisposableList ListenForStopRequests(string? privateEvent, CancellationTokenSource limit, ILogger logger)
     {
@@ -352,12 +331,12 @@ internal static class Cli
         static bool Running() => SingleInstance.IsHeld(InstanceNames.MonitorMutex) || SingleInstance.IsHeld(InstanceNames.ServiceMutex);
         if (!Running())
         {
-            Console.WriteLine("Monitor Glebosaurus nie działa.");
+            Console.WriteLine("Agent Glebosaurus nie działa.");
             return ExitCodes.NotFound;
         }
         if (!StopSignal.Signal(InstanceNames.StopEvent))
         {
-            Console.Error.WriteLine("Monitor działa, ale nie nasłuchuje prośby o zatrzymanie (stara wersja?). Zatrzymaj go ręcznie (Ctrl+C w jego oknie).");
+            Console.Error.WriteLine("Agent działa, ale nie nasłuchuje prośby o zatrzymanie (stara wersja?). Zatrzymaj go ręcznie (Ctrl+C w jego oknie).");
             return ExitCodes.Error;
         }
         var seconds = options.Seconds ?? 240;
@@ -367,7 +346,7 @@ internal static class Cli
         {
             if (DateTimeOffset.UtcNow >= deadline)
             {
-                Console.Error.WriteLine("Monitor nie zakończył się w wyznaczonym czasie (sygnał zostaje – zakończy się po bieżącym kroku).");
+                Console.Error.WriteLine("Agent nie zakończył się w wyznaczonym czasie (sygnał zostaje – zakończy się po bieżącym kroku).");
                 return ExitCodes.Error;
             }
             await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
@@ -383,68 +362,38 @@ internal static class Cli
         public void Dispose() { foreach (var item in items) item.Dispose(); }
     }
 
-    private static async Task<int> StatusAsync(CliOptions options, CancellationToken cancellationToken)
-    {
-        var message = await BuildReportAsync(options, cancellationToken);
-        Console.WriteLine(message.TextBody);
-        return 0;
-    }
-
-    private static async Task<int> ReportAsync(CliOptions options, CancellationToken cancellationToken)
-    {
-        var message = await BuildReportAsync(options, cancellationToken);
-        if (options.Output is { } path)
-        {
-            await File.WriteAllTextAsync(Path.GetFullPath(path), message.HtmlBody, cancellationToken);
-            Console.WriteLine($"Zapisano raport: {Path.GetFullPath(path)}");
-        }
-        else
-        {
-            Console.WriteLine(message.Subject);
-            Console.WriteLine();
-            Console.WriteLine(message.TextBody);
-        }
-        return 0;
-    }
-
-    private static async Task<MailMessage> BuildReportAsync(CliOptions options, CancellationToken cancellationToken)
-    {
-        var loaded = AgentRuntime.LoadConfig(options.Config);
-        var store = new SqliteMonitorStore(loaded.DatabasePath);
-        await store.InitializeAsync(cancellationToken);
-        var now = DateTimeOffset.UtcNow;
-        var snapshots = await SnapshotBuilder.BuildAsync(loaded.Config, store, now, cancellationToken);
-        var recipients = loaded.Config.Mail?.EffectiveReportRecipients ?? [];
-        return MailTemplates.Report(snapshots, recipients, loaded.Config.MonitorName, now, TimeZoneInfo.Local);
-    }
-
+    /// <summary>
+    /// Próbna wysyłka z konta Gmail z pliku konfiguracji chmury – sprawdza hasło aplikacji, zanim trafi do chmury (tam
+    /// pomyłkę widać dopiero w dzienniku nadawcy).
+    /// </summary>
     private static async Task<int> MailTestAsync(CliOptions options, CancellationToken cancellationToken)
     {
-        var loaded = AgentRuntime.LoadConfig(options.Config);
-        if (loaded.Config.Mail is not { } mail)
+        var setup = LoadSetup(options);
+        if (setup.Mail is not { } mail)
         {
-            Console.Error.WriteLine("W konfiguracji brakuje sekcji „mail”.");
+            Console.Error.WriteLine($"W {options.SetupPath} brakuje sekcji „mail”.");
             return 1;
         }
         var now = DateTimeOffset.UtcNow;
+        var sender = Environment.MachineName;
         var messages = new List<MailMessage>();
         if (options.Samples)
         {
-            messages.AddRange(MailSamples.Build(mail.AlertRecipients, loaded.Config.MonitorName, now, TimeZoneInfo.Local));
+            messages.AddRange(MailSamples.Build(mail.AlertRecipients, sender, now, TimeZoneInfo.Local));
             if (mail.AdminRecipients.Count > 0)
-                messages.Add(MailSamples.AdminLog(mail.AdminRecipients, loaded.Config.MonitorName, now, TimeZoneInfo.Local));
+                messages.Add(MailSamples.AdminLog(mail.AdminRecipients, sender, now, TimeZoneInfo.Local));
         }
         else
         {
-            messages.Add(MailTemplates.Test(mail.AlertRecipients, loaded.Config.MonitorName, now, TimeZoneInfo.Local));
+            messages.Add(MailTemplates.Test(mail.AlertRecipients, sender, now, TimeZoneInfo.Local));
         }
-        var sender = new GmailSender(mail.GmailAddress, mail.AppPassword);
+        var gmail = new GmailSender(mail.GmailAddress, mail.AppPassword);
         foreach (var message in messages)
         {
             Console.WriteLine($"Wysyłam „{message.Subject}” z {mail.GmailAddress} do: {string.Join(", ", message.To)}...");
             try
             {
-                await sender.SendAsync(message, cancellationToken);
+                await gmail.SendAsync(message, cancellationToken);
             }
             catch (MailTransportException e)
             {
@@ -454,6 +403,14 @@ internal static class Cli
             Console.WriteLine("Wysłano.");
         }
         return 0;
+    }
+
+    internal static CloudSetup LoadSetup(CliOptions options)
+    {
+        var path = options.SetupPath;
+        if (!System.IO.File.Exists(path))
+            throw new FileNotFoundException($"Nie znaleziono pliku konfiguracji chmury {path}. Wskaż go przez --file (wzór: examples/cloud-config.json).");
+        return CloudSetupLoader.Load(path);
     }
 
     /// <summary>Zapisuje przykładowe maile do plików, żeby obejrzeć je w przeglądarce (np. w widoku telefonu) bez wysyłki.</summary>
@@ -476,44 +433,6 @@ internal static class Cli
             await File.WriteAllTextAsync(Path.Combine(directory, names[i] + ".txt"), messages[i].TextBody, new UTF8Encoding(false), cancellationToken);
             Console.WriteLine($"{html}  –  tytuł: {messages[i].Subject}");
         }
-        return 0;
-    }
-
-    /// <summary>Wysyła administratorowi prawdziwy dziennik z danego dnia (na żądanie); nie dotyka znacznika automatycznej wysyłki.</summary>
-    private static async Task<int> SendLogAsync(CliOptions options, CancellationToken cancellationToken)
-    {
-        var loaded = AgentRuntime.LoadConfig(options.Config);
-        if (loaded.Config.Mail is not { AdminRecipients.Count: > 0 } mail)
-        {
-            Console.Error.WriteLine("W konfiguracji brakuje mail.adminRecipients (adres administratora).");
-            return 1;
-        }
-
-        var now = DateTimeOffset.UtcNow;
-        DateOnly day;
-        if (options.Date is null) day = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, TimeZoneInfo.Local).DateTime).AddDays(-1);
-        else if (!DateOnly.TryParseExact(options.Date, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out day))
-            throw new ArgumentException("--date: podaj dzień w formacie RRRR-MM-DD.");
-
-        var text = await loaded.LogFiles.ReadDayAsync(day, cancellationToken);
-        if (text is null)
-        {
-            Console.Error.WriteLine($"Brak dziennika z {day:yyyy-MM-dd} w {loaded.LogDirectory}.");
-            return 2;
-        }
-
-        var message = MailTemplates.AdminLog(text, day, mail.AdminRecipients, loaded.Config.MonitorName, now, TimeZoneInfo.Local);
-        Console.WriteLine($"Wysyłam „{message.Subject}” z {mail.GmailAddress} do: {string.Join(", ", message.To)} (załącznik {message.Attachments![0].FileName})...");
-        try
-        {
-            await new GmailSender(mail.GmailAddress, mail.AppPassword).SendAsync(message, cancellationToken);
-        }
-        catch (MailTransportException e)
-        {
-            Console.Error.WriteLine(e.Message);
-            return 1;
-        }
-        Console.WriteLine("Wysłano.");
         return 0;
     }
 

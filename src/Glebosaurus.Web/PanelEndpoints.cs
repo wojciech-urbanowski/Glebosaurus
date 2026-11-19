@@ -79,7 +79,7 @@ internal sealed class PanelEndpoints(WebPanelOptions options, ILogger logger)
         app.MapPost("/api/report", (Delegate)(async (HttpContext context) => Results.Json(await RequestReportAsync(context), Json)));
     }
 
-    /// <summary>Zleca raport mailowy (silnik albo chmura pilnuje kolejki i odstępu) i odnotowuje, kto to zrobił.</summary>
+    /// <summary>Zleca raport mailowy (polecenie przez chmurę, z odstępem) i odnotowuje, kto to zrobił.</summary>
     private async Task<ReportRequestResult> RequestReportAsync(HttpContext context)
     {
         var result = await options.RequestReport(context.RequestAborted);
@@ -88,13 +88,12 @@ internal sealed class PanelEndpoints(WebPanelOptions options, ILogger logger)
             ReportRequestStatus.Queued => "zlecony",
             ReportRequestStatus.AlreadyQueued => "już czekał",
             ReportRequestStatus.TooSoon => "za wcześnie",
-            ReportRequestStatus.Unavailable => "chmura niedostępna",
-            _ => "poczta nieskonfigurowana"
+            _ => "chmura niedostępna"
         });
         return result;
     }
 
-    /// <summary>Zleca odczyt na żądanie (silnik albo chmura pilnuje kolejki i odstępu dla baterii) i odnotowuje, kto to zrobił.</summary>
+    /// <summary>Zleca odczyt na żądanie (polecenie przez chmurę) i odnotowuje, kto to zrobił.</summary>
     private async Task<ReadRequestResult> RequestReadAsync(HttpContext context, IReadOnlyCollection<string>? sensorIds)
     {
         var result = await options.RequestRead(sensorIds, context.RequestAborted);
@@ -107,8 +106,6 @@ internal sealed class PanelEndpoints(WebPanelOptions options, ILogger logger)
     {
         ReadRequestStatus.Queued => "zlecony",
         ReadRequestStatus.AlreadyQueued => "już czekał",
-        ReadRequestStatus.InProgress => "właśnie trwa",
-        ReadRequestStatus.TooSoon => "za wcześnie",
         ReadRequestStatus.Unavailable => "chmura niedostępna",
         _ => "nieznany czujnik"
     };

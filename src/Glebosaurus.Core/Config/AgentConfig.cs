@@ -5,17 +5,19 @@ using Glebosaurus.Tuya;
 namespace Glebosaurus.Core.Config;
 
 /// <summary>
-/// Konfiguracja monitora. W fazie 1 to lokalny plik JSON (zawiera sekrety: klucze czujników i hasło aplikacji Gmail,
-/// więc nie trafia do repozytorium). W fazie 2 ten sam model przyjdzie z zaszyfrowanej konfiguracji w chmurze.
+/// Konfiguracja agenta. Z pliku na urządzeniu (<see cref="AgentConfigLoader"/>) pochodzą tylko dostęp do chmury i ustawienia
+/// urządzenia (baza, retencja, dziennik, panel); czujniki, odstęp odczytów, raporty i alerty uzupełnia konfiguracja z chmury
+/// (<see cref="Cloud.CloudConfigMapper"/>).
 /// </summary>
 public sealed class AgentConfig
 {
+    /// <summary>Nazwa w dzienniku i certyfikacie panelu, zanim przyjdzie konfiguracja z chmury (wtedy: nazwa agenta w chmurze).</summary>
     public string MonitorName { get; set; } = Environment.MachineName;
 
     /// <summary>
     /// Domyślny odstęp między odczytami czujnika, w minutach (ułamki dozwolone, minimum 0,5). 2 h 5 min: wilgotność gleby
     /// zmienia się wolno, a czujnik sam zapisuje rekord co godzinę i oddaje go przy połączeniu, więc rzadsze połączenia nie
-    /// gubią przebiegu, a oszczędzają baterię (decyzja użytkownika 2026-11-18; wcześniej 15 min).
+    /// gubią przebiegu, a oszczędzają baterię.
     /// </summary>
     public double ReadIntervalMinutes { get; set; } = DefaultReadIntervalMinutes;
 
@@ -34,8 +36,9 @@ public sealed class AgentConfig
     /// <summary>Jak długo przechowywać odczyty w lokalnej bazie.</summary>
     public int RetentionDays { get; set; } = 400;
 
+    /// <summary>Czujniki z chmury (w pliku agenta ich nie ma).</summary>
     public List<SensorConfig> Sensors { get; set; } = [];
-    public MailConfig? Mail { get; set; }
+
     public ReportsConfig Reports { get; set; } = new();
     public AlertsConfig Alerts { get; set; } = new();
     public LogsConfig Logs { get; set; } = new();
@@ -44,8 +47,7 @@ public sealed class AgentConfig
     public WebConfig? Web { get; set; }
 
     /// <summary>
-    /// Tryb chmurowy (faza 2): czujniki, harmonogramy, odbiorcy i sekrety przychodzą z chmury, a w pliku zostają tylko
-    /// ustawienia urządzenia (baza, retencja, panel). Z sekcją <see cref="Mail"/> albo listą czujników naraz – błąd startu.
+    /// Dostęp do chmury – w pliku agenta wymagany. Czujniki, harmonogramy, odbiorcy i sekrety przychodzą z chmury.
     /// </summary>
     public CloudAccessConfig? Cloud { get; set; }
 }
@@ -77,7 +79,7 @@ public sealed class CloudAccessConfig
 /// </summary>
 public sealed class CloudBackupConfig
 {
-    /// <summary>Plik administratora (jak local/cloud-admin.json, wystarczy supabase.url i databasePassword – bez klucza
+    /// <summary>Plik administratora (jak cloud-admin.json, wystarczy supabase.url i databasePassword – bez klucza
     /// tajnego); ścieżka względna od katalogu konfiguracji.</summary>
     public string AdminFile { get; set; } = "";
 
@@ -89,9 +91,9 @@ public sealed class CloudBackupConfig
 }
 
 /// <summary>
-/// Panel diagnostyczny w przeglądarce, wbudowany w działający monitor (<c>run</c>): podgląd stanu i odczyt czujników na
-/// żądanie; konfiguracji nie zmienia. Hasło (jego skrót)
-/// i certyfikat HTTPS leżą w osobnych plikach obok konfiguracji – tworzy je polecenie <c>web-password</c>.
+/// Panel diagnostyczny w przeglądarce, wbudowany w działającego agenta (<c>run</c>): podgląd stanu, odczyt czujników i
+/// raport na żądanie; konfiguracji nie zmienia. Hasło (jego skrót) i certyfikat HTTPS leżą w osobnych plikach obok
+/// konfiguracji – tworzy je polecenie <c>web-password</c>.
 /// </summary>
 public sealed class WebConfig
 {
@@ -113,7 +115,7 @@ public sealed class WebConfig
     /// </summary>
     public List<string> AllowedNetworks { get; set; } = [];
 
-    /// <summary>Jak długo ważne jest zalogowanie (godziny). Restart monitora i tak wylogowuje.</summary>
+    /// <summary>Jak długo ważne jest zalogowanie (godziny). Restart agenta i tak wylogowuje.</summary>
     public double SessionHours { get; set; } = 12;
 
     /// <summary>Dozwolone sieci jako <see cref="IPNetwork"/>; rzuca <see cref="InvalidDataException"/> przy błędnym wpisie.</summary>
@@ -136,7 +138,7 @@ public sealed class WebConfig
 
 public sealed class SensorConfig
 {
-    /// <summary>Stabilny identyfikator czujnika (w chmurze będzie losowy i nic nie zdradzający).</summary>
+    /// <summary>Stabilny identyfikator czujnika (w chmurze: małe litery, cyfry, „_” i „-”).</summary>
     public string Id { get; set; } = "";
 
     /// <summary>Nazwa widoczna w mailach, np. „Monstera w salonie”.</summary>
@@ -146,8 +148,8 @@ public sealed class SensorConfig
     public TuyaCredentials Tuya { get; set; } = new();
 
     /// <summary>
-    /// Plik z danymi przypisania (tworzony przez polecenie pair); ścieżka względna liczy się od katalogu konfiguracji.
-    /// Zamiast <see cref="Tuya"/> – klucze nie muszą wtedy leżeć w głównym pliku konfiguracji.
+    /// Plik konfiguracji chmury: plik z danymi przypisania (tworzony przez polecenie pair); ścieżka względna liczy się od
+    /// katalogu tego pliku. Zamiast <see cref="Tuya"/> – klucze nie muszą wtedy leżeć w głównym pliku.
     /// </summary>
     public string? TuyaFile { get; set; }
 
@@ -171,6 +173,7 @@ public sealed class SensorConfig
     public double SilentAfterHours { get; set; } = 6;
 }
 
+/// <summary>Poczta w pliku konfiguracji chmury (<see cref="CloudSetup"/>); hasło trafia do Vault, reszta do ustawień w chmurze.</summary>
 public sealed class MailConfig
 {
     /// <summary>Konto Gmail nadawcy.</summary>
@@ -187,8 +190,8 @@ public sealed class MailConfig
     public IReadOnlyList<string> EffectiveReportRecipients => ReportRecipients.Count > 0 ? ReportRecipients : AlertRecipients;
 
     /// <summary>
-    /// Administrator: dostaje techniczny dziennik agenta z całego poprzedniego dnia, wysyłany w pierwszym przebiegu
-    /// kolejnego dnia. Osobna lista od alertów i raportów; pusta = dzienniki nie są wysyłane.
+    /// Administrator: dostaje techniczny dziennik każdego agenta z całego poprzedniego dnia (osobny mail od każdego).
+    /// Osobna lista od alertów i raportów; pusta = dzienniki nie są wysyłane.
     /// </summary>
     public List<string> AdminRecipients { get; set; } = [];
 }
@@ -201,10 +204,10 @@ public sealed class LogsConfig
 
 public sealed class ReportsConfig
 {
-    /// <summary>Pory wysyłki raportów w czasie lokalnym, format HH:mm. Pusta lista wyłącza raporty.</summary>
+    /// <summary>Pory wysyłki raportów w strefie z konfiguracji chmury, format HH:mm. Pusta lista wyłącza raporty.</summary>
     public List<string> Times { get; set; } = ["07:00", "19:00"];
 
-    /// <summary>Jeśli monitor był wyłączony o zaplanowanej porze, nadrabia raport przez tyle godzin; potem go pomija.</summary>
+    /// <summary>Jeśli o zaplanowanej porze nie było nadawcy, raport jest nadrabiany przez tyle godzin; potem pomijany.</summary>
     public double CatchUpHours { get; set; } = 3;
 }
 

@@ -150,7 +150,6 @@ public sealed class AndroidAgentTests : IDisposable
     {
         var clock = new ManualTimeProvider(Fixtures.T0);
         var agentConfig = Fixtures.Config(Fixtures.Sensor("s1", "Cisy"), Fixtures.Sensor("s2", "Zioła", uuid: "07aaad78f40b0a75"));
-        agentConfig.Mail = null;
         var config = new CloudAgentConfig(agentConfig, TimeZoneInfo.Utc, 7, new("mi11", false, null), null, []);
         await db.Store.AddReadingAsync(Fixtures.Reading("s1", Fixtures.T0.AddMinutes(-12), moisture: 54, temperature: 12.3m, battery: 40), Ct);
         var state = CloudSyncState.NotStarted with

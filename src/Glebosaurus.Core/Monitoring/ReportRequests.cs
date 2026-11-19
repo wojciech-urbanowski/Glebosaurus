@@ -1,21 +1,18 @@
 namespace Glebosaurus.Core.Monitoring;
 
-/// <summary>Co się stało z prośbą o raport mailowy poza harmonogramem (panel WWW).</summary>
+/// <summary>Co się stało z prośbą o raport mailowy poza harmonogramem (polecenie <c>report_now</c> w chmurze).</summary>
 public enum ReportRequestStatus
 {
-    /// <summary>Zlecony – silnik wyśle go w najbliższym cyklu (pętla budzi się od razu; trwający odczyt czujników kończy się najpierw).</summary>
+    /// <summary>Polecenie zostawione w chmurze – wyśle go obecny nadawca.</summary>
     Queued,
 
     /// <summary>Raport na żądanie już czeka na wysyłkę – drugi nie powstaje.</summary>
     AlreadyQueued,
 
-    /// <summary>Poprzedni raport na żądanie był przed chwilą – kolejny dopiero po <see cref="MonitorEngine.ReportOnRequestCooldown"/>.</summary>
+    /// <summary>Poprzedni raport na żądanie był przed chwilą – kolejny dopiero po <see cref="Cloud.CloudPanel.RequestCooldown"/>.</summary>
     TooSoon,
 
-    /// <summary>Poczta nie jest skonfigurowana – raportu nie ma czym wysłać.</summary>
-    MailNotConfigured,
-
-    /// <summary>Tryb chmurowy: polecenia nie udało się zostawić w chmurze (brak sieci, chmura niedostępna).</summary>
+    /// <summary>Polecenia nie udało się zostawić w chmurze (brak sieci, chmura niedostępna).</summary>
     Unavailable
 }
 

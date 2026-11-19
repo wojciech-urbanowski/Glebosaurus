@@ -34,8 +34,7 @@ public sealed class CloudConfigTests : IDisposable
 
     private static AgentConfig Local() => new()
     {
-        Database = "baza-lokalna.db", RetentionDays = 123, Web = new WebConfig { Port = 8471 }, ReadIntervalMinutes = 99,
-        Mail = new MailConfig { GmailAddress = "z-pliku@gmail.com", AppPassword = "nie-z-chmury" }
+        Database = "baza-lokalna.db", RetentionDays = 123, Web = new WebConfig { Port = 8471 }, ReadIntervalMinutes = 99
     };
 
     // ---- Przełożenie --------------------------------------------------------------------------------------------------
@@ -53,7 +52,6 @@ public sealed class CloudConfigTests : IDisposable
         Assert.Equal("baza-lokalna.db", config.Database);
         Assert.Equal(123, config.RetentionDays);
         Assert.Equal(8471, config.Web!.Port);
-        Assert.Null(config.Mail);   // poczta z pliku nie działa w trybie chmurowym
         var sensor = Assert.Single(config.Sensors);
         Assert.Equal(("cisy", 30, 40, Key), (sensor.Id, sensor.WateringBelowPercent, sensor.WateringClearAbovePercent, sensor.Tuya.LocalKeyHex));
         Assert.Equal(3, mapped.Version);

@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Glebosaurus.Tests;
 
-/// <summary>Nadawca w trybie chmurowym: maile tylko z blokadą i najwyżej raz (kolejka w chmurze), alerty, raporty, logi, strażnik.</summary>
+/// <summary>Nadawca: maile tylko z blokadą i najwyżej raz (kolejka w chmurze), alerty, raporty, logi, strażnik.</summary>
 public sealed class NotifierTests
 {
     private static readonly CancellationToken Ct = CancellationToken.None;

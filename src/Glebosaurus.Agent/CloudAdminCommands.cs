@@ -8,7 +8,7 @@ using Npgsql;
 namespace Glebosaurus.Agent;
 
 /// <summary>
-/// Narzędzia właściciela chmury (ARCHITEKTURA.md, zasada 15): migracje schematu, import konfiguracji trybu samodzielnego,
+/// Narzędzia właściciela chmury (ARCHITEKTURA.md, zasada 15): migracje schematu, zapis pliku konfiguracji chmury,
 /// wspólne ustawienia (odstęp odczytów), agenci z kodami rejestracji i kopia zapasowa. Łączą się z bazą hasłem bazy z pliku administratora (pooler sesji,
 /// VerifyFull). Bez --confirm każde polecenie zmieniające chmurę tylko pokazuje, co zrobi (kopia tylko czyta).
 /// </summary>
@@ -17,17 +17,17 @@ internal static class CloudAdminCommands
     public static async Task<int> RunAsync(CliOptions options, CancellationToken cancellationToken) => options.Subcommand switch
     {
         "migrate" => await MigrateAsync(options, cancellationToken),
-        "import" => await ImportAsync(options, cancellationToken),
+        "config" => await ConfigAsync(options, cancellationToken),
         "settings" => await SettingsAsync(options, cancellationToken),
         "agent" => await AgentAsync(options, cancellationToken),
         "backup" => await BackupAsync(options, cancellationToken),
-        _ => throw new ArgumentException("Podaj polecenie: glebosaurus cloud migrate|import|settings|agent|backup --admin PLIK (zob. --help).")
+        _ => throw new ArgumentException("Podaj polecenie: glebosaurus cloud migrate|config|settings|agent|backup --admin PLIK (zob. --help).")
     };
 
     private static (CloudAdminSettings Settings, NpgsqlDataSource Data) Open(CliOptions options)
     {
         if (options.Admin is null)
-            throw new ArgumentException("Podaj plik administratora projektu: --admin PLIK (np. local/cloud-admin.json – zawiera hasło bazy).");
+            throw new ArgumentException("Podaj plik administratora projektu: --admin PLIK (np. cloud-admin.json – zawiera hasło bazy).");
         var settings = CloudAdminSettings.Load(Path.GetFullPath(options.Admin));
         Console.WriteLine($"Projekt Supabase: {settings.ProjectRef} (z {Path.GetFileName(options.Admin)}).");
         return (settings, settings.CreateDataSource("glebosaurus-cli"));
@@ -59,18 +59,17 @@ internal static class CloudAdminCommands
         return ExitCodes.Success;
     }
 
-    private static async Task<int> ImportAsync(CliOptions options, CancellationToken cancellationToken)
+    private static async Task<int> ConfigAsync(CliOptions options, CancellationToken cancellationToken)
     {
-        var configPath = Path.GetFullPath(options.Config ?? AgentRuntime.DefaultConfigFile);
-        var standalone = AgentConfigLoader.Load(configPath);
+        var setup = Cli.LoadSetup(options);
         var (settings, data) = Open(options);
         await using var _ = data;
         if (!await SchemaReadyAsync(data, cancellationToken)) return ExitCodes.Error;
 
-        var plan = CloudImporter.Plan(standalone, settings.HealthchecksPingUrl, options.TimeZone);
-        var existing = (await CloudImporter.CloudSensorIdsAsync(data, cancellationToken)).ToHashSet(StringComparer.Ordinal);
+        var plan = CloudSetupWriter.Plan(setup, settings.HealthchecksPingUrl);
+        var existing = (await CloudSetupWriter.CloudSensorIdsAsync(data, cancellationToken)).ToHashSet(StringComparer.Ordinal);
         var settingsText = plan.Settings;
-        Console.WriteLine($"Import z {configPath}:");
+        Console.WriteLine($"Konfiguracja z {options.SetupPath}:");
         Console.WriteLine($"  ustawienia: strefa {settingsText["timeZone"]}, odczyt co {settingsText["readIntervalMinutes"]} min, raporty {settingsText["reportTimes"]?.ToJsonString()}, " +
                           $"przypomnienia co {settingsText["alertReminderHours"]} h, logi {settingsText["logRetentionDays"]} dni");
         if (settingsText["gmailAddress"] is { } sender)
@@ -84,7 +83,6 @@ internal static class CloudAdminCommands
         Console.WriteLine($"  adres sygnału healthchecks.io: {(plan.SetsHealthchecksPingUrl ? "ustawię (wartość nie jest wypisywana)" : "bez zmian")}");
         foreach (var note in plan.Notes) Console.WriteLine($"  uwaga: {note}");
         foreach (var problem in plan.Problems) Console.Error.WriteLine($"  PROBLEM: {problem}");
-        Console.WriteLine("  historia odczytów: wyśle ją sam agent w trybie chmurowym ze swojej bazy (po tym imporcie).");
         if (plan.Problems.Count > 0)
         {
             Console.Error.WriteLine("Popraw problemy – nic nie zapisano.");
@@ -95,8 +93,8 @@ internal static class CloudAdminCommands
             Console.WriteLine("Bez --confirm niczego nie zapisuję.");
             return ExitCodes.Success;
         }
-        await CloudImporter.ApplyAsync(data, plan, cancellationToken);
-        Console.WriteLine($"Zaimportowano jedną transakcją: ustawienia i czujniki (liczba: {plan.Sensors.Count}). Agenci zobaczą nową konfigurację przy najbliższej synchronizacji.");
+        await CloudSetupWriter.ApplyAsync(data, plan, cancellationToken);
+        Console.WriteLine($"Zapisano jedną transakcją: ustawienia i czujniki (liczba: {plan.Sensors.Count}). Agenci zobaczą nową konfigurację przy najbliższej synchronizacji.");
         return ExitCodes.Success;
     }
 

@@ -8,127 +8,11 @@ using Glebosaurus.Core.Reports;
 
 namespace Glebosaurus.Tests;
 
-/// <summary>Stan silnika dla panelu WWW (migawka), składanie statusu, końcówka dziennika, najbliższy raport, sekcja „web”.</summary>
+/// <summary>Składanie statusu dla panelu WWW, końcówka dziennika, najbliższy raport, sekcja „web”.</summary>
 public class MonitorStatusTests
 {
     private static readonly CancellationToken Ct = CancellationToken.None;
     private static readonly MonitorHostInfo Host = new("Test BLE", "C:/cfg/glebosaurus.config.json", "C:/cfg/glebosaurus.db", "C:/cfg/logs");
-
-    // ---- migawka stanu silnika ----------------------------------------------------------------------------------
-
-    [Fact]
-    public async Task SuccessfulCycleIsVisibleInTheState()
-    {
-        using var db = new TempStore();
-        var reader = new FakeSensorReader();
-        var clock = new ManualTimeProvider(Fixtures.T0);
-        var engine = Engines.Create(Fixtures.Config(), db.Store, reader, new FakeMail(), clock);
-        Assert.Same(MonitorRuntimeState.NotStarted, engine.State);
-
-        await engine.CycleAsync(Ct);
-
-        var state = engine.State;
-        Assert.Equal(Fixtures.T0, state.StartedAt);
-        Assert.Equal(Fixtures.T0, state.LastCycleAt);
-        Assert.Null(state.LastCycleError);
-        Assert.Empty(state.ReadingNow);
-        var sensor = state.Sensors["s1"];
-        Assert.Equal(SensorReadFailure.None, sensor.LastResult);
-        Assert.Equal(Fixtures.T0, sensor.LastAttemptAt);
-        Assert.Equal(0, sensor.Failures);
-        Assert.Null(sensor.RetryAt);
-    }
-
-    [Fact]
-    public async Task StateShowsWhichSensorIsBeingReadWhileTheReadLasts()
-    {
-        using var db = new TempStore();
-        var reader = new FakeSensorReader();
-        var engine = Engines.Create(Fixtures.Config(), db.Store, reader, new FakeMail(), new ManualTimeProvider(Fixtures.T0));
-        MonitorRuntimeState? during = null;
-        reader.Script = sensor =>
-        {
-            during = engine.State;
-            return Fixtures.Ok(sensor, 50);
-        };
-
-        await engine.CycleAsync(Ct);
-
-        Assert.NotNull(during);
-        Assert.Equal(["s1"], during.ReadingNow);
-        Assert.Equal(Fixtures.T0, during.ReadingSince);
-        Assert.Empty(engine.State.ReadingNow);
-    }
-
-    [Fact]
-    public async Task FailedReadShowsResultFailuresRetryAndLastSignal()
-    {
-        using var db = new TempStore();
-        var reader = new FakeSensorReader();
-        var clock = new ManualTimeProvider(Fixtures.T0);
-        var engine = Engines.Create(Fixtures.Config(), db.Store, reader, new FakeMail(), clock);
-
-        reader.Script = sensor => Fixtures.Ok(sensor, 50) with { SignalDbm = -77 };
-        await engine.CycleAsync(Ct);
-        clock.Advance(TimeSpan.FromMinutes(16));
-        reader.Script = sensor => new(sensor, null, SensorReadFailure.NotFound);
-        await engine.CycleAsync(Ct);
-
-        var sensorState = engine.State.Sensors["s1"];
-        Assert.Equal(SensorReadFailure.NotFound, sensorState.LastResult);
-        Assert.Equal(1, sensorState.Failures);
-        Assert.Equal(clock.GetUtcNow() + TimeSpan.FromMinutes(1), sensorState.RetryAt);
-        Assert.Equal(-77, sensorState.LastSignalDbm);
-        Assert.Equal(Fixtures.T0, sensorState.LastSignalAt);
-
-        reader.Script = sensor => new(sensor, null, SensorReadFailure.Error, "brak odpowiedzi");
-        clock.Advance(TimeSpan.FromMinutes(2));
-        await engine.CycleAsync(Ct);
-        Assert.Equal(SensorReadFailure.Error, engine.State.Sensors["s1"].LastResult);
-        Assert.Equal("brak odpowiedzi", engine.State.Sensors["s1"].LastError);
-        Assert.Equal(2, engine.State.Sensors["s1"].Failures);
-    }
-
-    [Fact]
-    public async Task MailFailureAndLaterSuccessAreVisibleInTheState()
-    {
-        using var db = new TempStore();
-        var reader = new FakeSensorReader { Script = sensor => Fixtures.Ok(sensor, 18) };
-        var mail = new FakeMail { Failure = new MailTransportException("brak sieci", new IOException()) };
-        var clock = new ManualTimeProvider(Fixtures.T0);
-        var engine = Engines.Create(Fixtures.Config(), db.Store, reader, mail, clock);
-
-        await engine.CycleAsync(Ct);
-        clock.Advance(TimeSpan.FromMinutes(15));
-        await engine.CycleAsync(Ct);                    // alert „czas podlać”, wysyłka się nie udaje
-
-        var failed = engine.State.Mail;
-        Assert.Contains("brak sieci", failed.LastError);
-        Assert.Equal(clock.GetUtcNow(), failed.LastErrorAt);
-        Assert.Equal(clock.GetUtcNow() + MonitorEngine.MailRetryDelay, failed.RetryAt);
-        Assert.Null(failed.LastSentAt);
-
-        mail.Failure = null;
-        clock.Advance(MonitorEngine.MailRetryDelay);
-        await engine.CycleAsync(Ct);
-        Assert.Equal(clock.GetUtcNow(), engine.State.Mail.LastSentAt);
-        Assert.Null(engine.State.Mail.RetryAt);
-    }
-
-    [Fact]
-    public async Task CycleErrorIsRecordedInTheState()
-    {
-        using var db = new TempStore();
-        var reader = new FakeSensorReader { Script = _ => throw new InvalidOperationException("adapter BLE zniknął") };
-        var engine = Engines.Create(Fixtures.Config(), db.Store, reader, new FakeMail(), new ManualTimeProvider(Fixtures.T0));
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() => engine.CycleAsync(Ct));
-
-        Assert.Equal("adapter BLE zniknął", engine.State.LastCycleError);
-        Assert.Equal(Fixtures.T0, engine.State.LastCycleErrorAt);
-        Assert.Null(engine.State.LastCycleAt);
-        Assert.Empty(engine.State.ReadingNow);
-    }
 
     // ---- status dla panelu --------------------------------------------------------------------------------------
 
@@ -139,10 +23,9 @@ public class MonitorStatusTests
         var fikus = Fixtures.Sensor("s2", "Fikus", "17aaad78f40b0a74");
         fikus.Tuya.Mac = "DC:23:51:CC:03:CA";
         var config = Fixtures.Config(Fixtures.Sensor("s1", "Monstera"), fikus);
-        config.Mail!.ReportRecipients = [];
         config.Reports.Times = ["07:00", "19:00"];
         await db.Store.AddReadingAsync(Fixtures.Reading("s1", Fixtures.T0 - TimeSpan.FromMinutes(5), moisture: 20, battery: 15), Ct);
-        await db.Store.OpenAlertAsync("s1", AlertKind.NeedsWater, "Wilgotność 20% (próg 25%).", Fixtures.T0 - TimeSpan.FromMinutes(1), Ct);
+        AlertRecord[] alerts = [new(7, "s1", AlertKind.NeedsWater, "Wilgotność 20% (próg 25%).", Fixtures.T0 - TimeSpan.FromMinutes(1), null, null)];
 
         var retryAt = Fixtures.T0 + TimeSpan.FromMinutes(4);
         var state = MonitorRuntimeState.NotStarted with
@@ -155,7 +38,7 @@ public class MonitorStatusTests
             }
         };
 
-        var status = await MonitorStatusBuilder.BuildAsync(config, db.Store, state, Host, Fixtures.T0, TimeZoneInfo.Utc, Ct);
+        var status = await MonitorStatusBuilder.BuildAsync(config, db.Store, state, Host, Fixtures.T0, TimeZoneInfo.Utc, alerts, Ct);
 
         var monstera = status.Sensors[0];
         Assert.Equal("Monstera", monstera.Name);
@@ -178,8 +61,9 @@ public class MonitorStatusTests
         Assert.Equal("Monstera", alert.SensorName);
         Assert.Equal("NeedsWater", alert.Kind);
         Assert.Equal(["Fikus"], status.Monitor.ReadingNow);
-        Assert.Equal(["ktos@example.com"], status.Mail.ReportRecipients);           // pusta lista = odbiorcy alertów
         Assert.Equal(new DateTimeOffset(2026, 11, 13, 7, 0, 0, TimeSpan.Zero), status.Reports.NextAt);
+        Assert.False(status.Mail.Configured);                                       // pocztę i raport na żądanie dokłada CloudPanel
+        Assert.False(status.Reports.OnRequest.Available);
     }
 
     [Fact]
@@ -196,50 +80,27 @@ public class MonitorStatusTests
             RequestedReads = ["s1"]
         };
 
-        var sensor = (await MonitorStatusBuilder.BuildAsync(Fixtures.Config(), db.Store, state, Host, Fixtures.T0, TimeZoneInfo.Utc, Ct)).Sensors[0];
+        var sensor = (await MonitorStatusBuilder.BuildAsync(Fixtures.Config(), db.Store, state, Host, Fixtures.T0, TimeZoneInfo.Utc, [], Ct)).Sensors[0];
 
         Assert.True(sensor.ReadRequested);
-        Assert.Equal(Fixtures.T0, sensor.NextReadAt);                                   // zlecony – w najbliższym cyklu
+        Assert.Equal(Fixtures.T0, sensor.NextReadAt);                                   // zlecony – teraz
         Assert.Equal(Fixtures.T0 + TimeSpan.FromSeconds(40), sensor.ReadOnRequestFrom);  // minuta od ostatniej próby
 
-        var later = (await MonitorStatusBuilder.BuildAsync(Fixtures.Config(), db.Store, MonitorRuntimeState.NotStarted, Host, Fixtures.T0, TimeZoneInfo.Utc, Ct)).Sensors[0];
+        var later = (await MonitorStatusBuilder.BuildAsync(Fixtures.Config(), db.Store, MonitorRuntimeState.NotStarted, Host, Fixtures.T0, TimeZoneInfo.Utc, [], Ct)).Sensors[0];
         Assert.False(later.ReadRequested);
         Assert.Null(later.ReadOnRequestFrom);
     }
 
     [Fact]
-    public async Task StatusShowsTheReportOnRequestAndWhenTheNextOneIsAllowed()
-    {
-        using var db = new TempStore();
-        var state = MonitorRuntimeState.NotStarted with
-        {
-            ReportOnRequest = new(null, Fixtures.T0 - TimeSpan.FromSeconds(15), "brak sieci")
-        };
-
-        var report = (await MonitorStatusBuilder.BuildAsync(Fixtures.Config(), db.Store, state, Host, Fixtures.T0, TimeZoneInfo.Utc, Ct)).Reports.OnRequest;
-
-        Assert.Equal(new ReportOnRequestStatus(true, false, Fixtures.T0 - TimeSpan.FromSeconds(15), "brak sieci", Fixtures.T0 + TimeSpan.FromSeconds(45)), report);
-
-        var queued = state with { ReportOnRequest = new(Fixtures.T0, null, null) };
-        var noMail = Fixtures.Config();
-        noMail.Mail = null;
-        Assert.Equal(new ReportOnRequestStatus(true, true, null, null, null),
-            (await MonitorStatusBuilder.BuildAsync(Fixtures.Config(), db.Store, queued, Host, Fixtures.T0, TimeZoneInfo.Utc, Ct)).Reports.OnRequest);
-        Assert.False((await MonitorStatusBuilder.BuildAsync(noMail, db.Store, MonitorRuntimeState.NotStarted, Host, Fixtures.T0, TimeZoneInfo.Utc, Ct)).Reports.OnRequest.Available);
-    }
-
-    [Fact]
-    public async Task StatusNeverContainsSensorKeysOrTheGmailPassword()
+    public async Task StatusNeverContainsSensorKeys()
     {
         using var db = new TempStore();
         var config = Fixtures.Config();
-        config.Mail!.AppPassword = "sekret-gmail-xyz";
         var sensor = config.Sensors[0];
 
-        var status = await MonitorStatusBuilder.BuildAsync(config, db.Store, MonitorRuntimeState.NotStarted, Host, Fixtures.T0, TimeZoneInfo.Utc, Ct);
+        var status = await MonitorStatusBuilder.BuildAsync(config, db.Store, MonitorRuntimeState.NotStarted, Host, Fixtures.T0, TimeZoneInfo.Utc, [], Ct);
         var json = JsonSerializer.Serialize(status, new JsonSerializerOptions(JsonSerializerDefaults.Web));
 
-        Assert.DoesNotContain("sekret-gmail-xyz", json);
         Assert.DoesNotContain(sensor.Tuya.LocalKeyHex!, json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(sensor.Tuya.DeviceId, json);
         Assert.Contains(sensor.Tuya.Mac, json);
@@ -335,12 +196,10 @@ public class MonitorStatusTests
         var directory = Directory.CreateTempSubdirectory("glebosaurus-config-");
         try
         {
-            File.WriteAllText(Path.Combine(directory.FullName, "s1.credentials.json"),
-                """{ "mac": "DC:23:51:CC:03:C9", "uuid": "07aaad78f40b0a74", "deviceId": "1234567890123456789012", "localKeyHex": "a1b2c3d4e5f6", "productId": "gvygg3m8" }""");
             var path = Path.Combine(directory.FullName, "glebosaurus.config.json");
             File.WriteAllText(path, """
                 {
-                  "sensors": [ { "id": "s1", "tuyaFile": "s1.credentials.json" } ],
+                  "cloud": { "url": "https://abcdefghijklmnopqrst.supabase.co", "publishableKey": "sb_publishable_x" },
                   // panel WWW
                   "web": { "port": 9443, "allowedNetworks": ["192.168.0.0/16"], "sessionHours": 2 },
                 }

@@ -28,7 +28,7 @@ public sealed record CollectorOptions
 }
 
 /// <summary>
-/// Zbieracz w trybie chmurowym (ARCHITEKTURA.md, zasada 14, kawałek d): czyta tylko czujniki, na które ma dzierżawę (z
+/// Zbieracz (ARCHITEKTURA.md, zasada 14, kawałek d): czyta tylko czujniki, na które ma dzierżawę (z
 /// zapasem na nasłuch i kolejkę), co kilka minut słucha wszystkich czujników z konfiguracji (słyszenia do przydziału),
 /// zapisuje odczyty do lokalnego bufora (wysyła je <see cref="CloudSync"/>), wykonuje polecenia <c>read_now</c>,
 /// <c>release</c> i <c>send_log</c> i raz dziennie wysyła dziennik z poprzedniego dnia (nadawca zrobi z niego log
@@ -40,6 +40,9 @@ public sealed class CollectorEngine(
     TimeProvider clock, ILogger logger, CollectorOptions? options = null)
 {
     private static readonly TimeSpan UnboundRetryDelay = TimeSpan.FromMinutes(30);
+
+    /// <summary>Sesja urwana w trakcie historii czujnika: reszta i stan bieżący – szybko, przy następnej okazji.</summary>
+    private static readonly TimeSpan IncompleteRetryDelay = TimeSpan.FromMinutes(1);
 
     private readonly CollectorOptions settings = options ?? new();
     private readonly Dictionary<string, Attempt> attempts = new(StringComparer.Ordinal);
@@ -65,8 +68,7 @@ public sealed class CollectorEngine(
     private sealed record Attempt(DateTimeOffset NextAttemptAt, int Failures);
 
     /// <summary>
-    /// Migawka stanu dla lokalnego panelu – ten sam kształt co w trybie samodzielnym (próby, ponowienia, sygnał, trwający
-    /// odczyt), bez poczty (tę ma nadawca). Bezpieczna do czytania z innego wątku: podmieniana w całości po każdym kroku.
+    /// Migawka stanu dla lokalnego panelu (próby, ponowienia, sygnał, trwający odczyt), bez poczty (tę ma nadawca). Bezpieczna do czytania z innego wątku: podmieniana w całości po każdym kroku.
     /// </summary>
     public MonitorRuntimeState State => state;
 
@@ -214,7 +216,7 @@ public sealed class CollectorEngine(
                 hasSignal ? signal.Dbm : null, hasSignal ? signal.At : null);
         }
         state = new(startedAt == default ? null : startedAt, lastCycleAt, lastCycleError?.Message, lastCycleError?.At,
-            readingNow, readingSince, sensors, MailRuntimeState.Unused);
+            readingNow, readingSince, sensors);
     }
 
     private async Task HearAsync(AgentConfig agent, CancellationToken cancellationToken)
@@ -287,7 +289,7 @@ public sealed class CollectorEngine(
                 // Historia zapisana, stanu bieżącego brak: połączenie działało (bez porażki w dzierżawie), szybko po resztę.
                 var saved = await StoreEarlierAsync(sensor, outcome, now, cancellationToken);
                 stored |= saved > 0;
-                attempts[sensor.Id] = new(now + MonitorEngine.IncompleteRetryDelay, 0);
+                attempts[sensor.Id] = new(now + IncompleteRetryDelay, 0);
                 var incomplete = $"sesja urwana w trakcie historii czujnika – zapisano {saved} zaległych pomiarów, reszta i stan bieżący przy następnym połączeniu";
                 lastOutcome[sensor.Id] = (now, SensorReadFailure.Error, incomplete);
                 hearing.RecordAttempt(sensor.Id, success: true);
@@ -351,7 +353,7 @@ public sealed class CollectorEngine(
     private static TimeSpan Interval(AgentConfig agent, SensorConfig sensor) =>
         TimeSpan.FromMinutes(sensor.ReadIntervalMinutes ?? agent.ReadIntervalMinutes);
 
-    /// <summary>Wykładniczy odstęp ponowień (1, 2, 4, 8, do 10 min), nigdy dłuższy niż zwykły odstęp odczytów – jak w trybie samodzielnym.</summary>
+    /// <summary>Wykładniczy odstęp ponowień (1, 2, 4, 8, do 10 min), nigdy dłuższy niż zwykły odstęp odczytów.</summary>
     /// <summary>Zaległe rekordy czujnik kasuje po odebraniu – od razu do bazy; rekord z przyszłości to zły zegar czujnika.</summary>
     private async Task<int> StoreEarlierAsync(SensorConfig sensor, SensorReadOutcome outcome, DateTimeOffset now, CancellationToken cancellationToken)
     {

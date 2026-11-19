@@ -12,7 +12,7 @@ namespace Glebosaurus.Agent.Ble;
 internal sealed class ShinySensorRadio(BleHost ble) : ISensorRadio<SeenSensor>, ISensorListener
 {
     /// <summary>
-    /// Nasłuch przez całe okno, bez łączenia – kto i jak dobrze słyszy który czujnik (przydział w trybie chmurowym). Średnia
+    /// Nasłuch przez całe okno, bez łączenia – kto i jak dobrze słyszy który czujnik (przydział czujników między agentów). Średnia
     /// z ważnych próbek RSSI; czujnik słyszany tylko z −127 („brak wartości”) wraca bez mocy. Niesprawdzone na sprzęcie
     /// (2026-11-16) – ten sam skaner co <c>scan</c>, tylko bez wcześniejszego końca.
     /// </summary>

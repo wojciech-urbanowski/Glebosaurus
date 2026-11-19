@@ -1,4 +1,4 @@
-// Wspólne narzędzia stron panelu (pulpit i strona czujnika): składanie elementów, czas monitora, formaty, API, akcje.
+// Wspólne narzędzia stron panelu (pulpit i strona czujnika): składanie elementów, czas agenta, formaty, API, akcje.
 // Wszystkie dane trafiają na stronę jako tekst (textContent / append(string)), nigdy jako HTML – nazwy czujników i wpisy
 // dziennika nie mogą wstrzyknąć kodu.
 
@@ -9,22 +9,14 @@ const timeFmt = new Intl.DateTimeFormat('pl-PL', { hour: '2-digit', minute: '2-d
 const timeSecFmt = new Intl.DateTimeFormat('pl-PL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 export const dateFmt = new Intl.DateTimeFormat('pl-PL', { day: 'numeric', month: 'numeric' });
 
-let skewMs = 0;   // zegar monitora minus zegar przeglądarki
-let cloudMode = false;
+let skewMs = 0;   // zegar agenta minus zegar przeglądarki
 
-/** Ustawia przesunięcie zegara według czasu monitora z /api/status. */
-export function syncClock(monitorNowIso) {
-  skewMs = new Date(monitorNowIso) - Date.now();
+/** Ustawia przesunięcie zegara według czasu agenta z /api/status. */
+export function syncClock(agentNowIso) {
+  skewMs = new Date(agentNowIso) - Date.now();
 }
 
-/** Tryb chmurowy (status.cloud): odczyty i raport na żądanie idą przez chmurę, czujnik czyta agent z dzierżawą. */
-export function setCloudMode(cloud) {
-  cloudMode = Boolean(cloud);
-}
-
-export const isCloudMode = () => cloudMode;
-
-/** „Teraz” według zegara monitora. */
+/** „Teraz” według zegara agenta. */
 export const now = () => new Date(Date.now() + skewMs);
 
 export function h(tag, cls, ...children) {
@@ -143,9 +135,7 @@ export function showActionNote(text, tone, id = 'action-note') {
 
 const REQUEST_TEXT = {
   queued: 'Odczyt zlecony',
-  alreadyQueued: 'Już czeka w kolejce',
-  inProgress: 'Odczyt właśnie trwa',
-  tooSoon: 'Za wcześnie (ostatnia próba przed chwilą)',
+  alreadyQueued: 'Już zlecony w ostatniej minucie',
   unknown: 'Nieznany czujnik',
   unavailable: 'Chmura niedostępna – nie zlecono'
 };
@@ -153,13 +143,11 @@ const REQUEST_TEXT = {
 function describeRequest(result) {
   const groups = new Map();
   for (const item of result.items) {
-    const name = item.sensorName || item.sensorId;
-    const label = item.status === 'tooSoon' && item.availableAt ? `${name} (od ${when(item.availableAt, true)})` : name;
     if (!groups.has(item.status)) groups.set(item.status, []);
-    groups.get(item.status).push(label);
+    groups.get(item.status).push(item.sensorName || item.sensorId);
   }
-  // W chmurze „już czeka” znaczy: to samo polecenie zlecono w ostatniej minucie (z tego albo innego panelu).
-  const text = (status) => (cloudMode && status === 'alreadyQueued' ? 'Już zlecony w ostatniej minucie' : REQUEST_TEXT[status] || status);
+  // „Już zlecony” znaczy: to samo polecenie zlecono w ostatniej minucie (z tego albo innego panelu).
+  const text = (status) => REQUEST_TEXT[status] || status;
   return [...groups].map(([status, names]) => `${text(status)}: ${names.join(', ')}`).join(' · ');
 }
 
@@ -169,9 +157,7 @@ export async function requestRead(sensorId, done) {
   try {
     const result = await api(path, 'POST');
     const queued = result.items.some((i) => i.status === 'queued');
-    const hint = !queued ? ''
-      : cloudMode ? ' Polecenie trafi przez chmurę do agenta, który czyta czujnik; wynik pojawi się zwykle w ciągu 1–2 min.'
-      : ' Monitor zaczyna od razu; wynik pojawi się za chwilę (do ok. pół minuty na czujnik).';
+    const hint = queued ? ' Polecenie trafi przez chmurę do agenta, który czyta czujnik; wynik pojawi się zwykle w ciągu 1–2 min.' : '';
     showActionNote(`${describeRequest(result)}.${hint}`, queued ? 'green' : 'amber');
   } catch (error) {
     showActionNote(`Nie udało się zlecić odczytu: ${error.message}`, 'red');
@@ -241,9 +227,8 @@ export function sensorMetrics(sensor) {
   return box;
 }
 
-/** Kto czyta czujnik w trybie chmurowym (agent z dzierżawą); null w trybie samodzielnym. */
+/** Kto czyta czujnik (agent z dzierżawą). */
 export function holderText(sensor) {
-  if (!cloudMode) return null;
   if (!sensor.holder) return 'Czujnika nie czyta teraz żaden agent (nikt go nie słyszy albo dzierżawa wygasła).';
   return sensor.holderIsMe ? 'Czyta ten agent.' : `Czyta agent ${sensor.holder}.`;
 }
@@ -252,16 +237,15 @@ export function holderText(sensor) {
 export function sensorLines(sensor, withSignal) {
   const latest = sensor.latest;
   const lines = h('div', 'lines');
-  const nobody = cloudMode && !sensor.holder;
+  const nobody = !sensor.holder;
   lines.append(h('div', 'muted', latest
     ? `Odczyt ${ago(latest.at)} (${when(latest.at)})${nobody ? '' : ` · następny ${until(sensor.nextReadAt)}`}`
     : `Brak odczytów w bazie${nobody ? '' : ` · pierwszy ${until(sensor.nextReadAt)}`}`));
-  const holder = holderText(sensor);
-  if (holder) lines.append(h('div', nobody ? 'problem' : 'muted', holder));
+  lines.append(h('div', nobody ? 'problem' : 'muted', holderText(sensor)));
   if (withSignal && sensor.lastSignalDbm !== null && sensor.lastSignalDbm !== undefined) {
-    lines.append(h('div', 'muted', `Sygnał ${dbm(sensor.lastSignalDbm)} (${ago(sensor.lastSignalAt)})${cloudMode ? ' – tu, u tego agenta' : ''}`));
+    lines.append(h('div', 'muted', `Sygnał ${dbm(sensor.lastSignalDbm)} (${ago(sensor.lastSignalAt)}) – tu, u tego agenta`));
   }
-  if (withSignal && cloudMode && sensor.bestOtherAgent) {
+  if (withSignal && sensor.bestOtherAgent) {
     lines.append(h('div', 'muted', `Najlepiej z innych słyszy go ${sensor.bestOtherAgent} (${dbm(sensor.bestOtherRssi)})`));
   }
   if (sensor.lastResult && sensor.lastResult !== 'ok') {
@@ -309,7 +293,7 @@ export async function loadLog({ daysAgo, level, contains, subject, note, contain
   try {
     const log = await api(`/api/log?${query}`);
     if (!log.exists) {
-      note.textContent = `Brak pliku dziennika z ${log.day} (monitor wtedy nie działał albo plik usunęła retencja).`;
+      note.textContent = `Brak pliku dziennika z ${log.day} (agent wtedy nie działał albo plik usunęła retencja).`;
       container.replaceChildren();
       return;
     }

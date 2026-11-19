@@ -72,7 +72,7 @@ public static class MailSamples
         return Mark(MailTemplates.AdminLog(log, day, to, $"{monitorName} (przykład)", now, zone));
     }
 
-    /// <summary>Przykładowy mail „agent milczy” (tryb chmurowy) – zmyślony agent, cisza od 47 minut.</summary>
+    /// <summary>Przykładowy mail „agent milczy” – zmyślony agent, cisza od 47 minut.</summary>
     public static MailMessage AgentSilent(IReadOnlyList<string> to, string monitorName, DateTimeOffset now, TimeZoneInfo zone) =>
         Mark(MailTemplates.AgentSilent("telefon-salon", now.AddMinutes(-47), to, $"{monitorName} (przykład)", now, zone));
 

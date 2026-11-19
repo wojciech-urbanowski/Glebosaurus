@@ -34,7 +34,7 @@ internal sealed record KnownSensor(string Name, string Mac, string Uuid);
 
 /// <summary>
 /// Agent w procesie aplikacji – jeden na proces, wspólny dla usługi (praca w tle) i ekranu (stan, rejestracja, podgląd
-/// zasięgu). Składa ten sam tryb chmurowy co agent na Windows (<see cref="CloudRuntime"/>: konfiguracja z chmury albo z kopii,
+/// zasięgu). Składa te same części co agent na Windows (<see cref="CloudRuntime"/>: konfiguracja z chmury albo z kopii,
 /// synchronizacja, zbieracz, kopia odczytów wszystkich agentów), ale bez nadawcy maili i bez panelu WWW. Przebieg zakończony
 /// błędem (np. bez sieci przy pierwszym starcie) wraca po 1, 2, 5, potem co 15 min (<see cref="RestartBackoff"/>).
 /// </summary>

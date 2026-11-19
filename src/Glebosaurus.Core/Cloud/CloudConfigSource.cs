@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 namespace Glebosaurus.Core.Cloud;
 
 /// <summary>
-/// Konfiguracja agenta w trybie chmurowym (ARCHITEKTURA.md, zasady 1 i 14): przy starcie z chmury (<c>get_config</c>),
+/// Konfiguracja agenta (ARCHITEKTURA.md, zasady 1 i 14): przy starcie z chmury (<c>get_config</c>),
 /// a bez niej z ostatniej dobrej kopii; potem odświeżana, gdy synchronizacja zobaczy nowszą wersję. Zła konfiguracja w
 /// chmurze nie zatrzymuje agenta – zostaje poprzednia, a tej wersji agent drugi raz nie pobiera.
 /// </summary>

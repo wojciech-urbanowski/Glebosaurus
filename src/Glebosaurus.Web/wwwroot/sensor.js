@@ -4,7 +4,7 @@
 // przez monitor do szerokości wykresu. Gdy okno kończy się „teraz”, nowy odczyt przesuwa je i odświeża dane.
 
 import {
-  $, h, now, syncClock, setCloudMode, isCloudMode, when, ago, until, percent, celsius, dbm, plural, minutesText, hoursText, kv, api, sensorUrl,
+  $, h, now, syncClock, when, ago, until, percent, celsius, dbm, plural, minutesText, hoursText, kv, api, sensorUrl,
   fetchSeries, dateFmt, requestRead, readButton, sensorAccent, sensorBadges, sensorMetrics, sensorLines, alertCard,
   buildLogDays, loadLog
 } from './common.js';
@@ -166,7 +166,7 @@ function renderHeader(status) {
   const m = status.monitor;
   document.title = `${sensor.name} – ${m.name} – Glebosaurus`;
   $('sensor-name').textContent = sensor.name;
-  $('sensor-line').textContent = `${status.cloud ? 'Agent' : 'Monitor'} ${m.name} · odczyt co ${minutesText(sensor.readIntervalMinutes)}`;
+  $('sensor-line').textContent = `Agent ${m.name} · odczyt co ${minutesText(sensor.readIntervalMinutes)}`;
   $('footer').textContent = `Glebosaurus ${m.version} · panel diagnostyczny · odświeżono ${when(m.now, true)}`;
 
   const pick = $('sensor-pick');
@@ -202,16 +202,16 @@ function renderDiagnostics() {
   if (!sensor) return;
   const card = h('div', 'card');
   card.append(kv([
-    ['Dzierżawa', isCloudMode()
-      ? (sensor.holder ? `${sensor.holder}${sensor.holderIsMe ? ' (ten agent)' : ''} do ${when(sensor.holderUntil, true)}` : 'nikt – czujnik czeka na agenta, który go usłyszy')
-      : null],
+    ['Dzierżawa', sensor.holder
+      ? `${sensor.holder}${sensor.holderIsMe ? ' (ten agent)' : ''} do ${when(sensor.holderUntil, true)}`
+      : 'nikt – czujnik czeka na agenta, który go usłyszy'],
     ['Ostatnia próba', sensor.lastAttemptAt ? `${when(sensor.lastAttemptAt)} (${ago(sensor.lastAttemptAt)}) – ${sensor.lastResultText}`
-      : isCloudMode() ? 'ten agent nie czytał go od startu' : 'od startu monitora brak'],
+      : 'ten agent nie czytał go od startu'],
     ['Nieudane próby z rzędu', String(sensor.failures)],
     ['Ponowienie', sensor.retryAt ? until(sensor.retryAt) : null],
     ['Następny odczyt', until(sensor.nextReadAt)],
-    ['Sygnał', sensor.lastSignalDbm !== null && sensor.lastSignalDbm !== undefined ? `${dbm(sensor.lastSignalDbm)} (${ago(sensor.lastSignalAt)})` : 'brak pomiaru od startu monitora'],
-    ['Odczyt na żądanie', sensor.readRequested ? (isCloudMode() ? 'zlecony przez chmurę, czeka na wynik' : 'czeka na najbliższy cykl')
+    ['Sygnał', sensor.lastSignalDbm !== null && sensor.lastSignalDbm !== undefined ? `${dbm(sensor.lastSignalDbm)} (${ago(sensor.lastSignalAt)})` : 'brak pomiaru od startu agenta'],
+    ['Odczyt na żądanie', sensor.readRequested ? 'zlecony przez chmurę, czeka na wynik'
       : sensor.readOnRequestFrom ? `możliwy od ${when(sensor.readOnRequestFrom, true)}` : 'możliwy'],
     ['Najstarszy odczyt w bazie', first !== null ? `${dateFmt.format(new Date(first))} ${new Date(first).getFullYear()} (${ago(new Date(first).toISOString())})` : loaded ? 'brak odczytów' : null]
   ]));
@@ -230,9 +230,7 @@ function renderSettings() {
     ['Produkt Tuya', sensor.productId || '–'],
     ['Identyfikator', sensor.id]
   ]));
-  card.append(h('div', 'muted small', isCloudMode()
-    ? 'Ustawienia czujnika są w chmurze – agent pobiera zmiany sam.'
-    : 'Zmiana ustawień: edycja pliku konfiguracji i ponowne uruchomienie monitora.'));
+  card.append(h('div', 'muted small', 'Ustawienia czujnika są w chmurze – agent pobiera zmiany sam.'));
   $('settings').replaceChildren(card);
 }
 
@@ -292,17 +290,16 @@ async function refresh() {
   try {
     status = await api('/api/status');
   } catch (error) {
-    showProblem('Brak połączenia z monitorem', `${error.message}. Kolejna próba za 30 s.`);
+    showProblem('Brak połączenia z agentem', `${error.message}. Kolejna próba za 30 s.`);
     return { busy: false, wakeIn: Infinity };
   }
   syncClock(status.monitor.now);
-  setCloudMode(status.cloud);
   sensor = status.sensors.find((s) => s.id === sensorId) || null;
   if (!sensor) {
     $('content').hidden = true;
     $('sensor-name').textContent = 'Nieznany czujnik';
     $('sensor-line').textContent = '';
-    showProblem('Nie ma takiego czujnika w konfiguracji monitora', `Identyfikator: ${sensorId}. Wróć do listy wszystkich czujników.`);
+    showProblem('Nie ma takiego czujnika w konfiguracji', `Identyfikator: ${sensorId}. Wróć do listy wszystkich czujników.`);
     return { busy: false, wakeIn: Infinity };
   }
   $('banner').hidden = true;

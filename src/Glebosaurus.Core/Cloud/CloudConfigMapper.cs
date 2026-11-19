@@ -4,7 +4,7 @@ using Glebosaurus.Tuya;
 namespace Glebosaurus.Core.Cloud;
 
 /// <summary>
-/// Konfiguracja agenta w trybie chmurowym: <see cref="AgentConfig"/> dla silników (czujniki, harmonogramy, progi z chmury,
+/// Konfiguracja agenta: <see cref="AgentConfig"/> dla silników (czujniki, harmonogramy, progi z chmury,
 /// a baza, retencja i panel – lokalnie), strefa czasowa raportów, rola agenta i odbiorcy poczty (bez hasła – to agent
 /// dostaje tylko z blokadą nadawcy, <c>mail_credentials</c>).
 /// </summary>
@@ -51,7 +51,6 @@ public static class CloudConfigMapper
             Database = local.Database,
             RetentionDays = local.RetentionDays,
             Sensors = sensors,
-            Mail = null,   // w trybie chmurowym poczta idzie przez blokadę nadawcy, nie z pliku
             Reports = new() { Times = reportTimes, CatchUpHours = Math.Clamp(settings.ReportCatchUpHours, 0, 24) },
             Alerts = new() { ReminderHours = settings.AlertReminderHours > 0 ? settings.AlertReminderHours : 24 },
             Logs = new() { RetentionDays = Math.Clamp(settings.LogRetentionDays, 1, 365) },

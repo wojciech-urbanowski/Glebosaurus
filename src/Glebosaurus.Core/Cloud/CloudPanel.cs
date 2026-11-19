@@ -8,7 +8,7 @@ namespace Glebosaurus.Core.Cloud;
 /// <param name="HeldSensors">Ile czujników ma teraz w dzierżawie.</param>
 public sealed record CloudAgentStatus(string Name, bool CanSendMail, int? SenderPriority, DateTimeOffset? LastSeenAt, bool IsMe, int HeldSensors);
 
-/// <summary>Tryb chmurowy w statusie lokalnego panelu – bez sekretów (token, hasło Gmaila, klucze Tuya nie mają tu pola).</summary>
+/// <summary>Chmura w statusie lokalnego panelu – bez sekretów (token, hasło Gmaila, klucze Tuya nie mają tu pola).</summary>
 /// <param name="Project">Adres (host) projektu Supabase.</param>
 /// <param name="Agent">Nazwa tego agenta w chmurze; null przed pierwszą konfiguracją.</param>
 /// <param name="ConfigCachedAt">Agent pracuje na lokalnej kopii konfiguracji z tej chwili (chmura była niedostępna przy starcie).</param>
@@ -23,7 +23,7 @@ public sealed record CloudStatus(
     bool MirrorEnabled, DateTimeOffset? MirrorAt, string? MirrorError);
 
 /// <summary>
-/// Lokalny panel WWW w trybie chmurowym (ARCHITEKTURA.md, zasada 15): status składany z konfiguracji z chmury, lokalnej
+/// Lokalny panel WWW agenta (ARCHITEKTURA.md, zasada 15): status składany z konfiguracji z chmury, lokalnej
 /// bazy (własne odczyty i kopia odczytów innych agentów), migawek zbieracza, synchronizacji i nadawcy oraz alertów ze
 /// wspólnego stanu w chmurze. Odczyt i raport na żądanie idą poleceniem przez chmurę tam, gdzie jest władza: odczyt do
 /// właściciela dzierżawy czujnika (może nim być ten agent), raport do obecnego nadawcy. Konfiguracji nie zmienia.
@@ -68,8 +68,8 @@ public sealed class CloudPanel(
         }
 
         var runtime = collector() with { RequestedReads = pending };
-        var status = await MonitorStatusBuilder.BuildAsync(current.Config, store, runtime, host, now, current.TimeZone, cancellationToken,
-            await AlertsAsync(now, cancellationToken));
+        var status = await MonitorStatusBuilder.BuildAsync(current.Config, store, runtime, host, now, current.TimeZone,
+            await AlertsAsync(now, cancellationToken), cancellationToken);
 
         var leases = view?.Sensors.ToDictionary(s => s.Sensor, StringComparer.Ordinal) ?? [];
         var sensors = status.Sensors.Select(sensor =>
@@ -92,7 +92,7 @@ public sealed class CloudPanel(
         var mailStatus = current.Mail is { } m
             ? new MailStatus(true, m.GmailAddress, m.AlertRecipients, m.ReportRecipients.Count > 0 ? m.ReportRecipients : m.AlertRecipients,
                 m.AdminRecipients, mailState.LastSentAt, mailState.LastError, mailState.LastErrorAt, mailState.RetryAt)
-            : new MailStatus(false, null, [], [], [], null, null, null, null);
+            : MailStatus.NotConfigured;
 
         DateTimeOffset? lastReport, reportFrom;
         string? lastReportError;

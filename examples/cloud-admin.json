@@ -1,0 +1,19 @@
+// Wzór pliku administratora projektu Supabase – dla poleceń `glebosaurus cloud …` (właściciel) i codziennej kopii
+// zapasowej na jednym agencie (sekcja cloud.backup). To SEKRET: hasło bazy otwiera wszystkie dane i sekrety w chmurze.
+// Nie dodawaj go do repozytorium i nie kopiuj na agentów (wyjątek: agent z kopią zapasową – wtedy bez secretKey).
+{
+  "supabase": {
+    "url": "https://abcdefghijklmnopqrst.supabase.co",   // Project Settings → Data API
+    "publishableKey": "sb_publishable_…",                 // potrzebny do kodu QR rejestracji telefonu (cloud agent --qr)
+    "databasePassword": "HASLO_BAZY",                     // Project Settings → Database (hasło ustawione przy zakładaniu projektu)
+    // Pooler sesji Twojego regionu (Connect → Session pooler); domyślnie Central EU (Frankfurt):
+    "databaseHost": "aws-1-eu-central-1.pooler.supabase.com"
+    // "secretKey": "sb_secret_…"                          // niepotrzebny programowi; jeśli trzymasz go tutaj – nigdy na agentach
+  },
+
+  // Opcjonalnie: strażnik nadawcy (https://healthchecks.io, sprawdzenie np. co 5 min, zapas 25 min). `cloud config`
+  // zapisuje adres w Vault, a nadawca wysyła na niego sygnał życia – brak sygnału = mail od healthchecks.io.
+  "healthchecks": {
+    "pingUrl": "https://hc-ping.com/…"
+  }
+}

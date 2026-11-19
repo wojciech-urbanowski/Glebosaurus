@@ -13,7 +13,7 @@ public sealed record CloudSettingsInfo(string TimeZone, double ReadIntervalMinut
     double AlertReminderHours, int LogRetentionDays, long ConfigVersion, IReadOnlyList<CloudSensorTiming> Sensors);
 
 /// <summary>
-/// Ustawienia chmury bez pełnego <c>cloud import</c>: <c>cloud settings</c> czyta je i zmienia samo pole funkcją
+/// Ustawienia chmury bez pełnego <c>cloud config</c>: <c>cloud settings</c> czyta je i zmienia samo pole funkcją
 /// <c>glebosaurus.admin_settings_update</c> (pozostałe ustawienia, czujniki i sekrety zostają). Zmiana podnosi wersję
 /// konfiguracji, więc agenci pobierają ją przy najbliższej synchronizacji (ok. minuty).
 /// </summary>

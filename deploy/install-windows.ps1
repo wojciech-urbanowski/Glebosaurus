@@ -1,31 +1,31 @@
 ﻿<#
 .SYNOPSIS
-    Instaluje albo aktualizuje Glebosaurusa na Windows 11: monitor czujników gleby jako usługę startującą przy zalogowaniu,
+    Instaluje albo aktualizuje Glebosaurusa na Windows 11: agenta czujników gleby jako usługę startującą przy zalogowaniu,
     na koncie użytkownika (bez uprawnień administratora).
 
 .DESCRIPTION
     Pobiera wydanie z GitHuba (paczkę samodzielną z .NET – niczego więcej nie trzeba instalować), sprawdza skrót SHA-256,
     rozpakowuje do %LOCALAPPDATA%\Glebosaurus\app i rejestruje zadanie Harmonogramu „Glebosaurus”, które przy każdym
     zalogowaniu (i co godzinę, gdyby usługa nie działała) uruchamia app\glebosaurus-service.exe – bez okna.
-    Usługa uruchamia monitor, podnosi go po awarii, a przy starcie i codziennie o 03:30 sprawdza nowe wydania; nowszą wersję
-    instaluje ten sam skrypt (usługa uruchamia go z parametrem -Unattended).
+    Usługa uruchamia agenta (glebosaurus run), podnosi go po awarii, a przy starcie i codziennie o 03:30 sprawdza nowe
+    wydania; nowszą wersję instaluje ten sam skrypt (usługa uruchamia go z parametrem -Unattended).
 
-    Gdy usługa jest już zainstalowana, skrypt ją aktualizuje: czysto zatrzymuje monitor (czeka na koniec odczytu), podmienia
-    app\ (poprzednia wersja zostaje w app.old) i uruchamia usługę ponownie. Dane (konfiguracja, klucze czujników, baza,
-    dzienniki, sekrety panelu WWW) leżą w data\ i aktualizacja ich nie dotyka.
+    Przy pierwszej instalacji w data\ zostaje wzór glebosaurus.config.example.json: skopiuj go jako glebosaurus.config.json,
+    wpisz adres projektu Supabase i klucz publikowalny, zarejestruj agenta (glebosaurus enroll) i uruchom usługę
+    (Start-ScheduledTask Glebosaurus) – skrypt podaje gotowe polecenia.
+
+    Gdy usługa jest już zainstalowana, skrypt ją aktualizuje: czysto zatrzymuje agenta (czeka na koniec odczytu), podmienia
+    app\ (poprzednia wersja zostaje w app.old) i uruchamia usługę ponownie. Dane (konfiguracja agenta, token, kopia
+    konfiguracji z chmury, baza, dzienniki, sekrety panelu WWW) leżą w data\ i aktualizacja ich nie dotyka.
 
     Działa w Windows PowerShell 5.1 i PowerShell 7. Plik musi być w UTF-8 z BOM (polskie znaki w Windows PowerShell).
 
 .EXAMPLE
     $s = "$env:TEMP\glebosaurus-install.ps1"
     Invoke-WebRequest https://github.com/wojciech-urbanowski/Glebosaurus/releases/latest/download/install-windows.ps1 -OutFile $s -UseBasicParsing
-    powershell -NoProfile -ExecutionPolicy Bypass -File $s -ImportFrom D:\sciezka\do\local
-
-    Pierwsza instalacja z przejęciem istniejącej konfiguracji i bazy (katalog z glebosaurus.config.json).
-
-.EXAMPLE
     powershell -NoProfile -ExecutionPolicy Bypass -File $s
-    Aktualizacja do najnowszego wydania (albo naprawa: ponowna rejestracja zadania i start usługi).
+
+    Pierwsza instalacja, aktualizacja do najnowszego wydania albo naprawa (ponowna rejestracja zadania i start usługi).
 
 .EXAMPLE
     powershell -NoProfile -ExecutionPolicy Bypass -File $s -Uninstall
@@ -37,9 +37,6 @@ param(
     [string]$Version,
     # Katalog instalacji.
     [string]$InstallDir = (Join-Path $env:LOCALAPPDATA 'Glebosaurus'),
-    # Katalog z istniejącą konfiguracją do przejęcia (glebosaurus.config.json, klucze czujników, baza, dzienniki, sekrety
-    # panelu). Pliki są kopiowane; nic nie jest nadpisywane, gdy usługa ma już własną konfigurację.
-    [string]$ImportFrom,
     # Lokalna paczka Glebosaurus-<wersja>-win-x64.zip zamiast pobierania (do prób; obok może leżeć SHA256SUMS).
     [string]$PackagePath,
     # Nie uruchamiaj usługi po instalacji (zadanie i tak uruchomi ją przy następnym zalogowaniu).
@@ -49,7 +46,7 @@ param(
     # Zainstaluj ponownie, nawet gdy ta wersja już jest.
     [switch]$Force,
     [switch]$Uninstall,
-    # Z -Uninstall: usuń też dane (konfigurację, klucze, bazę, dzienniki).
+    # Z -Uninstall: usuń też dane (konfigurację, token, bazę, dzienniki).
     [switch]$RemoveData,
     # Wywołanie z usługi przy samoaktualizacji: dziennik do updates\install-last.log, po porażce powrót starej wersji.
     [switch]$Unattended,
@@ -107,7 +104,7 @@ if ($DailyUpdateCheck -notmatch '^([01]\d|2[0-3]):[0-5]\d$') { throw "DailyUpdat
 
 # ---- pomocnicze ------------------------------------------------------------------------------------------------------
 
-# Czy ktoś trzyma muteks (monitor albo usługa) – sprawdza, zajmując go na chwilę.
+# Czy ktoś trzyma muteks (agent albo usługa) – sprawdza, zajmując go na chwilę.
 function Test-Held([string]$Name) {
     $mutex = New-Object System.Threading.Mutex($false, $Name)
     try {
@@ -119,7 +116,7 @@ function Test-Held([string]$Name) {
     finally { $mutex.Dispose() }
 }
 
-# Usługa i monitor uruchomione z TEGO katalogu app\ (po ścieżce programu). Muteksy są wspólne dla całej sesji, więc same nie
+# Usługa i agent uruchomieni z TEGO katalogu app\ (po ścieżce programu). Muteksy są wspólne dla całej sesji, więc same nie
 # wystarczą: instalacja próbna w innym katalogu zatrzymałaby prawdziwą usługę (zdarzyło się 2026-11-15), a każda instalacja
 # zatrzymywałaby też deweloperskie „run”, choć to nie blokuje żadnego pliku w app\.
 function Test-Running {
@@ -129,7 +126,7 @@ function Test-Running {
     return ($own.Count -gt 0)
 }
 
-# Czyste zatrzymanie: sygnał „zatrzymaj się” i czekanie, aż monitor skończy bieżący odczyt. Nigdy nie zabija procesu –
+# Czyste zatrzymanie: sygnał „zatrzymaj się” i czekanie, aż agent skończy bieżący odczyt. Nigdy nie zabija procesu –
 # zabicie w trakcie rozłączania czujnika potrafi zawiesić następny odczyt.
 function Stop-Glebosaurus {
     if (-not (Test-Running)) { return $true }
@@ -142,13 +139,13 @@ function Stop-Glebosaurus {
                 [void]$handle.Set()
                 $handle.Dispose()
                 $signalled = $true
-                Write-Step 'poproszono działający monitor o zatrzymanie – czekam na koniec bieżącego odczytu...'
+                Write-Step 'poproszono działającego agenta o zatrzymanie – czekam na koniec bieżącego odczytu...'
             }
         }
         if ((Get-Date) -ge $deadline) { return $false }
         Start-Sleep -Seconds 2
     }
-    Write-Step 'monitor i usługa zatrzymane.'
+    Write-Step 'agent i usługa zatrzymani.'
     return $true
 }
 
@@ -220,9 +217,10 @@ function Assert-Hash([string]$SumsPath, [string]$File) {
     if ($expected -ne $actual) { throw "Skrót SHA-256 pliku $name się nie zgadza (oczekiwano $expected, jest $actual) – uszkodzone pobranie?" }
 }
 
-# Konfiguracja monitora może mieć komentarze // i /* */ oraz przecinki przed } i ] (czyta ją System.Text.Json), a
+# Konfiguracja agenta może mieć komentarze // i /* */ oraz przecinki przed } i ] (czyta ją System.Text.Json), a
 # ConvertFrom-Json z Windows PowerShell 5.1 ich nie zna – więc najpierw je usuwamy (napisy w cudzysłowach zostają nietknięte).
-# Przy błędzie zwraca $null BEZ komunikatu wyjątku: ConvertFrom-Json wkleja do niego cały plik, razem z hasłem Gmaila.
+# Przy błędzie zwraca $null BEZ komunikatu wyjątku: ConvertFrom-Json wkleja do niego cały plik (zasada projektu – plik
+# z sekretami nigdy nie trafia na ekran ani do dziennika).
 function Read-ConfigJson([string]$Path) {
     try {
         $text = Get-Content -LiteralPath $Path -Raw -Encoding UTF8
@@ -239,56 +237,6 @@ function Read-ConfigJson([string]$Path) {
 function Save-Json($Value, [string]$Path) {
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $Path) | Out-Null
     Set-Content -LiteralPath $Path -Value ($Value | ConvertTo-Json) -Encoding UTF8
-}
-
-# Kopiuje dane istniejącego monitora (np. katalog local/ z repozytorium) do data\. Nic nie nadpisuje.
-function Import-Data([string]$Source) {
-    $Source = (Resolve-Path -LiteralPath $Source).ProviderPath
-    $sourceConfig = Join-Path $Source 'glebosaurus.config.json'
-    if (-not (Test-Path -LiteralPath $sourceConfig)) { throw "W $Source nie ma pliku glebosaurus.config.json." }
-    if (Test-Held $MonitorMutex) { throw 'Działa monitor Glebosaurus (np. „run” z konsoli) – zatrzymaj go (glebosaurus stop), żeby skopiować spójną bazę.' }
-
-    $files = New-Object System.Collections.Generic.List[string]
-    $files.Add('glebosaurus.config.json')
-    $database = 'glebosaurus.db'
-    $config = Read-ConfigJson $sourceConfig
-    if ($config) {
-        if ($config.PSObject.Properties['database'] -and $config.database) { $database = [string]$config.database }
-        foreach ($sensor in @($config.sensors)) {
-            if ($sensor -and $sensor.PSObject.Properties['tuyaFile'] -and $sensor.tuyaFile) {
-                if ([IO.Path]::IsPathRooted([string]$sensor.tuyaFile)) { Write-Warning "Plik klucza $($sensor.tuyaFile) ma ścieżkę bezwzględną – zostaje na miejscu." }
-                else { $files.Add([string]$sensor.tuyaFile) }
-            }
-        }
-    }
-    else { Write-Warning "Nie udało się odczytać $sourceConfig jako JSON – kopiuję pliki według nazw (*.credentials.json, glebosaurus.db)." }
-    if ([IO.Path]::IsPathRooted($database)) { Write-Warning "Baza ma ścieżkę bezwzględną ($database) – zostaje tam, gdzie jest." }
-    else { foreach ($suffix in @('', '-wal', '-shm')) { $files.Add($database + $suffix) } }
-    Get-ChildItem -LiteralPath $Source -Filter '*.credentials.json' -File | ForEach-Object { $files.Add($_.Name) }
-    $files.Add('glebosaurus-web.password')
-    $files.Add('glebosaurus-web.pfx')
-
-    $copied = 0
-    foreach ($relative in ($files | Select-Object -Unique)) {
-        $from = Join-Path $Source $relative
-        if (-not (Test-Path -LiteralPath $from -PathType Leaf)) { continue }
-        $to = Join-Path $DataDir $relative
-        if (Test-Path -LiteralPath $to) { Write-Warning "$to już jest – nie nadpisuję."; continue }
-        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $to) | Out-Null
-        Copy-Item -LiteralPath $from -Destination $to
-        $copied++
-    }
-    $logs = 0
-    $sourceLogs = Join-Path $Source 'logs'
-    if (Test-Path -LiteralPath $sourceLogs) {
-        $targetLogs = Join-Path $DataDir 'logs'
-        New-Item -ItemType Directory -Force -Path $targetLogs | Out-Null
-        Get-ChildItem -LiteralPath $sourceLogs -Filter 'glebosaurus-*.log' -File | ForEach-Object {
-            $to = Join-Path $targetLogs $_.Name
-            if (-not (Test-Path -LiteralPath $to)) { Copy-Item -LiteralPath $_.FullName -Destination $to; $logs++ }
-        }
-    }
-    Write-Step "przejęto z $Source plików: $copied (konfiguracja, klucze czujników, baza, sekrety panelu) i dzienników: $logs."
 }
 
 function Install-Package([string]$Extracted) {
@@ -312,13 +260,13 @@ function Register-GlebosaurusTask {
     $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero) `
         -MultipleInstances IgnoreNew -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -StartWhenAvailable
     Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force `
-        -Description 'Glebosaurus – monitor czujników gleby (usługa bez okna; https://github.com/wojciech-urbanowski/Glebosaurus).' | Out-Null
+        -Description 'Glebosaurus – agent czujników gleby (usługa bez okna; https://github.com/wojciech-urbanowski/Glebosaurus).' | Out-Null
 }
 
 function Start-Glebosaurus {
     if (Test-Running) { return }
     if (Test-Held $ServiceMutex) {
-        Write-Warning 'Działa usługa Glebosaurus z innego katalogu instalacji – ta nie wystartuje obok niej (na koncie pracuje jeden monitor).'
+        Write-Warning 'Działa usługa Glebosaurus z innego katalogu instalacji – ta nie wystartuje obok niej (na koncie pracuje jeden agent).'
         return
     }
     if (-not (Test-Path -LiteralPath $ServiceExe)) { Write-Warning "Brak $ServiceExe – nie ma czego uruchomić."; return }
@@ -338,6 +286,19 @@ function Remove-Leftovers {
     Get-ChildItem -LiteralPath $UpdatesDir | Where-Object {
         $_.Name -ne 'install-last.log' -and $_.FullName -ne $PSCommandPath -and $_.Name -ne 'update-attempt.json'
     } | ForEach-Object { try { Remove-Item -LiteralPath $_.FullName -Recurse -Force } catch { } }
+}
+
+# Czy agent ma token z rejestracji (enroll). Plik tokenu leży obok konfiguracji, chyba że cloud.tokenFile mówi inaczej;
+# nieczytelna konfiguracja – nie zgadujemy i traktujemy agenta jak zarejestrowanego (sam „run” powie, czego brakuje).
+function Test-Enrolled {
+    $token = 'glebosaurus-cloud.token'
+    $config = Read-ConfigJson $ConfigPath
+    if (-not $config) { return $true }
+    if ($config.PSObject.Properties['cloud'] -and $config.cloud -and $config.cloud.PSObject.Properties['tokenFile'] -and $config.cloud.tokenFile) {
+        $token = [string]$config.cloud.tokenFile
+    }
+    if (-not [IO.Path]::IsPathRooted($token)) { $token = Join-Path $DataDir $token }
+    return (Test-Path -LiteralPath $token)
 }
 
 function Write-Summary($Installed) {
@@ -370,7 +331,7 @@ function Invoke-Uninstall {
         Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
         Write-Step "usunięto zadanie Harmonogramu `„$TaskName`”."
     }
-    if (-not (Stop-Glebosaurus)) { throw "Monitor nie zatrzymał się w $StopTimeoutSeconds s – spróbuj ponownie za chwilę." }
+    if (-not (Stop-Glebosaurus)) { throw "Agent nie zatrzymał się w $StopTimeoutSeconds s – spróbuj ponownie za chwilę." }
     foreach ($path in @($AppDir, $OldAppDir, $UpdatesDir, $SettingsPath)) {
         if (Test-Path -LiteralPath $path) { Invoke-Retry { Remove-Item -LiteralPath $path -Recurse -Force } }
     }
@@ -454,7 +415,7 @@ function Invoke-Install {
         if (-not $NoTask) { $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue }
         if ($task) { Disable-ScheduledTask -TaskName $TaskName | Out-Null; $script:TaskDisabled = $true }   # strażnik nie wystartuje w trakcie
         if (Test-Running) { $script:Stopped = $true }
-        if (-not (Stop-Glebosaurus)) { throw "Monitor nie zatrzymał się w $StopTimeoutSeconds s – aktualizację przerwano, nic nie zmieniono." }
+        if (-not (Stop-Glebosaurus)) { throw "Agent nie zatrzymał się w $StopTimeoutSeconds s – aktualizację przerwano, nic nie zmieniono." }
         Install-Package $extracted
         if ($installed) { Write-Step "zaktualizowano $($installed.ToString(3)) → $($target.ToString(3)) (poprzednia wersja w $OldAppDir)." }
         else { Write-Step "zainstalowano wersję $($target.ToString(3)) w $AppDir." }
@@ -462,10 +423,6 @@ function Invoke-Install {
 
     # 3. Dane.
     New-Item -ItemType Directory -Force -Path $DataDir | Out-Null
-    if ($ImportFrom) {
-        if (Test-Path -LiteralPath $ConfigPath) { Write-Warning "Usługa ma już konfigurację ($ConfigPath) – pomijam przejmowanie z $ImportFrom (nic nie nadpisuję)." }
-        else { Import-Data $ImportFrom }
-    }
     $hasConfig = Test-Path -LiteralPath $ConfigPath
     if (-not $hasConfig) {
         $example = Join-Path $AppDir 'glebosaurus.config.example.json'
@@ -483,9 +440,15 @@ function Invoke-Install {
     Remove-Leftovers
 
     # 5. Start.
+    $enrolled = $hasConfig -and (Test-Enrolled)
     if (-not $hasConfig) {
-        Write-Warning ("Brak konfiguracji $ConfigPath – usługa nie zostanie uruchomiona. Wzór: $(Join-Path $DataDir 'glebosaurus.config.example.json'); " +
-            "czujnik: & '$MonitorExe' pair --id ID --config '$ConfigPath' --confirm-bind; potem: Start-ScheduledTask $TaskName.")
+        Write-Warning ("Brak konfiguracji $ConfigPath – usługa nie zostanie uruchomiona. Skopiuj wzór " +
+            "$(Join-Path $DataDir 'glebosaurus.config.example.json') jako glebosaurus.config.json, wpisz adres projektu i klucz publikowalny, " +
+            "potem: & '$MonitorExe' enroll --config '$ConfigPath' (kod od właściciela chmury) i Start-ScheduledTask $TaskName.")
+    }
+    elseif (-not $enrolled -and -not $Unattended) {
+        Write-Warning ("Agent nie jest jeszcze zarejestrowany w chmurze – usługa nie zostanie uruchomiona. " +
+            "Zarejestruj go: & '$MonitorExe' enroll --config '$ConfigPath' (kod od właściciela chmury), potem: Start-ScheduledTask $TaskName.")
     }
     elseif ($NoTask -and -not $Unattended) { }
     elseif ($NoStart -and -not $Unattended -and -not $script:Stopped) { Write-Step 'usługa nie została uruchomiona (-NoStart); wystartuje przy następnym zalogowaniu.' }

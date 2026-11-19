@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 namespace Glebosaurus.Core.Cloud;
 
 /// <summary>
-/// Agent w trybie chmurowym w jednym procesie (ARCHITEKTURA.md, zasada 15): konfiguracja z chmury (albo z kopii), pętla
+/// Agent w jednym procesie (ARCHITEKTURA.md, zasada 15): konfiguracja z chmury (albo z kopii), pętla
 /// synchronizacji, zbieracz i nadawca – każde we własnej pętli. Po każdej udanej synchronizacji: odświeżenie konfiguracji
 /// przy nowej wersji i rozdział poleceń (zbieracz, nadawca). Agent z lokalnym panelem ma jeszcze kopię odczytów wszystkich
 /// agentów (<see cref="CloudReadingMirror"/>). Agent bez poczty (Android) nie ma nadawcy – <c>notifier</c> = null.
@@ -84,7 +84,7 @@ public sealed class CloudRuntime
             {
                 logger.LogWarning("Oddanie dzierżaw przy zatrzymaniu nie powiodło się ({Error}) – wrócą do puli po wygaśnięciu.", e.Message);
             }
-            logger.LogInformation("Agent chmurowy zatrzymany.");
+            logger.LogInformation("Agent zatrzymany.");
         }
     }
 

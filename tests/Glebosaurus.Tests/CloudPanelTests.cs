@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Glebosaurus.Tests;
 
 /// <summary>
-/// Lokalny panel w trybie chmurowym: kopia odczytów wszystkich agentów w SQLite (bez ponownego wysyłania), pętla kopii,
+/// Lokalny panel agenta: kopia odczytów wszystkich agentów w SQLite (bez ponownego wysyłania), pętla kopii,
 /// status (kto czyta który czujnik, nadawca, agenci, alerty z chmury) i akcje przez polecenia w chmurze.
 /// </summary>
 public sealed class CloudPanelTests : IDisposable
@@ -29,7 +29,6 @@ public sealed class CloudPanelTests : IDisposable
     {
         api = new(clock);
         var agentConfig = Fixtures.Config(Fixtures.Sensor("s1", "Cisy"), Fixtures.Sensor("s2", "Zioła", uuid: "07aaad78f40b0a75"));
-        agentConfig.Mail = null;
         agentConfig.MonitorName = "bestia5";
         config = new(agentConfig, TimeZoneInfo.Utc, 7, new("bestia5", true, 2),
             new("nadawca@gmail.com", ["alerty@example.com"], [], ["admin@example.com"]), ["Czujnik „Stary” pominięty: brak danych Tuya."]);

@@ -9,13 +9,13 @@ namespace Glebosaurus.Core.Monitoring;
 public sealed record MonitorHostInfo(string BleBackend, string ConfigPath, string DatabasePath, string LogDirectory);
 
 /// <summary>
-/// Stan monitora dla panelu WWW. Składany jawnie, pole po polu – nigdy przez serializację <see cref="AgentConfig"/> – więc
-/// sekrety (klucz lokalny i deviceId czujnika, hasło aplikacji Gmail) nie mają którędy wyjść.
+/// Stan agenta dla panelu WWW i ekranu telefonu. Składany jawnie, pole po polu – nigdy przez serializację
+/// <see cref="AgentConfig"/> – więc sekrety (klucz lokalny i deviceId czujnika, hasło aplikacji Gmail) nie mają którędy wyjść.
 /// </summary>
 public sealed record MonitorStatus(
     MonitorSummary Monitor, IReadOnlyList<SensorStatus> Sensors, IReadOnlyList<AlertStatus> Alerts, MailStatus Mail, ReportsStatus Reports)
 {
-    /// <summary>Tryb chmurowy: synchronizacja, agenci, nadawca, kopia odczytów; null w trybie samodzielnym.</summary>
+    /// <summary>Synchronizacja, agenci, nadawca, kopia odczytów – uzupełnia <see cref="Cloud.CloudPanel"/>.</summary>
     public Glebosaurus.Core.Cloud.CloudStatus? Cloud { get; init; }
 }
 
@@ -34,8 +34,8 @@ public sealed record ReadingStatus(DateTimeOffset At, int? MoisturePercent, deci
 
 /// <param name="MoistureTone">Kolor wilgotności względem progów, jak w mailach: red (poniżej progu podlania), amber (strefa histerezy), green.</param>
 /// <param name="NextReadAt">Najwcześniejszy następny odczyt (w przeszłości = w najbliższym cyklu).</param>
-/// <param name="LastResult">Wynik ostatniej próby od startu monitora: ok, notFound, unbound, error; null = jeszcze nie próbował.</param>
-/// <param name="ReadRequested">Odczyt zlecony na żądanie czeka na najbliższy cykl.</param>
+/// <param name="LastResult">Wynik ostatniej próby tego agenta od startu: ok, notFound, unbound, error; null = jeszcze nie próbował.</param>
+/// <param name="ReadRequested">Odczyt zlecony na żądanie – panel czeka na nowy odczyt.</param>
 /// <param name="ReadOnRequestFrom">Od kiedy można zlecić odczyt na żądanie (ostatnia próba była przed chwilą); null = już można.</param>
 public sealed record SensorStatus(
     string Id, string Name, string Mac, string? ProductId,
@@ -46,7 +46,7 @@ public sealed record SensorStatus(
     int? LastSignalDbm, DateTimeOffset? LastSignalAt, IReadOnlyList<string> OpenAlerts,
     bool ReadRequested, DateTimeOffset? ReadOnRequestFrom)
 {
-    // Tryb chmurowy (null w samodzielnym): kto ma dzierżawę czujnika i kto poza tym agentem słyszy go najlepiej.
+    // Kto ma dzierżawę czujnika i kto poza tym agentem słyszy go najlepiej (uzupełnia CloudPanel).
 
     /// <summary>Agent z dzierżawą (tylko on czyta czujnik); null – nikt.</summary>
     public string? Holder { get; init; }
@@ -63,28 +63,42 @@ public sealed record SensorStatus(
 public sealed record AlertStatus(
     long Id, string SensorId, string SensorName, string Kind, string KindText, string Detail, DateTimeOffset OpenedAt, DateTimeOffset? LastNotifiedAt);
 
+/// <param name="Configured">Ten agent jest nadawcą i zna ustawienia poczty z chmury.</param>
 /// <param name="ReportRecipients">Faktyczni odbiorcy raportów (pusta lista w konfiguracji = odbiorcy alertów).</param>
 public sealed record MailStatus(
     bool Configured, string? Sender, IReadOnlyList<string> AlertRecipients, IReadOnlyList<string> ReportRecipients,
-    IReadOnlyList<string> AdminRecipients, DateTimeOffset? LastSentAt, string? LastError, DateTimeOffset? LastErrorAt, DateTimeOffset? RetryAt);
+    IReadOnlyList<string> AdminRecipients, DateTimeOffset? LastSentAt, string? LastError, DateTimeOffset? LastErrorAt, DateTimeOffset? RetryAt)
+{
+    public static readonly MailStatus NotConfigured = new(false, null, [], [], [], null, null, null, null);
+}
 
 public sealed record ReportsStatus(IReadOnlyList<string> Times, double CatchUpHours, DateTimeOffset? NextAt, ReportOnRequestStatus OnRequest);
 
-/// <param name="Available">Czy można zlecić raport na żądanie (poczta skonfigurowana).</param>
-/// <param name="Requested">Raport na żądanie czeka na wysyłkę (najbliższy cykl monitora).</param>
-/// <param name="LastAttemptAt">Ostatnia próba wysłania raportu na żądanie (od startu monitora).</param>
-/// <param name="LastError">Błąd ostatniej próby; null = raport wysłany.</param>
-/// <param name="AvailableFrom">Od kiedy można zlecić kolejny raport (odstęp po poprzedniej próbie); null = już można.</param>
-public sealed record ReportOnRequestStatus(bool Available, bool Requested, DateTimeOffset? LastAttemptAt, string? LastError, DateTimeOffset? AvailableFrom);
+/// <param name="Available">Czy można zlecić raport na żądanie (jest nadawca).</param>
+/// <param name="Requested">Raport na żądanie czeka na wysyłkę.</param>
+/// <param name="LastAttemptAt">Ostatnie zlecenie raportu na żądanie z tego panelu (od startu agenta).</param>
+/// <param name="LastError">Błąd ostatniego zlecenia; null = zlecony.</param>
+/// <param name="AvailableFrom">Od kiedy można zlecić kolejny raport (odstęp po poprzednim); null = już można.</param>
+public sealed record ReportOnRequestStatus(bool Available, bool Requested, DateTimeOffset? LastAttemptAt, string? LastError, DateTimeOffset? AvailableFrom)
+{
+    public static readonly ReportOnRequestStatus Unavailable = new(false, false, null, null, null);
+}
 
+/// <summary>
+/// Wspólna część statusu: czujniki z konfiguracji, ich odczyty z lokalnej bazy, migawka zbieracza i otwarte alerty.
+/// Pocztę, raport na żądanie, dzierżawy i stan chmury dokłada <see cref="Cloud.CloudPanel"/>.
+/// </summary>
 public static class MonitorStatusBuilder
 {
-    /// <param name="openAlerts">Otwarte alerty, gdy nie z lokalnej bazy (tryb chmurowy – wspólny stan w chmurze).</param>
+    /// <summary>Ten sam czujnik można zlecić do odczytu najwyżej raz na tyle (bateria czujnika).</summary>
+    public static readonly TimeSpan ReadOnRequestCooldown = TimeSpan.FromMinutes(1);
+
+    /// <param name="openAlerts">Otwarte alerty ze wspólnego stanu w chmurze.</param>
     public static async Task<MonitorStatus> BuildAsync(
         AgentConfig config, IMonitorStore store, MonitorRuntimeState state, MonitorHostInfo host,
-        DateTimeOffset now, TimeZoneInfo zone, CancellationToken cancellationToken, IReadOnlyList<AlertRecord>? openAlerts = null)
+        DateTimeOffset now, TimeZoneInfo zone, IReadOnlyList<AlertRecord> openAlerts, CancellationToken cancellationToken)
     {
-        var open = openAlerts ?? await store.GetOpenAlertsAsync(cancellationToken);
+        var open = openAlerts;
         var names = config.Sensors.ToDictionary(s => s.Id, s => s.Name, StringComparer.Ordinal);
 
         var sensors = new List<SensorStatus>();
@@ -97,8 +111,8 @@ public static class MonitorStatusBuilder
             if (runtime.RetryAt is { } retry && retry > nextRead) nextRead = retry;
             var requested = state.RequestedReads.Contains(sensor.Id);
             if (requested) nextRead = now;
-            DateTimeOffset? onRequestFrom = runtime.LastAttemptAt is { } attempt && attempt + MonitorEngine.ForcedReadCooldown > now
-                ? attempt + MonitorEngine.ForcedReadCooldown : null;
+            DateTimeOffset? onRequestFrom = runtime.LastAttemptAt is { } attempt && attempt + ReadOnRequestCooldown > now
+                ? attempt + ReadOnRequestCooldown : null;
 
             sensors.Add(new(
                 sensor.Id, sensor.Name, sensor.Tuya.Mac, sensor.Tuya.ProductId,
@@ -120,11 +134,6 @@ public static class MonitorStatusBuilder
                 MailTemplates.KindText(a.Kind), a.Detail, a.OpenedAt, a.LastNotifiedAt))
             .ToList();
 
-        var mail = config.Mail is { } m
-            ? new MailStatus(true, m.GmailAddress, m.AlertRecipients, [.. m.EffectiveReportRecipients], m.AdminRecipients,
-                state.Mail.LastSentAt, state.Mail.LastError, state.Mail.LastErrorAt, state.Mail.RetryAt)
-            : new MailStatus(false, null, [], [], [], null, null, null, null);
-
         var monitor = new MonitorSummary(
             config.MonitorName, AppInfo.Version, Environment.MachineName, host.BleBackend, zone.Id, now,
             state.StartedAt, state.LastCycleAt, state.LastCycleError, state.LastCycleErrorAt,
@@ -132,12 +141,9 @@ public static class MonitorStatusBuilder
             config.ReadIntervalMinutes, config.ScanWindowSeconds, config.RetentionDays, config.Logs.RetentionDays, config.Alerts.ReminderHours,
             host.ConfigPath, host.DatabasePath, host.LogDirectory);
 
-        var onRequest = state.ReportOnRequest;
-        var reportFrom = onRequest.LastAttemptAt + MonitorEngine.ReportOnRequestCooldown;
         var reports = new ReportsStatus(config.Reports.Times, config.Reports.CatchUpHours, ReportSchedule.Next(config.Reports.Times, now, zone),
-            new(config.Mail is not null, onRequest.RequestedAt is not null, onRequest.LastAttemptAt, onRequest.LastError,
-                reportFrom > now ? reportFrom : null));
-        return new(monitor, sensors, alerts, mail, reports);
+            ReportOnRequestStatus.Unavailable);
+        return new(monitor, sensors, alerts, MailStatus.NotConfigured, reports);
     }
 
     /// <summary>Ostatnie odczyty czujnika, od najnowszego.</summary>

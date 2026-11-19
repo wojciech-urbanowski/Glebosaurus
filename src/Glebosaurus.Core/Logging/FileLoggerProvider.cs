@@ -5,10 +5,10 @@ using Microsoft.Extensions.Logging;
 namespace Glebosaurus.Core.Logging;
 
 /// <summary>
-/// Dziennik w plikach dziennych (glebosaurus-RRRRMMDD.log, usługa: service-RRRRMMDD.log) – monitor i usługa działają po
+/// Dziennik w plikach dziennych (glebosaurus-RRRRMMDD.log, usługa: service-RRRRMMDD.log) – agent i usługa działają po
 /// cichu, bez okna konsoli, więc to jedyny ślad ich pracy na Windows. Pliki z dni starszych niż <paramref name="keepDays"/> są usuwane
 /// przy pierwszym zapisie każdego dnia (czyli też zaraz po starcie agenta). Pełny dziennik z poprzedniego dnia
-/// trafia mailem do administratora (patrz <c>MonitorEngine</c>), stąd niezbędna jest wspólna znajomość nazw plików
+/// trafia przez chmurę mailem do administratora (<c>CollectorEngine</c>, <c>NotifierEngine</c>), stąd niezbędna jest wspólna znajomość nazw plików
 /// w <see cref="DailyLogFiles"/>.
 /// </summary>
 public sealed class FileLoggerProvider(DailyLogFiles files, int keepDays) : ILoggerProvider

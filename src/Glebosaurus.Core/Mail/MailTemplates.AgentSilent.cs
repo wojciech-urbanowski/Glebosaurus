@@ -7,7 +7,7 @@ namespace Glebosaurus.Core.Mail;
 public static partial class MailTemplates
 {
     /// <summary>
-    /// Mail dla administratora (tryb chmurowy): agent od dłuższego czasu nie synchronizuje się z chmurą – wyłączony, bez
+    /// Mail dla administratora: agent od dłuższego czasu nie synchronizuje się z chmurą – wyłączony, bez
     /// sieci albo zabity przez system (Android). Jego czujniki przejmą inni agenci, jeśli je słyszą.
     /// </summary>
     public static MailMessage AgentSilent(string agentName, DateTimeOffset lastSeenAt, IReadOnlyList<string> to, string monitorName,

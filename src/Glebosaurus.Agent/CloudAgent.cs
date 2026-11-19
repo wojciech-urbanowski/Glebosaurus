@@ -14,7 +14,7 @@ using Npgsql;
 
 namespace Glebosaurus.Agent;
 
-/// <summary>Agent w trybie chmurowym (sekcja „cloud”): rejestracja i praca ciągła (ARCHITEKTURA.md, zasada 15).</summary>
+/// <summary>Agent (sekcja „cloud”): rejestracja i praca ciągła (ARCHITEKTURA.md, zasada 15).</summary>
 internal static class CloudAgent
 {
     /// <summary>
@@ -26,7 +26,7 @@ internal static class CloudAgent
         var loaded = AgentRuntime.LoadConfig(options.Config);
         if (loaded.Config.Cloud is not { } cloud)
         {
-            Console.Error.WriteLine("W konfiguracji brakuje sekcji „cloud” (adres projektu i klucz publikowalny) – zob. examples/glebosaurus.cloud.config.json.");
+            Console.Error.WriteLine("W konfiguracji brakuje sekcji „cloud” (adres projektu i klucz publikowalny) – zob. examples/glebosaurus.config.json.");
             return ExitCodes.Error;
         }
         var code = (options.Code ?? await Cli.ReadSecretAsync("Kod rejestracji (od właściciela): ", cancellationToken)).Trim();
@@ -61,7 +61,7 @@ internal static class CloudAgent
     }
 
     /// <summary>
-    /// Praca ciągła w trybie chmurowym: konfiguracja z chmury, synchronizacja, zbieracz i nadawca w jednym procesie; z sekcją
+    /// Praca ciągła: konfiguracja z chmury, synchronizacja, zbieracz i nadawca w jednym procesie; z sekcją
     /// <c>web</c> także lokalny panel i kopia odczytów wszystkich agentów, którą panel pokazuje.
     /// </summary>
     public static async Task<int> RunAsync(LoadedConfig loaded, CloudAccessConfig cloud, BleHost ble, SqliteMonitorStore store,
@@ -114,7 +114,7 @@ internal static class CloudAgent
             runtime.Loaded = async ct => panel = await AgentWebPanel.TryStartAsync(loaded, configSource, panelData, store, loggers, logger, ct);
         }
 
-        logger.LogInformation("Tryb chmurowy: projekt {Host}; token i kopia konfiguracji chronione ({Protection}).",
+        logger.LogInformation("Chmura: projekt {Host}; token i kopia konfiguracji chronione ({Protection}).",
             cloud.ProjectUrl.Host, protector.Description);
 
         using var backupStop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);

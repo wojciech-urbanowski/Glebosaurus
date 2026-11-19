@@ -7,7 +7,7 @@ namespace Glebosaurus.Core.Cloud;
 public sealed record ScreenSection(string Title, IReadOnlyList<string> Lines, bool Warning = false);
 
 /// <summary>
-/// Stan agenta w trybie chmurowym jako zwykły tekst – ekran aplikacji Android (ARCHITEKTURA.md, zasada 12). Źródłem jest ten
+/// Stan agenta jako zwykły tekst – ekran aplikacji Android (ARCHITEKTURA.md, zasada 12). Źródłem jest ten
 /// sam <see cref="MonitorStatus"/> co w lokalnym panelu WWW (<see cref="CloudPanel"/>, składany pole po polu, bez sekretów),
 /// plus stan telefonu z sygnału życia. Krótkie wiersze pod wąski ekran.
 /// </summary>
@@ -38,7 +38,7 @@ public static class AgentScreenText
         var monitor = status.Monitor;
         if (cloud is null)
         {
-            lines.Add($"„{monitor.Name}” – tryb samodzielny");
+            lines.Add($"„{monitor.Name}” – bez stanu chmury");
             return new("Agent", lines);
         }
         var role = cloud.CanSendMail ? $"zbiera i może wysyłać maile (priorytet {cloud.SenderPriority})" : "tylko zbiera odczyty";

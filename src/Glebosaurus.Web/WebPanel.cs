@@ -37,12 +37,12 @@ public sealed record WebPanelOptions
 
     public required ILogArchive Logs { get; init; }
 
-    /// <summary>Zlecenie odczytu poza harmonogramem (null = wszystkie czujniki) – w agencie <see cref="MonitorEngine.RequestRead"/>
-    /// albo w trybie chmurowym polecenie przez chmurę (<c>CloudPanel.RequestReadAsync</c>).</summary>
+    /// <summary>Zlecenie odczytu poza harmonogramem (null = wszystkie czujniki) – w agencie polecenie przez chmurę
+    /// (<c>CloudPanel.RequestReadAsync</c>).</summary>
     public required Func<IReadOnlyCollection<string>?, CancellationToken, Task<ReadRequestResult>> RequestRead { get; init; }
 
-    /// <summary>Zlecenie raportu mailowego poza harmonogramem (prawdziwy mail) – w agencie <see cref="MonitorEngine.RequestReport"/>
-    /// albo w trybie chmurowym polecenie dla nadawcy (<c>CloudPanel.RequestReportAsync</c>).</summary>
+    /// <summary>Zlecenie raportu mailowego poza harmonogramem (prawdziwy mail) – w agencie polecenie dla nadawcy przez chmurę
+    /// (<c>CloudPanel.RequestReportAsync</c>).</summary>
     public required Func<CancellationToken, Task<ReportRequestResult>> RequestReport { get; init; }
 
     public TimeProvider Clock { get; init; } = TimeProvider.System;
@@ -55,7 +55,7 @@ public sealed record WebPanelOptions
 /// <summary>
 /// Panel diagnostyczny WWW działający w procesie monitora: Kestrel z HTTPS (certyfikat z podpisem własnym), dostęp tylko z
 /// sieci lokalnej, logowanie hasłem; pulpit z wykresem ostatnich 3 dób przy każdym czujniku, strona czujnika z pełną
-/// historią i dwie akcje przez kolejkę silnika – odczyt czujników i raport mailowy na żądanie. Konfiguracji nie zmienia. Błąd panelu nie zatrzymuje monitora – agent go tylko odnotowuje.
+/// historią i dwie akcje przez polecenia w chmurze – odczyt czujników i raport mailowy na żądanie. Konfiguracji nie zmienia. Błąd panelu nie zatrzymuje monitora – agent go tylko odnotowuje.
 /// </summary>
 public sealed class WebPanel : IAsyncDisposable
 {

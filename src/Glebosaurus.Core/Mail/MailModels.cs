@@ -10,7 +10,7 @@ public sealed record MailAttachment(string FileName, byte[] Content, string Cont
 public sealed record MailMessage(
     IReadOnlyList<string> To, string Subject, string TextBody, string HtmlBody, IReadOnlyList<MailAttachment>? Attachments = null)
 {
-    /// <summary>Stały identyfikator wiadomości (bez nawiasów &lt;&gt;) – w trybie chmurowym wyliczany z klucza kolejki maili,
+    /// <summary>Stały identyfikator wiadomości (bez nawiasów &lt;&gt;) – wyliczany z klucza kolejki maili,
     /// więc ewentualny drugi egzemplarz ma ten sam Message-ID (Gmail go scala). null = nada go biblioteka poczty.</summary>
     public string? MessageId { get; init; }
 }
@@ -37,8 +37,14 @@ public sealed record AlertNotice(SensorConfig Sensor, AlertRecord Alert, StoredR
 public sealed record SensorSnapshot(SensorConfig Sensor, StoredReading? Latest, IReadOnlyList<AlertKind> OpenAlerts)
 {
     /// <summary>
+    /// Ile historii trafia do raportu: wykres obejmuje 3 doby, a zapas pozwala wypełnić pierwszy przedział, który zaczyna się
+    /// na pełnej godzinie przed tym oknem.
+    /// </summary>
+    public static readonly TimeSpan HistoryWindow = TimeSpan.FromHours(75);
+
+    /// <summary>
     /// Odczyty z ostatnich dób (dowolna kolejność) do wykresu w raporcie (<see cref="MailChart"/>); pusta lista = karta bez
-    /// wykresu. Monitor wypełnia ją odczytami z <see cref="Monitoring.SnapshotBuilder.HistoryWindow"/> (od 2026-11-14).
+    /// wykresu. Nadawca wypełnia ją odczytami z <see cref="HistoryWindow"/>.
     /// </summary>
     public IReadOnlyList<StoredReading> History { get; init; } = [];
 }

@@ -1,12 +1,12 @@
-// Pulpit Glebosaurusa: najważniejsze o każdym czujniku (stan, alerty, liczby, wykres ostatnich 3 dób) oraz monitor, poczta,
-// dziennik i ustawienia. Szczegóły czujnika i pełna historia są na jego stronie (/sensor?id=…). Stan pobierany z API co
+// Pulpit Glebosaurusa: najważniejsze o każdym czujniku (stan, alerty, liczby, wykres ostatnich 3 dób) oraz agent, chmura,
+// poczta, dziennik i ustawienia. Szczegóły czujnika i pełna historia są na jego stronie (/sensor?id=…). Stan pobierany z API co
 // 30 s (co 3 s, gdy czeka lub trwa odczyt); dane wykresów – tylko gdy przybył nowy odczyt (albo co 15 min, bo okno się
-// przesuwa). Akcje: odczyt czujników i raport mailowy na żądanie (POST z nagłówkiem X-Glebosaurus-Action; kolejką zarządza
-// silnik monitora, a w trybie chmurowym – chmura, która kieruje polecenie do agenta z dzierżawą czujnika albo do nadawcy).
+// przesuwa). Akcje: odczyt czujników i raport mailowy na żądanie (POST z nagłówkiem X-Glebosaurus-Action; polecenie idzie
+// przez chmurę do agenta z dzierżawą czujnika albo do nadawcy).
 // Raport to prawdziwy mail, więc wymaga potwierdzenia na stronie.
 
 import {
-  $, h, now, syncClock, setCloudMode, isCloudMode, when, ago, until, plural, minutesText, hoursText, kv, badge, api, sensorUrl,
+  $, h, now, syncClock, when, ago, until, plural, minutesText, hoursText, kv, badge, api, sensorUrl,
   fetchSeries, showActionNote, requestRead, readButton, sensorAccent, sensorBadges, sensorMetrics, sensorLines, alertCard,
   buildLogDays, loadLog
 } from './common.js';
@@ -21,8 +21,7 @@ let timer = 0;
 let wasBusy = false;
 let report = null;              // ostatni stan raportu na żądanie (status.reports.onRequest)
 let reportRecipients = [];
-let reportWatch = null;         // { after } – zlecony raport; gdy próba nowsza niż „after” się skończy, notka pokaże wynik
-let notifier = null;            // tryb chmurowy: agent, który teraz wysyła maile
+let notifier = null;            // agent, który teraz wysyła maile
 
 /** Wykres każdego czujnika żyje między odświeżeniami (karta jest składana od nowa, wykres przenoszony) – bez migania. */
 const charts = new Map();       // id → { chart, latestAt, fetchedAt, loading }
@@ -30,14 +29,13 @@ const charts = new Map();       // id → { chart, latestAt, fetchedAt, loading 
 // ---- raport na żądanie --------------------------------------------------------------------------------------
 
 function recipientsText() {
-  if (reportRecipients.length > 0) return reportRecipients.join(', ');
-  return isCloudMode() ? 'odbiorców raportów zapisanych w chmurze' : '–';
+  return reportRecipients.length > 0 ? reportRecipients.join(', ') : 'odbiorców raportów zapisanych w chmurze';
 }
 
 function askForReport() {
-  const sender = isCloudMode() ? ` Wyśle go nadawca (${notifier || 'brak'}).` : '';
   $('report-confirm-text').textContent =
-    `Raport ze stanem wszystkich czujników trafi teraz do: ${recipientsText()}.${sender} To prawdziwy mail; zaplanowane raporty pójdą o swoich porach jak zwykle.`;
+    `Raport ze stanem wszystkich czujników trafi teraz do: ${recipientsText()}. Wyśle go nadawca (${notifier || 'brak'}). ` +
+    'To prawdziwy mail; zaplanowane raporty pójdą o swoich porach jak zwykle.';
   $('report-confirm').hidden = false;
   $('report-now').disabled = true;
   $('report-send').focus();
@@ -51,22 +49,16 @@ function cancelReport() {
 async function sendReport() {
   $('report-confirm').hidden = true;
   $('report-now').disabled = true;
-  const before = report ? report.lastAttemptAt : null;
   try {
     const result = await api('/api/report', 'POST');
-    if (result.status === 'queued' && isCloudMode()) {
+    if (result.status === 'queued') {
       showActionNote(`Raport zlecony w chmurze – wyśle go nadawca (${notifier || 'gdy któryś agent przejmie blokadę'}), zwykle w ciągu minuty.`, 'green', 'report-note');
-    } else if (result.status === 'queued') {
-      reportWatch = { after: before };
-      showActionNote('Raport zlecony – monitor wyśle go za chwilę (jeśli trwa odczyt czujników, zaraz po nim).', 'green', 'report-note');
     } else if (result.status === 'alreadyQueued') {
-      showActionNote(isCloudMode() ? 'Raport już zlecono w ostatniej minucie.' : 'Raport już czeka na wysyłkę.', 'amber', 'report-note');
+      showActionNote('Raport już zlecono w ostatniej minucie.', 'amber', 'report-note');
     } else if (result.status === 'tooSoon') {
       showActionNote(`Za wcześnie – poprzedni raport był przed chwilą; kolejny od ${when(result.availableAt, true)}.`, 'amber', 'report-note');
-    } else if (result.status === 'unavailable') {
-      showActionNote('Chmura niedostępna – raportu nie zlecono. Spróbuj za chwilę.', 'red', 'report-note');
     } else {
-      showActionNote('Poczta nie jest skonfigurowana – raportu nie ma czym wysłać.', 'red', 'report-note');
+      showActionNote('Chmura niedostępna – raportu nie zlecono. Spróbuj za chwilę.', 'red', 'report-note');
     }
   } catch (error) {
     showActionNote(`Nie udało się zlecić raportu: ${error.message}`, 'red', 'report-note');
@@ -74,38 +66,27 @@ async function sendReport() {
   tick();
 }
 
-/** Przycisk „Wyślij raport teraz” według stanu z monitora; po zakończeniu zleconej wysyłki notka pokazuje wynik. */
+/** Przycisk „Wyślij raport teraz” według stanu z agenta. */
 function renderReportAction() {
   const button = $('report-now');
   let text = 'Wyślij raport teraz…';
   let blocked = true;
-  if (!report.available) text = isCloudMode() ? 'Wyślij raport teraz (żaden agent nie wysyła maili)' : 'Wyślij raport teraz (poczta nieskonfigurowana)';
+  if (!report.available) text = 'Wyślij raport teraz (żaden agent nie wysyła maili)';
   else if (report.requested) text = 'Raport czeka na wysyłkę…';
   else if (report.availableFrom && new Date(report.availableFrom) > now()) text = `Raport możliwy od ${when(report.availableFrom, true)}`;
   else blocked = false;
   if (blocked) $('report-confirm').hidden = true;     // np. raport zlecony w innej karcie – pytanie jest już nieaktualne
   button.textContent = text;
   button.disabled = blocked || !$('report-confirm').hidden;
-
-  if (reportWatch && !report.requested && report.lastAttemptAt && report.lastAttemptAt !== reportWatch.after) {
-    reportWatch = null;
-    if (report.lastError) showActionNote(`Nie udało się wysłać raportu: ${report.lastError}`, 'red', 'report-note');
-    else showActionNote(`Raport wysłany ${when(report.lastAttemptAt, true)} do: ${recipientsText()}.`, 'green', 'report-note');
-  }
 }
 
-/** Wiersz w karcie raportów: ostatni raport na żądanie od startu monitora. */
+/** Wiersz w karcie raportów: ostatnie zlecenie raportu z tego panelu (od startu agenta). */
 function reportOnRequestText() {
   if (report.requested) return 'czeka na wysyłkę…';
   if (!report.lastAttemptAt) return null;
-  if (isCloudMode()) {
-    return report.lastError
-      ? `nie udało się zlecić ${when(report.lastAttemptAt)}: ${report.lastError}`
-      : `zlecony z tego panelu ${when(report.lastAttemptAt)} (${ago(report.lastAttemptAt)}) – wysyła nadawca`;
-  }
   return report.lastError
-    ? `nieudany ${when(report.lastAttemptAt)}: ${report.lastError}`
-    : `wysłany ${when(report.lastAttemptAt)} (${ago(report.lastAttemptAt)})`;
+    ? `nie udało się zlecić ${when(report.lastAttemptAt)}: ${report.lastError}`
+    : `zlecony z tego panelu ${when(report.lastAttemptAt)} (${ago(report.lastAttemptAt)}) – wysyła nadawca`;
 }
 
 // ---- nagłówek i podsumowanie --------------------------------------------------------------------------------
@@ -114,8 +95,7 @@ function renderHeader(status) {
   const m = status.monitor;
   document.title = `${m.name} – Glebosaurus`;
   $('monitor-name').textContent = m.name;
-  const mode = status.cloud ? ' · agent w chmurze' : '';
-  $('monitor-line').textContent = `${m.machine}${mode} · Glebosaurus ${m.version} · działa od ${when(m.startedAt)} (${ago(m.startedAt)})`;
+  $('monitor-line').textContent = `${m.machine} · agent w chmurze · Glebosaurus ${m.version} · działa od ${when(m.startedAt)} (${ago(m.startedAt)})`;
   $('footer').textContent = `Glebosaurus ${m.version} · panel diagnostyczny · odświeżono ${when(m.now, true)}`;
 }
 
@@ -124,14 +104,14 @@ function renderBanner(status) {
   const banner = $('banner');
   banner.replaceChildren();
   let tone = 'green';
-  let headline = 'Monitor pracuje';
+  let headline = 'Agent pracuje';
   let detail = m.lastCycleAt ? `Ostatni cykl ${ago(m.lastCycleAt)}.` : 'Pierwszy cykl jeszcze trwa.';
 
   const cycleErrorIsLatest = m.lastCycleErrorAt && (!m.lastCycleAt || new Date(m.lastCycleErrorAt) >= new Date(m.lastCycleAt));
   const stale = m.lastCycleAt && now() - new Date(m.lastCycleAt) > 5 * 60 * 1000;
   const cloud = status.cloud;
-  const syncStale = cloud && (!cloud.lastSyncAt || now() - new Date(cloud.lastSyncAt) > 5 * 60 * 1000);
-  if (cloud && cloud.revoked) {
+  const syncStale = !cloud.lastSyncAt || now() - new Date(cloud.lastSyncAt) > 5 * 60 * 1000;
+  if (cloud.revoked) {
     tone = 'red';
     headline = 'Chmura odrzuciła token agenta';
     detail = 'Agent nie synchronizuje się i nie dostaje dzierżaw – potrzebna ponowna rejestracja (glebosaurus enroll z nowym kodem).';
@@ -145,18 +125,16 @@ function renderBanner(status) {
     detail = `Od ${when(m.readingSince, true)}.`;
   } else if (cycleErrorIsLatest) {
     tone = 'red';
-    headline = 'Ostatni cykl monitora zakończył się błędem';
+    headline = 'Ostatni cykl agenta zakończył się błędem';
     detail = `${m.lastCycleError} (${when(m.lastCycleErrorAt)})`;
   } else if (stale) {
     tone = 'amber';
-    headline = 'Monitor dawno nie zakończył cyklu';
+    headline = 'Agent dawno nie zakończył cyklu';
     detail = `Ostatni cykl ${ago(m.lastCycleAt)}.`;
-  } else if (cloud && cloud.configCachedAt) {
+  } else if (cloud.configCachedAt) {
     tone = 'amber';
     headline = 'Agent pracuje na lokalnej kopii konfiguracji';
     detail = `Przy starcie chmura była niedostępna; kopia z ${when(cloud.configCachedAt)}.`;
-  } else if (cloud) {
-    headline = 'Agent pracuje';
   }
 
   const problems = status.sensors.filter((s) => s.failures > 0).length;
@@ -244,17 +222,12 @@ function renderMail(status) {
   const reports = status.reports;
   const card = h('div', 'card');
   const cloud = status.cloud;
-  if (cloud) {
-    card.classList.add(cloud.notifier ? 'accent-green' : 'accent-amber');
-    card.append(h('div', null, cloud.notifier
-      ? `Maile wysyła ${cloud.notifierIsMe ? 'ten agent' : `agent ${cloud.notifier}`} (blokada nadawcy do ${when(cloud.notifierUntil, true)}).`
-      : 'Żaden agent nie trzyma teraz blokady nadawcy – maile czekają, aż któryś kandydat ją przejmie.'));
-  }
-  if (cloud && !mail.configured) {
+  card.classList.add(cloud.notifier ? 'accent-green' : 'accent-amber');
+  card.append(h('div', null, cloud.notifier
+    ? `Maile wysyła ${cloud.notifierIsMe ? 'ten agent' : `agent ${cloud.notifier}`} (blokada nadawcy do ${when(cloud.notifierUntil, true)}).`
+    : 'Żaden agent nie trzyma teraz blokady nadawcy – maile czekają, aż któryś kandydat ją przejmie.'));
+  if (!mail.configured) {
     card.append(h('div', 'muted small', 'Ten agent nie jest kandydatem na nadawcę – odbiorców i stan poczty widać w panelu nadawcy.'));
-  } else if (!mail.configured) {
-    card.classList.add('accent-amber');
-    card.append(h('div', null, 'Poczta nie jest skonfigurowana – alerty i raporty trafiają tylko do dziennika.'));
   } else {
     const failedLast = mail.lastErrorAt && (!mail.lastSentAt || new Date(mail.lastErrorAt) >= new Date(mail.lastSentAt));
     card.classList.add(failedLast ? 'accent-red' : 'accent-green');
@@ -263,7 +236,7 @@ function renderMail(status) {
       ['Alerty do', mail.alertRecipients.join(', ') || '–'],
       ['Raporty do', mail.reportRecipients.join(', ') || '–'],
       ['Dziennik do', mail.adminRecipients.length > 0 ? mail.adminRecipients.join(', ') : 'wyłączony'],
-      ['Ostatnia wysyłka', mail.lastSentAt ? `${when(mail.lastSentAt)} (${ago(mail.lastSentAt)})${cloud ? ' – z tego agenta' : ''}` : `od startu ${cloud ? 'agenta' : 'monitora'} brak`],
+      ['Ostatnia wysyłka', mail.lastSentAt ? `${when(mail.lastSentAt)} (${ago(mail.lastSentAt)}) – z tego agenta` : 'od startu agenta brak'],
       ['Ostatni błąd', mail.lastError ? `${mail.lastError} (${when(mail.lastErrorAt)})` : null],
       ['Wysyłka wstrzymana do', mail.retryAt ? when(mail.retryAt) : null]
     ]));
@@ -286,8 +259,6 @@ function roleText(agent) {
 
 function renderCloud(status) {
   const cloud = status.cloud;
-  $('cloud-section').hidden = !cloud;
-  if (!cloud) return;
   const syncFailing = cloud.lastSyncAttemptAt && cloud.lastSyncError
     && (!cloud.lastSyncAt || new Date(cloud.lastSyncAttemptAt) > new Date(cloud.lastSyncAt));
   const card = h('div', `card accent-${cloud.revoked ? 'red' : syncFailing ? 'amber' : 'green'}`);
@@ -343,9 +314,8 @@ function renderSettings(status) {
     ['Baza', m.databasePath],
     ['Dziennik', m.logDirectory]
   ]));
-  card.append(h('div', 'muted small', status.cloud
-    ? 'Czujniki, progi, harmonogram i poczta są w chmurze (agent pobiera zmiany sam); w pliku na urządzeniu zostają baza, retencja i panel. Klucze czujników i hasło Gmaila nie są tu pokazywane. Ustawienia i diagnostyka pojedynczego czujnika są na jego stronie.'
-    : 'Zmiana ustawień: edycja pliku konfiguracji i ponowne uruchomienie monitora. Klucze czujników i hasło Gmaila nie są tu pokazywane. Ustawienia i diagnostyka pojedynczego czujnika są na jego stronie.'));
+  card.append(h('div', 'muted small',
+    'Czujniki, progi, harmonogram i poczta są w chmurze (agent pobiera zmiany sam); w pliku na urządzeniu zostają baza, retencja i panel. Klucze czujników i hasło Gmaila nie są tu pokazywane. Ustawienia i diagnostyka pojedynczego czujnika są na jego stronie.'));
   $('settings').replaceChildren(card);
 }
 
@@ -365,8 +335,7 @@ async function refresh() {
   try {
     const status = await api('/api/status');
     syncClock(status.monitor.now);
-    setCloudMode(status.cloud);
-    notifier = status.cloud ? status.cloud.notifier : null;
+    notifier = status.cloud.notifier;
     renderHeader(status);
     renderBanner(status);
     renderSensors(status);
@@ -389,7 +358,7 @@ async function refresh() {
   } catch (error) {
     const banner = $('banner');
     banner.className = 'banner tone-red';
-    banner.replaceChildren(h('div', null, 'Brak połączenia z monitorem'), h('div', 'detail', `${error.message}. Kolejna próba za 30 s.`));
+    banner.replaceChildren(h('div', null, 'Brak połączenia z agentem'), h('div', 'detail', `${error.message}. Kolejna próba za 30 s.`));
     return { busy: false, wakeIn: Infinity };
   }
 }

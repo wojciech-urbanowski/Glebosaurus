@@ -6,11 +6,11 @@ using Glebosaurus.Tuya;
 namespace Glebosaurus.Cloud.Tests;
 
 /// <summary>
-/// <c>cloud import</c> i <c>cloud agent</c> na próbnym projekcie: zmyślona konfiguracja trybu samodzielnego trafia do chmury,
-/// a agent zarejestrowany kodem z <see cref="CloudAgents"/> widzi czujniki z kluczami, ustawienia, odbiorców i (z blokadą)
-/// hasło Gmaila i adres strażnika. Import powtórzony – bez dubli.
+/// <c>cloud config</c> i <c>cloud agent</c> na próbnym projekcie: zmyślony plik konfiguracji chmury trafia do chmury, a agent
+/// zarejestrowany kodem z <see cref="CloudAgents"/> widzi czujniki z kluczami, ustawienia, odbiorców i (z blokadą) hasło
+/// Gmaila i adres strażnika. Zapis powtórzony – bez dubli.
 /// </summary>
-public sealed class CloudImportEndToEndTests(CloudDatabase db) : IDisposable
+public sealed class CloudSetupEndToEndTests(CloudDatabase db) : IDisposable
 {
     private readonly HttpClient http = new() { Timeout = TimeSpan.FromSeconds(30) };
 
@@ -31,15 +31,16 @@ public sealed class CloudImportEndToEndTests(CloudDatabase db) : IDisposable
     }
 
     [Fact]
-    public async Task ImportedConfig_ReachesAgents_AndReimportDoesNotDuplicate()
+    public async Task SavedSetup_ReachesAgents_AndSavingAgainDoesNotDuplicate()
     {
         db.SkipIfUnavailable();
         Assert.SkipWhen(db.Settings.PublishableKey is null, "Brak klucza publikowalnego w pliku próbnego projektu.");
         var ct = TestContext.Current.CancellationToken;
         Assert.True((await MigrationRunner.StatusAsync(db.DataSource, Migration.Embedded(), ct)).UpToDate);
 
-        var standalone = new AgentConfig
+        var setup = new CloudSetup
         {
+            TimeZone = "Europe/Warsaw",
             Sensors = [Sensor("Paproć w kuchni"), Sensor("Zielistka")],
             Mail = new MailConfig
             {
@@ -49,9 +50,9 @@ public sealed class CloudImportEndToEndTests(CloudDatabase db) : IDisposable
             Reports = new() { Times = ["06:30", "20:00"], CatchUpHours = 2 },
             Alerts = new() { ReminderHours = 12 }
         };
-        var plan = CloudImporter.Plan(standalone, "https://hc-ping.com/zmyslony-adres-testu", "Europe/Warsaw");
+        var plan = CloudSetupWriter.Plan(setup, "https://hc-ping.com/zmyslony-adres-testu");
         Assert.Empty(plan.Problems);
-        await CloudImporter.ApplyAsync(db.DataSource, plan, ct);
+        await CloudSetupWriter.ApplyAsync(db.DataSource, plan, ct);
 
         var name = Scenario.Unique("imp");
         var code = await CloudAgents.CreateWithCodeAsync(db.DataSource, name, senderPriority: 2, ct);
@@ -60,7 +61,7 @@ public sealed class CloudImportEndToEndTests(CloudDatabase db) : IDisposable
         Assert.Contains(await CloudAgents.ListAsync(db.DataSource, ct), a => a.Name == name && a.Enrolled && a.SenderPriority == 2);
 
         var config = await api.GetConfigAsync(ct);
-        foreach (var sensor in standalone.Sensors)
+        foreach (var sensor in setup.Sensors)
         {
             var cloud = Assert.Single(config.Sensors, s => s.Id == sensor.Id);
             Assert.Equal(sensor.Tuya.Mac.ToUpperInvariant(), cloud.Mac);
@@ -81,9 +82,9 @@ public sealed class CloudImportEndToEndTests(CloudDatabase db) : IDisposable
         await api.ReleaseAsync(CloudProtocol.NotifierResource, lockResult.Epoch.Value, ct);
 
         var versionBefore = config.ConfigVersion;
-        await CloudImporter.ApplyAsync(db.DataSource, plan, ct);
+        await CloudSetupWriter.ApplyAsync(db.DataSource, plan, ct);
         var again = await api.GetConfigAsync(ct);
         Assert.True(again.ConfigVersion > versionBefore);
-        Assert.Equal(2, again.Sensors.Count(s => standalone.Sensors.Any(o => o.Id == s.Id)));
+        Assert.Equal(2, again.Sensors.Count(s => setup.Sensors.Any(o => o.Id == s.Id)));
     }
 }

@@ -190,7 +190,7 @@ function tickLabel(date, step, wide) {
   return String(date.getFullYear());
 }
 
-/** Numer dnia od 0001-01-01 (poniedziałek) dla daty lokalnej – jak takty czasu lokalnego po stronie monitora. */
+/** Numer dnia od 0001-01-01 (poniedziałek) dla daty lokalnej – jak takty czasu lokalnego po stronie agenta. */
 function dayNumber(date) {
   return 719162 + Math.round(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / DAY);
 }
@@ -207,7 +207,7 @@ function minutesLabel(minutes) {
   return days === 1 ? 'doby' : days % 7 === 0 ? `${days / 7} tyg.` : `${days} dni`;
 }
 
-/** Opis przedziału uśredniania, w którym leży punkt (granice jak po stronie monitora: od północy, tygodnie od poniedziałku). */
+/** Opis przedziału uśredniania, w którym leży punkt (granice jak po stronie agenta: od północy, tygodnie od poniedziałku). */
 function bucketText(t, minutes) {
   const date = new Date(t);
   if (minutes < 1440) {

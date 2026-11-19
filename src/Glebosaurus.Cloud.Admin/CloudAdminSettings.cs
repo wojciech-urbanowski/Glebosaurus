@@ -5,7 +5,7 @@ using Npgsql;
 namespace Glebosaurus.Cloud.Admin;
 
 /// <summary>
-/// Dane administratora projektu Supabase z <c>local/cloud-admin.json</c> (albo <c>cloud-admin.test.json</c>). Zawiera
+/// Dane administratora projektu Supabase z pliku administratora (wzór: <c>examples/cloud-admin.json</c>). Zawiera
 /// sekrety, więc <see cref="ToString"/> pokazuje tylko id projektu.
 /// </summary>
 public sealed partial class CloudAdminSettings
@@ -21,7 +21,7 @@ public sealed partial class CloudAdminSettings
     public required string DatabasePassword { get; init; }
     public string DatabaseHost { get; init; } = DefaultDatabaseHost;
 
-    /// <summary>Adres sygnału healthchecks.io (sekcja „healthchecks” pliku) – trafia do Vault przez <c>cloud import</c>.</summary>
+    /// <summary>Adres sygnału healthchecks.io (sekcja „healthchecks” pliku) – trafia do Vault przez <c>cloud config</c>.</summary>
     public string? HealthchecksPingUrl { get; init; }
 
     public override string ToString() => $"projekt Supabase {ProjectRef}";

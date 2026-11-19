@@ -278,7 +278,6 @@ public class WebPanelIntegrationTests
         using var document = JsonDocument.Parse(json);
         Assert.Equal("Test", document.RootElement.GetProperty("monitor").GetProperty("name").GetString());
         Assert.Equal(55, document.RootElement.GetProperty("sensors")[0].GetProperty("latest").GetProperty("moisturePercent").GetInt32());
-        Assert.DoesNotContain("sekret-gmail-xyz", json);
         Assert.DoesNotContain("a1b2c3d4e5f6", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("1234567890123456789012", json);
         Assert.DoesNotContain("pbkdf2", json);
@@ -474,18 +473,11 @@ public class WebPanelIntegrationTests
     }
 
     [Fact]
-    public async Task ReportOnRequestGoesToTheEngineAndTheStatusShowsIt()
+    public async Task ReportOnRequestGoesToTheAgentAndItsAnswerComesBack()
     {
         await using var panel = await TestPanel.StartAsync();
         using var client = panel.NewClient();
         await panel.LoginAsync(client, TestPanel.Password);
-
-        using (var status = JsonDocument.Parse(await client.GetStringAsync("/api/status", Ct)))
-        {
-            var onRequest = status.RootElement.GetProperty("reports").GetProperty("onRequest");
-            Assert.True(onRequest.GetProperty("available").GetBoolean());
-            Assert.False(onRequest.GetProperty("requested").GetBoolean());
-        }
 
         var response = await panel.PostActionAsync(client, "/api/report");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -529,10 +521,10 @@ public class WebPanelIntegrationTests
 
         public ManualTimeProvider Clock { get; } = new(Fixtures.T0);
 
-        /// <summary>Zlecenia odczytu, które panel przekazał „silnikowi” (null = wszystkie).</summary>
+        /// <summary>Zlecenia odczytu, które panel przekazał agentowi (null = wszystkie).</summary>
         public List<IReadOnlyCollection<string>?> ReadRequests { get; } = [];
 
-        /// <summary>Ile razy panel zlecił „silnikowi” raport i co „silnik” odpowiada.</summary>
+        /// <summary>Ile razy panel zlecił agentowi raport i co agent odpowiada.</summary>
         public int ReportRequests { get; private set; }
         public ReportRequestResult ReportResult { get; set; } = new(ReportRequestStatus.Queued);
         public Uri BaseAddress { get; private set; } = null!;
@@ -542,7 +534,6 @@ public class WebPanelIntegrationTests
         {
             var panel = new TestPanel();
             var config = Fixtures.Config();
-            config.Mail!.AppPassword = "sekret-gmail-xyz";
             await panel.db.Store.AddReadingAsync(Fixtures.Reading("s1", Fixtures.T0 - TimeSpan.FromMinutes(3), moisture: 55), CancellationToken.None);
 
             var logs = new FakeLogArchive();
@@ -561,7 +552,7 @@ public class WebPanelIntegrationTests
                 MonitorName = "Test <b>",
                 Certificate = certificate,
                 PasswordHash = PanelPassword.Hash(Password, 1000),
-                Status = ct => MonitorStatusBuilder.BuildAsync(config, store, MonitorRuntimeState.NotStarted, host, panel.Clock.GetUtcNow(), TimeZoneInfo.Utc, ct),
+                Status = ct => MonitorStatusBuilder.BuildAsync(config, store, MonitorRuntimeState.NotStarted, host, panel.Clock.GetUtcNow(), TimeZoneInfo.Utc, [], ct),
                 Readings = async (id, count, ct) => config.Sensors.Any(s => s.Id == id) ? await MonitorStatusBuilder.RecentReadingsAsync(store, id, count, ct) : null,
                 Series = (id, from, to, points, ct) => ReadingSeriesBuilder.LoadAsync(config, store, id, from, to, points, TimeZoneInfo.Utc, ct),
                 Logs = logs,

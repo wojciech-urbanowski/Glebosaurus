@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Glebosaurus.Tests;
 
-/// <summary>Zbieracz w trybie chmurowym: odczyty tylko z dzierżawą, nasłuch, polecenia i dziennik dnia poprzedniego.</summary>
+/// <summary>Zbieracz: odczyty tylko z dzierżawą, nasłuch, polecenia i dziennik dnia poprzedniego.</summary>
 public sealed class CollectorTests : IDisposable
 {
     private static readonly CancellationToken Ct = CancellationToken.None;

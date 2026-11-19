@@ -20,15 +20,18 @@ internal static class Fixtures
         Tuya = new() { Mac = "DC:23:51:CC:03:C9", Uuid = uuid, DeviceId = "1234567890123456789012", LocalKeyHex = "a1b2c3d4e5f6", ProductId = "gvygg3m8" }
     };
 
+    /// <summary>Konfiguracja agenta, jaką składa <c>CloudConfigMapper</c> (czujniki z chmury, dostęp do chmury z pliku).</summary>
     public static AgentConfig Config(params SensorConfig[] sensors) => new()
     {
         MonitorName = "Test",
-        // Testy silnika liczą czas w odstępach 15 min (dawny domyślny) – stały tutaj, niezależnie od domyślnego w AgentConfig.
+        // Testy liczą czas w odstępach 15 min – stały tutaj, niezależnie od domyślnego w AgentConfig.
         ReadIntervalMinutes = 15,
         Sensors = sensors.Length > 0 ? [.. sensors] : [Sensor()],
-        Mail = new() { GmailAddress = "nadawca@gmail.com", AppPassword = "haslo", AlertRecipients = ["ktos@example.com"] },
-        Reports = new() { Times = [], CatchUpHours = 3 }
+        Reports = new() { Times = [], CatchUpHours = 3 },
+        Cloud = CloudAccess()
     };
+
+    public static CloudAccessConfig CloudAccess() => new() { Url = "https://abcdefghijklmnopqrst.supabase.co", PublishableKey = "sb_publishable_x" };
 
     public static StoredReading Reading(string sensorId, DateTimeOffset at, int? moisture = 50, int? battery = 80, decimal? temperature = 22.5m, int? state = 2) =>
         new(sensorId, at, moisture, temperature, battery, state);
@@ -137,10 +140,3 @@ internal sealed class CapturingLogger : ILogger
         Entries.Add((logLevel, formatter(state, exception)));
 }
 
-internal static class Engines
-{
-    public static MonitorEngine Create(
-        AgentConfig config, SqliteMonitorStore store, FakeSensorReader reader, FakeMail? mail, ManualTimeProvider clock,
-        ILogArchive? logs = null, ILogger? logger = null) =>
-        new(config, store, reader, mail, clock, logger ?? NullLogger.Instance, TimeZoneInfo.Utc, logs);
-}
