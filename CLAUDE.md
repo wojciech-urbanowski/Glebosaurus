@@ -95,6 +95,9 @@ dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self
 ## Konwencje
 
 - Komunikaty, komentarze, dokumentacja i maile po polsku; identyfikatory w kodzie po angielsku.
+- Licencja AGPL-3.0-or-later (`LICENSE`; nota i dodatkowe zezwolenie z §7 na Google Play services w APK – `NOTICE.md`).
+  Kod obcy opisują `THIRD-PARTY-NOTICES.md` i `licenses/` – nowa zależność albo zapożyczony kod musi mieć licencję zgodną
+  z AGPL (MIT, Apache-2.0, BSD, PostgreSQL itp.); niezgodną da się dodać tylko z nowym zezwoleniem w `NOTICE.md`.
 - **NuGet: zawsze najnowsze stabilne wersje** (bez beta/preview/rc); wersję sprawdzać w API NuGet, nie z pamięci.
 - `TreatWarningsAsErrors`; `TargetFramework` ustawiany per projekt; Agent ma dwa TFM (Windows: WinRT, Linux: BlueZ).
 - Czas przez `TimeProvider`, radio/baza/poczta/chmura przez interfejsy – dzięki temu silniki testują się bez sprzętu.

@@ -29,6 +29,8 @@ internal static class Cli
 {
     private static readonly string Help = $"""
         Glebosaurus {AppInfo.Version} – agent czujników gleby Tuya BLE (BLE: {BleHost.Backend})
+        Wolne oprogramowanie na licencji AGPL-3.0-or-later, bez żadnej gwarancji (LICENSE, NOTICE.md).
+        Kod źródłowy: https://github.com/wojciech-urbanowski/Glebosaurus
 
         Agent (plik konfiguracji agenta z sekcją "cloud"; wzór: examples/glebosaurus.config.json):
           glebosaurus enroll [--code KOD] [--config PLIK]

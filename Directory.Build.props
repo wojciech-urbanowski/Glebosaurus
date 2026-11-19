@@ -7,5 +7,10 @@
     <Deterministic>true</Deterministic>
     <!-- Jedno źródło wersji dla wszystkich projektów; widać ją w stopce maili (AppInfo.Version) i w nazwie paczki. -->
     <Version>0.2.2</Version>
+    <!-- Licencja: AGPL-3.0-or-later (LICENSE, NOTICE.md); widać ją we właściwościach plików .exe/.dll. -->
+    <Authors>Wojciech Urbanowski</Authors>
+    <Company>Wojciech Urbanowski</Company>
+    <Product>Glebosaurus</Product>
+    <Copyright>Copyright (C) 2026 Wojciech Urbanowski. Licencja AGPL-3.0-or-later.</Copyright>
   </PropertyGroup>
 </Project>

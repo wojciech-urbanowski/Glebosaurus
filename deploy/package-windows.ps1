@@ -42,6 +42,8 @@ foreach ($project in $projects) {
 }
 
 Copy-Item -LiteralPath (Join-Path $repo 'examples/glebosaurus.config.json') -Destination (Join-Path $stage 'glebosaurus.config.example.json')
+Copy-Item -LiteralPath (Join-Path $repo 'LICENSE') -Destination (Join-Path $stage 'LICENSE.txt')
+Copy-Item -LiteralPath (Join-Path $repo 'NOTICE.md') -Destination $stage
 Copy-Item -LiteralPath (Join-Path $repo 'THIRD-PARTY-NOTICES.md') -Destination $stage
 Copy-Item -LiteralPath (Join-Path $repo 'licenses') -Destination (Join-Path $stage 'licenses') -Recurse
 

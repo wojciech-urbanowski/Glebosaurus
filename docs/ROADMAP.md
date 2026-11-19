@@ -40,8 +40,8 @@ zbieracz, 9 czujników):
 3. **Faza 3** – interfejs WWW w chmurze, przede wszystkim edytor konfiguracji (dziś plik konfiguracji chmury i `cloud config`).
 4. **Odtwarzanie z kopii zapasowej** (faza 4) – kopia jest, odtwarzania i jego próby jeszcze nie ma.
 
-**W tle, niezależnie od kolejności:** pomiar baterii i analiza interwału (1b.4), kalibracja wilgotności (1b.5), licencja
-repozytorium (1b.8).
+**W tle, niezależnie od kolejności:** pomiar baterii i analiza interwału (1b.4), kalibracja wilgotności (1b.5), analizatory
+(1b.8).
 
 ---
 
@@ -70,7 +70,7 @@ HISTORIA.md, „Tryb samodzielny i przejście na chmurę”.
 | 5 | **Kalibracja wilgotności.** Pomiary: powietrze, woda, mokra i sucha ziemia doniczkowa; kalibracja per czujnik (punkty „sucho”/„mokro” albo offset i skala) w konfiguracji chmury; sensowne progi domyślne i opis w README. | ○ | M |
 | 7 | **Operacje.** „Wyślij log teraz” w panelu (polecenie `send_log` jest w chmurze), `status --json`. | ○ | S |
 | 7b | **Raport przy wielu czujnikach:** budżet 90 KB mieści wykresy po 2 godz. do ok. 9 czujników, przy 20 – po 8 godz.; szersze kolumny (dziś) albo kilka maili. | ◐ | S |
-| 8 | **Higiena repozytorium:** licencja (bez niej kod jest publiczny, ale „wszelkie prawa zastrzeżone”), analizatory. | ○ | S |
+| 8 | **Higiena repozytorium:** ✔ 2026-11-19 licencja AGPL-3.0-or-later ([LICENSE](../LICENSE), [NOTICE.md](../NOTICE.md)); ○ analizatory. | ◐ | S |
 
 ---
 
@@ -172,7 +172,6 @@ zobaczyć alert, zmienić odbiorców.
 
 | Decyzja | Kiedy | Uwagi |
 |---|---|---|
-| Licencja repozytorium | przed szerszą publikacją | Kod protokołu Tuya wywodzi się z projektów MIT ([THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md)). |
 | Raport przy wielu czujnikach | przy ok. 10 czujnikach | 1b.7b: szersze kolumny wykresu albo kilka maili. |
 | Szyfrowanie kopii zapasowej chmury | zanim kopie trafią poza komputer | Dziś kopia (z odszyfrowanymi sekretami) leży bez szyfrowania obok pliku administratora, którego hasło bazy i tak otwiera wszystkie sekrety. |
 | Technologia UI (TypeScript / Blazor WASM) | start 3a | Strona czyta Supabase wprost. |

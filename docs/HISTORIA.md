@@ -158,7 +158,11 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   (wersja 60, 9 czujników), panel WWW i kopia odczytów od razu, blokada nadawcy (epoka 3) po 3,5 min, log administratora
   za 18.11 nie powtórzony, bez ostrzeżeń w dzienniku. Telefon mi11 został na APK zbudowanym z repozytorium przed 0.2.2.
   Stare pliki trybu samodzielnego (`glebosaurus.standalone.config.json` i 5 plików `*.credentials.json` w `data\` usługi,
-  `glebosaurus.collect.config.json` w `local/`) usunięte do Kosza; usługa pracuje dalej bez zmian.
+  `glebosaurus.collect.config.json` w `local/`) usunięte do Kosza; usługa pracuje dalej bez zmian. **Licencja:
+  AGPL-3.0-or-later** (`LICENSE`, nota i dodatkowe zezwolenie z §7 na bibliotekę Google Play services w APK – `NOTICE.md`;
+  link do kodu w stopce panelu i w `--help`). Rozważane były też licencje z zakazem użytku komercyjnego (CC BY-NC-SA 4.0,
+  AGPL + Commons Clause, PolyForm Noncommercial) – odrzucone: nie są open source, a żadna nie łączy spójnie zakazu
+  zarabiania z obowiązkiem publikacji kodu; AGPL wybrana zamiast GPL, bo obejmuje też udostępnianie przez sieć.
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 

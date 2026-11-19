@@ -427,7 +427,13 @@ przez `adb`):
 ./deploy/build-android.ps1 -CreateKeystore                                    # jednorazowo: klucz wydań w local/
 ```
 
-## Licencje
+## Licencja
+
+Glebosaurus to wolne oprogramowanie na licencji **GNU Affero General Public License w wersji 3 lub późniejszej**
+(AGPL-3.0-or-later, pełny tekst: [LICENSE](LICENSE)). Wolno go używać – także zarobkowo – zmieniać i rozpowszechniać, ale
+każda zmieniona wersja musi być dostępna z pełnym kodem źródłowym na tej samej licencji, również wtedy, gdy udostępnia się
+ją innym tylko przez sieć (np. panel WWW albo usługa zbudowana na Glebosaurusie). Program jest dostarczany bez żadnej
+gwarancji. Nota prawna i dodatkowe zezwolenie dla APK (biblioteka Google Play services): [NOTICE.md](NOTICE.md).
 
 Kod protokołu Tuya powstał na podstawie projektów MIT – [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Kod wysyłki Gmail
-pochodzi z LibrusNotifier (ten sam autor). Licencja samego projektu: do decyzji (ROADMAP).
+pochodzi z LibrusNotifier (ten sam autor).
