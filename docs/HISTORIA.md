@@ -11,7 +11,7 @@ Laurowiśnia szafka, Hortensje niskie, Trawa, Alpinarium). „Monitor” w stars
 
 ## Wdrożenie autora – stan na 2026-11-19
 
-- **bestia5** (Windows 11, usługa w `%LOCALAPPDATA%\Glebosaurus` od 2026-11-15, wersja 0.2.1 od 2026-11-18 20:20): agent
+- **bestia5** (Windows 11, usługa w `%LOCALAPPDATA%\Glebosaurus` od 2026-11-15, wersja 0.2.2 od 2026-11-19 13:45): agent
   `bestia5`, nadawca z priorytetem 2, panel WWW w sieci lokalnej, codzienna kopia chmury do `data\backups`. W `data\` leży
   jeszcze `glebosaurus.standalone.config.json` – konfiguracja trybu samodzielnego sprzed przejścia na chmurę (z hasłem
   Gmaila i kluczami Tuya; droga powrotu, której od 0.3 już nie ma – do usunięcia przez właściciela).
@@ -151,7 +151,12 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   publikację (ten plik wydzielony z ARCHITEKTURY i ROADMAP). Shiny.BluetoothLE 6.5.2 → 6.6.0 (reszta pakietów NuGet była
   aktualna); sprawdzone na bestia5 buildem z repozytorium obok działającej usługi 0.2.1: `scan` (4 urządzenia Tuya) i
   `read` Ziół o 13:25 – zaraz po odczycie usługi, żeby nie zabrać rekordów historii – wykrycie, połączenie, sesja Tuya 3.1 i
-  DP3/5/15/14 w ok. 20 s, wartości jak w odczycie usługi sprzed 30 s. Usługa dostanie 6.6.0 z następnym wydaniem.
+  DP3/5/15/14 w ok. 20 s, wartości jak w odczycie usługi sprzed 30 s. **Wydanie 0.2.2** (Shiny 6.6.0, pierwsze bez trybu
+  samodzielnego; bez APK – repozytorium nie ma sekretów klucza Androida) opublikowane 13:45 z tagu `v0.2.2`; na bestia5
+  `stop` (1 s) i start zadania o 13:45:40 – usługa znalazła wydanie i skryptem w tle przeszła 0.2.1 → 0.2.2 w ok. 15 s.
+  Plik agenta usługi (tylko `cloud`, `logs`, `monitorName`, `web`) przyjęty przez nowy loader; konfiguracja z chmury
+  (wersja 60, 9 czujników), panel WWW i kopia odczytów od razu, blokada nadawcy (epoka 3) po 3,5 min, log administratora
+  za 18.11 nie powtórzony, bez ostrzeżeń w dzienniku. Telefon mi11 został na APK zbudowanym z repozytorium przed 0.2.2.
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 

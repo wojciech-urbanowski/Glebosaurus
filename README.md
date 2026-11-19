@@ -27,7 +27,7 @@ czujniki BLE ──► agenci (Windows / Android / Raspberry Pi) ──► Supab
 - **Panel WWW** (opcjonalnie, na agencie w sieci domowej): stan wszystkich czujników, wykresy całej historii, odczyt i raport
   na żądanie.
 
-Stan: wersja 0.2.1 pracuje na co dzień na Windows 11 i Androidzie; **niesprawdzone:** Raspberry Pi, kalibracja
+Stan: wersja 0.2.2; agent pracuje na co dzień na Windows 11 i Androidzie; **niesprawdzone:** Raspberry Pi, kalibracja
 wilgotności, dłuższa praca telefonu – szczegóły w [ROADMAP](docs/ROADMAP.md).
 
 ## Czego potrzeba
