@@ -6,8 +6,9 @@ namespace Glebosaurus.Core.Cloud;
 /// Agent w trybie chmurowym w jednym procesie (ARCHITEKTURA.md, zasada 15): konfiguracja z chmury (albo z kopii), pętla
 /// synchronizacji, zbieracz i nadawca – każde we własnej pętli. Po każdej udanej synchronizacji: odświeżenie konfiguracji
 /// przy nowej wersji i rozdział poleceń (zbieracz, nadawca). Agent z lokalnym panelem ma jeszcze kopię odczytów wszystkich
-/// agentów (<see cref="CloudReadingMirror"/>). Zatrzymanie: zbieracz i nadawca kończą bieżący krok (odczyt albo wysyłkę),
-/// potem ostatnia synchronizacja oddaje dzierżawy i blokadę – inni przejmują je w sekundy.
+/// agentów (<see cref="CloudReadingMirror"/>). Agent bez poczty (Android) nie ma nadawcy – <c>notifier</c> = null.
+/// Zatrzymanie: zbieracz i nadawca kończą bieżący krok (odczyt albo wysyłkę), potem ostatnia synchronizacja oddaje dzierżawy
+/// i blokadę – inni przejmują je w sekundy.
 /// </summary>
 public sealed class CloudRuntime
 {
@@ -17,11 +18,11 @@ public sealed class CloudRuntime
     private readonly CloudConfigSource configSource;
     private readonly CloudSync sync;
     private readonly CollectorEngine collector;
-    private readonly NotifierEngine notifier;
+    private readonly NotifierEngine? notifier;
     private readonly CloudReadingMirror? mirror;
     private readonly ILogger logger;
 
-    public CloudRuntime(CloudConfigSource configSource, CloudSync sync, CollectorEngine collector, NotifierEngine notifier, ILogger logger,
+    public CloudRuntime(CloudConfigSource configSource, CloudSync sync, CollectorEngine collector, NotifierEngine? notifier, ILogger logger,
         CloudReadingMirror? mirror = null)
     {
         this.configSource = configSource;
@@ -33,7 +34,7 @@ public sealed class CloudRuntime
 
         collector.ReadingsStored = sync.Wake;
         collector.LeasesChanged = sync.Wake;
-        sync.NotifierSafePoint = () => !notifier.Busy;
+        sync.NotifierSafePoint = () => notifier is null || !notifier.Busy;
         sync.Synced = AfterSyncAsync;
     }
 
@@ -56,7 +57,7 @@ public sealed class CloudRuntime
         }
         using var loops = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var collecting = collector.RunAsync(loops.Token);
-        var notifying = notifier.RunAsync(loops.Token);
+        var notifying = notifier?.RunAsync(loops.Token) ?? Task.CompletedTask;
         var mirroring = mirror?.RunAsync(loops.Token) ?? Task.CompletedTask;
         try
         {
@@ -95,7 +96,7 @@ public sealed class CloudRuntime
         foreach (var command in sync.TakeNewCommands())
         {
             if (await collector.HandleCommandAsync(command, cancellationToken)) continue;
-            if (await notifier.HandleCommandAsync(command, cancellationToken)) continue;
+            if (notifier is not null && await notifier.HandleCommandAsync(command, cancellationToken)) continue;
             logger.LogWarning("Polecenie z chmury „{Kind}” ({Id}) nie jest obsługiwane przez tego agenta – wygaśnie samo.", command.Kind, command.Id);
         }
     }

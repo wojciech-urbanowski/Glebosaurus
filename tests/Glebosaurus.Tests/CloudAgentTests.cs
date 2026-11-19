@@ -110,7 +110,7 @@ public sealed class CloudAgentTests : IDisposable
     private sealed record Parts(CloudRuntime Runtime, FakeCloudApi Api, CloudSync Sync, FakeSensorReader Reader, FakeHearing Hearing, TempStore Store,
         CloudConfigSource Source);
 
-    private Parts Build(TimeProvider? time = null, TimeSpan? tick = null)
+    private Parts Build(TimeProvider? time = null, TimeSpan? tick = null, bool collectorOnly = false)
     {
         var clock = time ?? new ManualTimeProvider(Fixtures.T0);
         var manual = clock as ManualTimeProvider ?? new ManualTimeProvider(clock.GetUtcNow());
@@ -118,7 +118,7 @@ public sealed class CloudAgentTests : IDisposable
         var store = new TempStore();
         var ledger = new LeaseLedger(clock);
         var sensors = new SensorLeasePolicy(clock, ledger);
-        var notifierLock = new NotifierLockPolicy(clock, ledger);
+        var notifierLock = new NotifierLockPolicy(clock, ledger, new NotifierLockOptions { CollectorOnly = collectorOnly });
         var hearing = new FakeHearing();
         var source = new CloudConfigSource(api, new CloudConfigCache(Path.Combine(directory, "kopia.bin"), new OwnerOnlyFileProtector()),
             new AgentConfig(), clock, NullLogger.Instance);
@@ -129,7 +129,7 @@ public sealed class CloudAgentTests : IDisposable
         var reader = new FakeSensorReader();
         var collector = new CollectorEngine(() => source.Current, store.Store, reader, new FakeListener(), sensors, new SensorHearingTracker(clock),
             api, null, clock, NullLogger.Instance, new CollectorOptions { TickInterval = every });
-        var notifier = new NotifierEngine(() => source.Current, api, notifierLock, _ => new FakeMail(), null, () => sync.State, clock,
+        var notifier = collectorOnly ? null : new NotifierEngine(() => source.Current, api, notifierLock, _ => new FakeMail(), null, () => sync.State, clock,
             NullLogger.Instance, new NotifierOptions { TickInterval = every });
         return new(new CloudRuntime(source, sync, collector, notifier, NullLogger.Instance), api, sync, reader, hearing, store, source);
     }
@@ -183,6 +183,25 @@ public sealed class CloudAgentTests : IDisposable
         var last = parts.Api.Requests[^1];
         Assert.Empty(last.Claims);
         Assert.Contains(last.Releases, r => r.Resource == "sensor:s1");
+    }
+
+    [Fact]
+    public async Task Run_CollectorOnly_WithoutNotifier_ReadsUploads_AndNeverClaimsMailLock()
+    {
+        // Agent Android: bez nadawcy w procesie, a rola nadawcy z chmury (pomyłka właściciela) nie zabiera blokady.
+        var parts = Build(TimeProvider.System, TimeSpan.FromMilliseconds(50), collectorOnly: true);
+        using var store = parts.Store;
+        parts.Api.Identity = new AgentIdentity("bestia5", true, 1);
+        parts.Api.Commands = [new(5, "report_now", null, null, Fixtures.T0, 600)];
+        parts.Hearing.Current["s1"] = new(DateTimeOffset.UtcNow, -60, null, null, 0);
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+
+        await parts.Runtime.RunAsync(stop.Token);
+
+        Assert.Contains(parts.Api.Requests, r => r.Claims.Contains("sensor:s1"));
+        Assert.DoesNotContain(parts.Api.Requests, r => r.Claims.Contains("notifier"));
+        Assert.NotEmpty(parts.Api.Stored);
+        Assert.DoesNotContain(parts.Api.Done, d => d.Id == 5);   // raport na żądanie zostaje dla prawdziwego nadawcy
     }
 
     [Fact]

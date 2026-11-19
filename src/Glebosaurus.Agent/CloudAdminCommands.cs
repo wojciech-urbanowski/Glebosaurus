@@ -1,5 +1,6 @@
 using System.Globalization;
 using Glebosaurus.Cloud.Admin;
+using Glebosaurus.Core.Cloud;
 using Glebosaurus.Core.Config;
 using Glebosaurus.Core.Hosting;
 using Npgsql;
@@ -137,7 +138,8 @@ internal static class CloudAdminCommands
     {
         if (options.Revoke && options.Name is null) throw new ArgumentException("--revoke wymaga --name NAZWA (którego agenta odciąć).");
         if (options.Revoke && options.SenderPriority is not null) throw new ArgumentException("--revoke nie zmienia roli – bez --sender-priority.");
-        var (_, data) = Open(options);
+        if (options.Qr is not null && (options.Name is null || options.Revoke)) throw new ArgumentException("--qr dotyczy nowego kodu rejestracji: --name NAZWA --confirm --qr PLIK.png.");
+        var (settings, data) = Open(options);
         await using var _ = data;
         if (!await SchemaReadyAsync(data, cancellationToken)) return ExitCodes.Error;
         var agents = await CloudAgents.ListAsync(data, cancellationToken);
@@ -169,7 +171,31 @@ internal static class CloudAdminCommands
         var code = await CloudAgents.CreateWithCodeAsync(data, name, options.SenderPriority, cancellationToken);
         Console.WriteLine($"Kod rejestracji (jednorazowy, ważny 24 h): {code}");
         Console.WriteLine($"Na urządzeniu agenta: glebosaurus enroll --code {code}   (albo bez --code – zapyta o kod)");
+        ShowEnrollmentQr(settings, code, options.Qr);
         return ExitCodes.Success;
+    }
+
+    /// <summary>
+    /// Telefon (agent Android) rejestruje się kodem QR: adres projektu, klucz publikowalny i kod w jednym odnośniku, żeby nie
+    /// przepisywać klucza na telefonie (<see cref="EnrollmentLink"/>). Klucz publikowalny bierze z pliku administratora.
+    /// </summary>
+    private static void ShowEnrollmentQr(CloudAdminSettings settings, string code, string? file)
+    {
+        if (settings.PublishableKey is not { } key)
+        {
+            if (file is not null) Console.Error.WriteLine("Kodu QR nie zrobię: w pliku administratora brak publishableKey (klucz publikowalny projektu).");
+            return;
+        }
+        var link = EnrollmentLink.Create(settings.Url.ToString(), key, code);
+        if (file is not null)
+        {
+            var path = Path.GetFullPath(file);
+            File.WriteAllBytes(path, EnrollmentQr.Png(link));
+            Console.WriteLine($"Telefon (Android): w aplikacji Glebosaurus „Zeskanuj kod QR” – kod zapisany w {path} (ma kod rejestracji – usuń go po użyciu).");
+            return;
+        }
+        Console.WriteLine("Telefon (Android): w aplikacji Glebosaurus „Zeskanuj kod QR” (jeśli nie czyta z ekranu: --qr plik.png):");
+        Console.WriteLine(EnrollmentQr.Text(link));
     }
 
     private static async Task<int> RevokeAsync(NpgsqlDataSource data, string name, CloudAgentInfo? current, bool confirm,

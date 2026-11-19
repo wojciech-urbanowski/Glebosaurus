@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Kiełek nad grudką ziemi; rysunek mieści się w bezpiecznym kole ikony adaptacyjnej (66 dp z 108 dp). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+  <path android:fillColor="#8A6A4F" android:pathData="M33,68 Q54,60 75,68 L75,72 Q54,77 33,72 Z" />
+  <path android:strokeColor="#3E7D3A" android:strokeWidth="3.2" android:strokeLineCap="round" android:pathData="M54,66 L54,46" />
+  <path android:fillColor="#5DA34F" android:pathData="M53,53 C44,53 37,47 36,38 C45,37 52,43 53,53 Z" />
+  <path android:fillColor="#4C9442" android:pathData="M55,47 C57,37 64,31 74,31 C73,41 66,47 55,47 Z" />
+</vector>

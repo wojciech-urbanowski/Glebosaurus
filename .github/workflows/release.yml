@@ -1,5 +1,6 @@
-# Wydanie: tag v<wersja> (ta sama co w Directory.Build.props) → testy, paczka Windows x64, próba instalacji skryptem
-# i wydanie na GitHubie z plikami: Glebosaurus-<wersja>-win-x64.zip, install-windows.ps1, SHA256SUMS.
+# Wydanie: tag v<wersja> (ta sama co w Directory.Build.props) → testy, paczka Windows x64, APK Android (gdy są sekrety klucza),
+# próba instalacji skryptem i wydanie na GitHubie z plikami: Glebosaurus-<wersja>-win-x64.zip, install-windows.ps1,
+# SHA256SUMS i Glebosaurus-<wersja>-android.apk.
 # Usługi zainstalowane skryptem znajdą je same (przy starcie i codziennie o 03:30).
 name: Wydanie
 
@@ -37,6 +38,29 @@ jobs:
         shell: pwsh
         run: ./deploy/package-windows.ps1 -OutputDir out
 
+      # Agent Android: APK podpisany kluczem wydań z sekretów repozytorium (ANDROID_KEYSTORE_BASE64 – plik klucza w base64,
+      # ANDROID_KEYSTORE_PASSWORD – hasło). Bez nich wydanie wychodzi bez APK (Windows aktualizuje się jak dotąd).
+      - name: APK Android
+        shell: pwsh
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if (-not $env:ANDROID_KEYSTORE_BASE64 -or -not $env:ANDROID_KEYSTORE_PASSWORD) {
+            Write-Host '::warning::Brak sekretów klucza Android – wydanie bez APK.'
+            exit 0
+          }
+          $keystore = Join-Path $env:RUNNER_TEMP 'glebosaurus-android.keystore'
+          [IO.File]::WriteAllBytes($keystore, [Convert]::FromBase64String($env:ANDROID_KEYSTORE_BASE64))
+          [IO.File]::WriteAllText("$keystore.password", $env:ANDROID_KEYSTORE_PASSWORD)
+          dotnet workload install android
+          if ($LASTEXITCODE -ne 0) { throw "workload install: $LASTEXITCODE" }
+          ./deploy/build-android.ps1 -AndroidSdk $env:ANDROID_HOME -JavaSdk $env:JAVA_HOME_17_X64 -Keystore $keystore -InstallDependencies -OutputDir out
+          Remove-Item $keystore, "$keystore.password"
+          $apk = Get-Item 'out/Glebosaurus-${{ steps.version.outputs.version }}-android.apk'
+          $line = '{0}  {1}' -f (Get-FileHash -Algorithm SHA256 -LiteralPath $apk.FullName).Hash.ToLowerInvariant(), $apk.Name
+          [IO.File]::AppendAllText((Resolve-Path out/SHA256SUMS).Path, "$line`n", (New-Object Text.UTF8Encoding($false)))
+
       - name: Próba instalacji z paczki (Windows PowerShell 5.1, bez zadania Harmonogramu)
         shell: powershell
         run: |
@@ -64,6 +88,10 @@ jobs:
           powershell -NoProfile -ExecutionPolicy Bypass -File `$s
           ``````
           Szczegóły (przejęcie istniejącej konfiguracji, aktualizacje, odinstalowanie): README.md, sekcja "Windows: instalacja jako usługa".
+
+          **Android** (agent zbierający, telefon na ładowarce): Glebosaurus-$version-android.apk – instalacja i rejestracja kodem QR:
+          README.md, sekcja "Android: agent zbierający".
           "@
-          gh release create $env:GITHUB_REF_NAME out/Glebosaurus-$version-win-x64.zip out/install-windows.ps1 out/SHA256SUMS `
-            --title "Glebosaurus $version" --notes $notes --verify-tag
+          $files = @("out/Glebosaurus-$version-win-x64.zip", 'out/install-windows.ps1', 'out/SHA256SUMS')
+          if (Test-Path "out/Glebosaurus-$version-android.apk") { $files += "out/Glebosaurus-$version-android.apk" }
+          gh release create $env:GITHUB_REF_NAME @files --title "Glebosaurus $version" --notes $notes --verify-tag

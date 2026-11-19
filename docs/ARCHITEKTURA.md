@@ -19,7 +19,8 @@ podlewaniu i raporty o stałych porach mailem (Gmail), a konfigurację, alerty i
 | Praca w tle na Windows (zadanie Harmonogramu), instalacja i samoaktualizacja z wydań GitHuba | zrobione 2026-11-15 (zasada 7): usługa `glebosaurus-service` bez okna, skrypt `install-windows.ps1`, workflowy CI i wydania; testy logiki w Core. **2026-11-15 na żywo (Windows, katalog próbny, udawane API wydań na loopbacku, monitor z atrapą czujnika):** instalacja z przejęciem konfiguracji, `stop` (1 s), aktualizacja o codziennej porze (monitor zatrzymany czysto, skrypt w tle, nowa usługa wystartowana przez Harmonogram), aktualizacja przy starcie (po wymuszonym powrocie do starszej wersji), zepsute wydanie (zły skrót – stara wersja wraca, próba odłożona o dobę, bez pętli), blokada drugiego monitora (kod 4), odinstalowanie. **2026-11-15 wydanie 0.1.0** opublikowane przez `release.yml` (testy, paczka, próba instalacji w Windows PowerShell 5.1 na runnerze – wszystko zielone; API wydań odpowiada bez logowania) i zainstalowane na bestia5 skryptem pobranym z wydania, z przejęciem `local/` i bez startu. Próba na sucho przejęcia prawdziwych danych wykryła, że `ConvertFrom-Json` z PowerShell 5.1 nie zna komentarzy `//`, a jego komunikat błędu zawiera cały plik z hasłem Gmaila – skrypt czyta teraz konfigurację przez `Read-ConfigJson` i nie wypisuje treści wyjątku. **Na żywo z prawdziwymi danymi:** 2026-11-15 23:56 usługa wystartowana przez Harmonogram (panel WWW ze stałej ścieżki – reguła Zapory zatwierdzona raz; o północy sama wysłała log administratora), a 2026-11-16 00:06 pierwsza samoaktualizacja z GitHuba 0.1.0 → 0.1.1 przy starcie usługi (ok. 15 s: sprawdzenie wydania, skrypt w tle, podmiana `app\`, nowa usługa z Harmonogramu; log administratora się nie powtórzył, Zapora nie pytała ponownie). **Dzienniki usługi 2026-11-16…17:** komputer dwa razy wyłączony w trakcie pracy monitora (nie w trakcie połączenia z czujnikiem; bez wpisu o zatrzymaniu) – po zalogowaniu usługa wystartowała sama, sprawdziła wydania, a pierwszy odczyt dociągnął zaległe pomiary z pamięci czujnika (Zioła: 19 od 22:32 poprzedniego dnia); log administratora za poprzedni dzień wyszedł przy pierwszym przebiegu. Po przerwie ok. 18 h monitor ok. 2 min po starcie otworzył alerty „brak odczytów” – cisza liczy się od ostatniego odczytu w bazie, także za czas przestoju monitora; od 2026-11-17 w kodzie okres ochronny 30 min po starcie i uśpieniu (zasada 9; na bestia5 od 0.2.0). 2026-11-18 o 17:28 (0.1.1, po ok. 19 h przerwy) błąd zdarzył się jeszcze raz (dwa alerty „brak odczytów” w mailu z 5 alertami, zamknięte po ok. 20 min); o 18:06 aktualizacja 0.1.1 → 0.2.0 skryptem instalacji uruchomionym przez użytkownika (zatrzymanie monitora po bieżącym kroku, start nowej wersji w ok. 4 s), a zaraz potem przejście na tryb chmurowy (wiersz „Chmura Supabase”). 2026-11-18 20:19 aktualizacja 0.2.0 → 0.2.1 już w trybie chmurowym: `stop` i start zadania, usługa przy starcie znalazła wydanie, skrypt w tle podmienił `app\` i o 20:20:13 wystartowała nowa wersja (ok. 20 s); konfiguracja z kopii w chmurze, odczyty i blokada nadawcy (nowa epoka) wróciły w ciągu kilku minut, bez powtórzonych maili. **Niesprawdzone**: strażnik co godzinę, aktualizacja o 03:30 na prawdziwym wydaniu (o 03:30 komputer był dotąd wyłączony), zachowanie po uśpieniu i wybudzeniu, wylogowanie w trakcie odczytu, 7 dni ciągłej pracy |
 | Lokalny panel diagnostyczny WWW (HTTPS, sieć lokalna, hasło; podgląd, odczyt i raport na żądanie) | zrobione w kodzie i testach (2026-11-14, w tym testy na prawdziwym Kestrelu z TLS); `web-password` uruchomione na żywo, a strona obejrzana na prawdziwych danych (kopia bazy, dzienniki, konfiguracja) przez program podglądu na loopbacku, także w widoku telefonu 375 px. **2026-11-14 na żywo (Windows, `run` z prawdziwą konfiguracją):** panel startuje z monitorem, odcisk certyfikatu z dziennika zgadza się z `web-password` i z serwerem (127.0.0.1 i adres LAN), bez logowania 302/401; użytkownik zalogował się w przeglądarce (połączenie przyszło z adresu IPv6 link-local – filtr sieci go przepuścił). Próba wykryła błąd: przy `Referrer-Policy: no-referrer` przeglądarka wysyła z formularza `Origin: null`, a filtr POST odrzucał je jako obcą stronę (403, bez wpisu w dzienniku) – teraz rozstrzyga `Sec-Fetch-Site`, polityka to `same-origin`, odrzucenie trafia do dziennika (testy odtwarzają nagłówki przeglądarki). Wykresy (pulpit: 3 doby; strona czujnika: cała historia) – 2026-11-14 w testach i w przeglądarce na programie podglądu z danymi próbnymi (zasada 11). **Niesprawdzone**: wejście z telefonu w sieci domowej (reguła Zapory), wykresy na prawdziwym monitorze, Raspberry Pi |
 | Chmura Supabase, wielu agentów (dzierżawy czujników, blokada nadawcy) | faza 2 uzgodniona z użytkownikiem 2026-11-16 (zasady 1–4, 10, 12); 2026-11-16: projekty Supabase (prawdziwy i próbny) i healthchecks.io założone; schemat i funkcje SQL (zasada 13), Core w trybie chmurowym (zasada 14) i agent (zasada 15: sekcja `cloud`, `enroll`, `run`, `cloud migrate`/`import`/`agent`) zrobione i sprawdzone w testach i na próbnym projekcie; 2026-11-17: panel WWW w trybie chmurowym z kopią odczytów wszystkich agentów (`readings_feed`) i kopia zapasowa chmury (`cloud backup`, także codziennie w `run`) – w testach, na próbnym projekcie i (panel) w przeglądarce na programie podglądu; zmiana roli agenta bez restartu (poprawka) i odcięcie agenta (`cloud agent --revoke`) – w testach i na próbnym projekcie. **2026-11-18 (2.1.5) na żywo:** prawdziwy projekt – `cloud migrate` (3 migracje), `cloud import` z konfiguracji usługi (5 czujników z kluczami Tuya, hasło Gmaila i adres healthchecks.io w Vault; 4 czujniki ze Smart Life z `local/` bez MAC pominięte – chmura rozpoznaje czujnik po MAC), adres i klucz publikowalny sprawdzone wywołaniem `enroll` z błędnym kodem (odmowa 28000 z funkcji, nie z bramy); wydanie 0.2.0 (pierwsze z trybem chmurowym), usługa zaktualizowana skryptem instalacji i o 18:06 przełączona skryptem użytkownika (zatrzymanie, poprzednia konfiguracja obok jako `glebosaurus.standalone.config.json`, sekcja `cloud` z `backup`, `cloud agent` bestia5 z priorytetem 2, `enroll`, start). Pierwszy prawdziwy `run` w trybie chmurowym: konfiguracja z chmury (wersja 22), panel WWW w trybie chmurowym (logowanie użytkownika 18:07), wczorajszy dziennik w chmurze; cała historia z bazy usługi – 625 odczytów od 2026-11-13 – przyjęta przy pierwszych synchronizacjach (wszystkie `sync_state` = 1, bez odrzuceń); blokada nadawcy (epoka 1) po ok. 2,5 min i pierwsze maile w trybie chmurowym o 18:09 – alert „słaba bateria” Cypryska i log administratora za 17.11, oba to jednorazowe powtórki (chmura nie ma stanu alertów ani śladu wysyłek trybu samodzielnego; kolejka maili: każdy z rezerwacją i wysłaniem raz). Nasłuch w radiu Shiny na sprzęcie: o 18:13 usłyszany Cisy (−80 dBm) i dzierżawa, trzy próby odczytu Cisy „nie znaleziono w reklamach” (w trybie samodzielnym 2026-11-17: 6 udanych na 31); o 18:29 dzierżawy i udane odczyty 4 czujników (−61…−65 dBm) – w bazie usługi 674 odczyty, wszystkie przyjęte przez chmurę. Pierwsza codzienna kopia w `run` o 18:16 (10 min po starcie): 11 KB, 625 odczytów, 7 sekretów. Teraz tydzień próby (kryterium 2.1 w ROADMAP) |
-| Agent Android, Raspberry Pi jako nadawca, interfejs WWW w chmurze | zaprojektowane (zasady 10, 12), niezrobione – fazy 2.2, 2.3 i 3 |
+| Agent Android (tylko zbieranie) | 2026-11-18 w kodzie (zasada 12): usługa w tle, radio BLE na API Androida, ekran stanu i zasięgu, rejestracja kodem QR, APK podpisany kluczem wydań. **2026-11-19 na telefonie** (Xiaomi 11 Lite 5G NE, Android 14, HyperOS): rejestracja QR, skan przy zgaszonym ekranie, odczyty 4 czujników (także Laurowiśnia wejście przy −93 dBm), start po restarcie (po odblokowaniu) i po aktualizacji; od 10:45 agent `mi11` w prawdziwym projekcie obok bestia5. Niesprawdzone: noc i tydzień pracy, docelowe miejsce |
+| Raspberry Pi jako nadawca, interfejs WWW w chmurze | zaprojektowane (zasada 10), niezrobione – fazy 2.3 i 3 |
 
 ## Zweryfikowane na sprzęcie (ATLO SMS1, Tuya `gvygg3m8`)
 
@@ -285,8 +286,8 @@ Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → S
    użytkowniku); potem w Supabase Vault (zasada 1), a pliki przenosi tam `cloud import`.
 6. **Warstwa BLE: Shiny.BluetoothLE (+ `.Linux`, BlueZ)** za własnym wąskim interfejsem (`IGattLink`); protokół Tuya
    jest czysto zarządzany (`Glebosaurus.Tuya`) i nie zna biblioteki BLE. Zapasowo: SimpleSharpBLE (licencja BUSL-1.1,
-   tylko użytek niekomercyjny) albo bezpośrednio WinRT + Linux.Bluetooth. Ta sama biblioteka obsłuży Androida (zasada 12):
-   Shiny.BluetoothLE 6.5.2 ma `net10.0-android36.0` (sprawdzone w NuGet 2026-11-15).
+   tylko użytek niekomercyjny) albo bezpośrednio WinRT + Linux.Bluetooth. Na Androidzie radio jest wprost na API systemu
+   (decyzja 2026-11-18 – Shiny nie filtruje tam skanu po MAC; zasada 12), za tymi samymi interfejsami.
 7. **Uruchamianie, instalacja i aktualizacje.** Raspberry Pi: usługa systemd (wzór w `deploy/`). Windows (2026-11-15, decyzje
    użytkownika: konto użytkownika zamiast administratora, start przy zalogowaniu, aktualizacja przy starcie i raz na dobę,
    wydania budowane przez GitHub Actions, repozytorium publiczne): zadanie Harmonogramu „Glebosaurus” uruchamia przy
@@ -521,25 +522,104 @@ Dziś (faza 1) działa jeden samodzielny monitor: BLE → Tuya → odczyty → S
     baza z 12 czujnikami próbnymi o historii 0–400 dni z dziurami): pulpit 1200 px i 375 px, przeciąganie, Ctrl+kółko, przyciski,
     zakresy, klawiatura, czujnik bez odczytów i nieznany identyfikator, brak błędów CSP; na prawdziwym monitorze jeszcze nie.
     Dalsze etapy – ROADMAP 1b.7a.
-12. **Agent na Androida** (plan, faza 2.2; telefon Xiaomi Mi 11 Lite 5G na Wi-Fi, stale na ładowarce). Tylko zbieranie,
-    bez roli nadawcy. .NET for Android (`net10.0-android`, bez MAUI – jedna aktywność ze stanem i usługa) z
-    `Glebosaurus.Tuya`, zbieraniem z Core, buforem SQLite (`Glebosaurus.Data`) i Shiny.BluetoothLE (zasada 6) – protokół nie
-    powstaje drugi raz (Kotlin odrzucony: drugi raz ramki, AES i DP). Usługa pierwszoplanowa typu `connectedDevice`
-    (Android 14 wymaga typu i uprawnienia) ze stałym powiadomieniem, start po restarcie telefonu, uprawnienia
-    `BLUETOOTH_SCAN`/`BLUETOOTH_CONNECT` i powiadomień, wyjątek z optymalizacji baterii; rejestracja kodem QR; ekran stanu i
-    skanu z sygnałem (wybór miejsca na telefon). Znane ograniczenia do obsłużenia:
-    - MIUI/HyperOS zabija aplikacje w tle – ręcznie: Autostart, oszczędzanie baterii „Bez ograniczeń”, blokada w ostatnich
-      aplikacjach (instrukcja w README); gdy mimo to zginie, chmura wyśle alert „agent milczy”;
-    - skan BLE bez filtra jest wstrzymywany przy zgaszonym ekranie – filtr po MAC-ach (albo UUID Tuya); najwyżej 5 startów
-      skanu na 30 s – wznawianie nasłuchu po błędzie co 1 s (`ListenThenReadSensorReader`, zasada 8) trzeba tam wydłużyć,
-      inaczej skan po cichu nic nie zwróci; skan dłuższy niż 30 min system degraduje;
-    - GATT: częsty błąd 133 – zawsze `close()`, ponowienia z odstępem; Android podaje prawdziwy MAC, więc dopasowanie po
-      MAC działa;
-    - na ładowarce Doze się nie włącza, ale stary akumulator stale na 100% może puchnąć – sprawdzić limit ładowania w
-      systemie; temperatura akumulatora w sygnale życia i alert przy przegrzaniu;
-    - na tym telefonie nie instalować Smart Life (dodatkowy klient walczący o połączenia).
-    Wydania: APK z Actions podpisany jednym kluczem (sekret repozytorium; jego utrata = instalacja od nowa); Android i tak
-    wymaga stuknięcia „Zainstaluj”, więc aktualizacja to powiadomienie o nowej wersji (albo Obtainium).
+12. **Agent na Androida** (faza 2.2; telefon Xiaomi 11 Lite 5G NE na Wi-Fi, stale na ładowarce; kod od 2026-11-18,
+    **od 2026-11-19 pracuje na telefonie jako agent `mi11` w prawdziwym projekcie**). Tylko zbieranie, bez roli nadawcy. .NET for Android (`src/Glebosaurus.Android`,
+    `net10.0-android`, Android 10+, bez MAUI – jedna aktywność i usługa) z `Glebosaurus.Tuya`, trybem chmurowym z Core i
+    buforem SQLite (`Glebosaurus.Data`) – protokół nie powstaje drugi raz (Kotlin odrzucony: drugi raz ramki, AES i DP).
+    Projekt jest poza `Glebosaurus.slnx` (wymaga obciążenia `android`, JDK i Android SDK); buduje go
+    `deploy/build-android.ps1`, w CI osobne zadanie `android`.
+    - **Radio na API Androida, nie Shiny** (decyzja przy implementacji 2026-11-18, odstępstwo od zasady 6): Shiny.BluetoothLE
+      6.5.2 na Androidzie filtruje skan tylko po UUID usług (`ScanConfig.ServiceUuids` – sprawdzone w pakiecie), a czujnik
+      ma 0xA201 w danych usługi – nie wiadomo, czy także na liście UUID; skan bez filtra system wstrzymuje przy zgaszonym
+      ekranie. Shiny prosi też o uprawnienia przez aktywność (`AndroidPlatform`), a agent pracuje w usłudze od startu
+      telefonu. `AndroidRadio` (`ISensorRadio`, `ISensorListener`) skanuje więc zawsze z filtrem po MAC czujników z
+      konfiguracji (`ScanFilter.setDeviceAddress`; czujnik bez MAC – skan bez filtra z ostrzeżeniem), `GattConnection`
+      (`IGattLink`) łączy się tylko po LE bez automatycznego ponawiania, czeka na potwierdzenie każdej operacji GATT,
+      ponawia błąd połączenia (np. 133) do 3 razy z rosnącą przerwą i zawsze kończy `disconnect()` + `close()`; zapis do
+      0x2B11 bez odpowiedzi (jak na Windows), stare i nowe API (Android 13) obok siebie. Radio robi jedno naraz (nasłuch,
+      odczyt, podgląd zasięgu z ekranu). Złożenie reklam niezależne od biblioteki: `AdvertisedDevice` w Core (testy).
+    - **Starty skanu:** Android po cichu „głuchnie” aplikacji, która uruchomi skan więcej niż 5 razy w 30 s, więc
+      `ScanStartLimiter` (Core, testy) przepuszcza najwyżej 4 starty na 32 s, a nasłuch po błędzie skanu wraca po 8 s (na
+      Windows 1 s). Skany są krótkie (okno odczytu 60 s, nasłuch przydziału 30 s co 3 min) – limit 30 min ciągłego skanu
+      nie dotyczy.
+    - **Tylko zbieracz:** `CloudRuntime` bez nadawcy (`notifier: null`) i `NotifierLockOptions.CollectorOnly` – telefon nie
+      sięga po blokadę nadawcy nawet z rolą nadawcy nadaną w chmurze przez pomyłkę (trzymałby ją, a maile stałyby); raport
+      na żądanie zostaje dla prawdziwego nadawcy (testy). Kopia odczytów wszystkich agentów (`CloudReadingMirror`) jest
+      włączona, żeby ekran pokazywał najnowszy odczyt każdego czujnika.
+    - **Usługa pierwszoplanowa** `connectedDevice` ze stałym powiadomieniem (ile czujników czyta, ostatnia synchronizacja;
+      odświeżane co minutę) i blokadą uśpienia procesora (telefon na ładowarce – bateria nie jest ograniczeniem, a bez
+      blokady liczniki czasu potrafią stać). `AgentHost` (jeden na proces) składa te same części co agent na Windows i
+      podnosi przebieg zakończony błędem po 1, 2, 5, potem co 15 min (`RestartBackoff`); token odrzucony przy starcie albo
+      brak rejestracji – stop z komunikatem. Start po restarcie telefonu i po aktualizacji aplikacji (`BOOT_COMPLETED`,
+      `MY_PACKAGE_REPLACED`; oba mogą uruchomić usługę `connectedDevice`), jeśli agent był włączony; bez uprawnień
+      Bluetooth usługa nie startuje (Android 14+ rzuciłby wyjątek). Zatrzymanie z ekranu: bieżący odczyt do końca, potem
+      oddanie dzierżaw.
+    - **Uprawnienia:** Android 12+ `BLUETOOTH_SCAN` (`neverForLocation`) i `BLUETOOTH_CONNECT`, Android 10–11 lokalizacja
+      do skanu; powiadomienia (13+); wyjątek z optymalizacji baterii (prośba systemowa); Autostart MIUI – skrót do listy w
+      „Zabezpieczeniach” (wykryć się go nie da). Bez kopii w chmurze Google (`allowBackup=false`).
+    - **Sekrety:** token i ostatnia dobra kopia konfiguracji (klucze Tuya) – `ProtectedFile` z `KeystoreProtector` (AES-GCM,
+      klucz w Android Keystore, nie opuszcza go); odinstalowanie aplikacji je kasuje – potem nowa rejestracja. Adres projektu
+      i klucz publikowalny (nie są sekretem) w ustawieniach aplikacji.
+    - **Rejestracja kodem QR:** `cloud agent … --confirm --qr PLIK.png` (albo QR w konsoli) koduje `EnrollmentLink` –
+      `glebosaurus://enroll?url=…&key=…&code=…` (adres projektu i klucz publikowalny z pliku administratora, kod
+      jednorazowy; sprawdzane tymi samymi zasadami co sekcja `cloud`, kod nie trafia do `ToString` – testy). Telefon czyta go
+      skanerem kodów z Usług Google Play (`Xamarin.GooglePlayServices.Code.Scanner` – własny ekran aparatu, aplikacja nie ma
+      uprawnienia do aparatu), z wklejonego tekstu albo z odnośnika otwartego innym skanerem (filtr intencji na schemat
+      `glebosaurus`).
+    - **Ekran:** ten sam `MonitorStatus` co w panelu WWW (`CloudPanel`), jako tekst (`AgentScreenText` w Core, testy):
+      ostrzeżenia na górze (agent odcięty, brak łączności), agent, telefon, czujniki (kto czyta, ostatni odczyt, sygnał tu i
+      najlepszy u innego agenta), alerty, agenci; dalej „Przygotowanie telefonu” (uprawnienia, Bluetooth, bateria, Autostart)
+      i ostatnie wpisy dziennika (`RecentLogProvider`; pełny dziennik w plikach dziennych i w logcat, tag `Glebosaurus`).
+      „Odczytaj teraz” – polecenia w chmurze jak w panelu. **Podgląd zasięgu** (wybór miejsca na telefon): 3 min skanu bez
+      filtra (ekran włączony) z mocą sygnału na żywo każdego czujnika z konfiguracji (albo z kopii) i innych urządzeń Tuya;
+      zbieracz czeka w tym czasie z radiem.
+    - **Sygnał życia telefonu** (`AgentStatus`, kolumna `last_status` – bez zmian schematu): bateria, temperatura
+      akumulatora, „na ładowarce” (podłączony – ochrona akumulatora może wstrzymać ładowanie przy 80%), siła Wi-Fi, stan
+      Bluetooth. Ekran ostrzega od 45 °C i bez ładowarki; **alertu mailowego o przegrzaniu jeszcze nie ma** (nadawca nie
+      dostaje dziś stanu innych agentów z `agent_sync` – wymaga nowej funkcji SQL).
+    - **Wydania:** APK (arm64, ok. 11 MB) podpisany jednym kluczem wydań (`local/glebosaurus-android.keystore` + hasło w
+      pliku `.password` obok – sekrety, kopia poza komputerem; jego utrata = aktualizacja tylko przez odinstalowanie i nową
+      rejestrację). W wydaniu z tagu – gdy repozytorium ma sekrety `ANDROID_KEYSTORE_BASE64` i `ANDROID_KEYSTORE_PASSWORD`;
+      bez nich wydanie wychodzi bez APK. Kod wersji z `Directory.Build.props` (0.2.1 → 201). Aktualizacja: nowszy APK
+      instalowany na starym (Android i tak wymaga stuknięcia „Zainstaluj”); powiadomienie o nowej wersji albo Obtainium – później.
+    - **Znane ograniczenia Androida/MIUI do obsłużenia przez użytkownika** (README, „Android”): MIUI/HyperOS zabija aplikacje
+      w tle – Autostart, oszczędzanie baterii „Bez ograniczeń”, blokada w ostatnich aplikacjach; gdy mimo to zginie, chmura
+      wyśle alert „agent milczy”. Stary akumulator stale na 100% może puchnąć – ochrona akumulatora (ładowanie do 80%), jeśli
+      system ją ma. Na tym telefonie nie instalować Smart Life (dodatkowy klient walczący o połączenia).
+    - **Sprawdzone 2026-11-18 (bez telefonu):** testy części w Core (odnośnik rejestracji, starty skanu, złożenie reklam z
+      prawdziwej reklamy czujnika, dziennik, ekran, tryb tylko-zbieracz z pełnym biegiem `CloudRuntime`), budowanie APK
+      bez ostrzeżeń, podpis kluczem wydań (`apksigner`), manifest (uprawnienia, minSdk 29, targetSdk 36, `libe_sqlite3.so` w
+      APK), kod QR z `cloud agent --qr` na próbnym projekcie.
+    - **Sprawdzone 2026-11-19 na telefonie** (Xiaomi 11 Lite 5G NE, model 2109119DG „lisa”, Android 14, HyperOS 1.0;
+      instalacja przez `adb` – HyperOS wymaga „Instaluj przez USB” w opcjach programisty i potwierdzenia na telefonie):
+      - **Rejestracja kodem QR** skanerem Usług Google Play – najpierw próbny projekt (agent `telefon-proba`), potem na
+        prośbę użytkownika prawdziwy (o 10:45 agent `mi11`, tylko zbieracz; nowy token zastąpił próbny, kopia
+        konfiguracji z innego projektu skasowana). Token i kopia konfiguracji w Keystore, konfiguracja z chmury (9
+        czujników), kopia odczytów wszystkich agentów (1305), usługa pierwszoplanowa `connectedDevice` i blokada uśpienia
+        (`dumpsys`). Uprawnienia, wyjątek z optymalizacji baterii i Autostart ustawione przyciskami z ekranu.
+      - **Skan:** przy bestia5 telefon słyszy wszystkie 9 czujników (−72…−89 dBm średnio; Zioła −72, Cyprysek −74, Hortensje
+        −81, Trawa −81, Laurowiśnia szafka −86, Wiszący wejście −86, Laurowiśnia wejście −87, Cisy −88, Alpinarium −89) –
+        moc w **każdym** pakiecie i ok. 20 pakietów na czujnik w 30 s (Windows z Shiny: −127 w co trzecim pakiecie i
+        pakiety co kilka–kilkanaście sekund). Wśród 10 urządzeń Tuya także porzucony CB:F7:7D (−91 dBm).
+      - **Odczyty:** telefon wziął dzierżawy tylko na czujniki bez właściciela (Alpinarium, Laurowiśnia szafka, Laurowiśnia
+        wejście – 10:48:59; Hortensje niskie – 11:26) i przeczytał je: Laurowiśnia szafka 12 s (−83 dBm), **Laurowiśnia
+        wejście przy −93 dBm** (pierwsza próba – rozłączenie ze statusem GATT 62, druga po 1,5 s udana; bestia5 przeczytała
+        ten czujnik od 11-14 raz), Alpinarium (−89 dBm, z zaległą historią), Hortensje 7 s (−82 dBm). Odczyty w chmurze
+        przy najbliższej synchronizacji. Pozostałe czujniki zostały u bestia5 – bez kolizji.
+      - **Zgaszony ekran:** nasłuch co 3 min z filtrem po MAC działa – skany 30 s przy zgaszonym ekranie dały 166 i 164
+        wyniki, tyle co przy włączonym (156–176; `dumpsys bluetooth_manager`), liczniki czasu nie stają.
+      - **Restart telefonu:** agent startuje sam (`BOOT_COMPLETED`, 15 s po odblokowaniu), ale **dopiero po pierwszym
+        odblokowaniu PIN-em** – wcześniej system wysyła tylko `LOCKED_BOOT_COMPLETED`, a dane aplikacji (token, baza) są
+        zaszyfrowane do odblokowania. Telefon z blokadą ekranu po restarcie (aktualizacja systemu, rozładowanie) czeka więc
+        na człowieka; po 30 min ciszy nadawca wyśle „agent milczy”. Do wyboru: telefon bez blokady ekranu albo praca w
+        Direct Boot (dane w pamięci urządzenia, nie użytkownika – zmiana projektu, nie zrobiona).
+      - **Aktualizacja na działającej aplikacji** (`adb install -r`, ten sam klucz): `MY_PACKAGE_REPLACED`, agent wrócił sam
+        w ok. 5 s, rejestracja i token zostały.
+      - Poprawione po próbie: podwójny tytuł (pasek akcji motywu), białe ikony paska stanu na jasnym tle, komunikat po
+        akcji wiszący bez końca (znika po minucie).
+      - **Niesprawdzone:** noc i tydzień pracy, docelowe miejsce telefonu, błąd 133 (był 62), dłuższe zachowanie HyperOS
+        wobec aplikacji w tle, zadanie `android` w CI i APK w wydaniu (do pierwszego wypchnięcia).
+
 13. **Schemat chmury** (krok 2.1.2, 2026-11-16; `supabase/migrations/20261116200000_core.sql` – rdzeń,
     `20261116220000_alerts_commands_logs.sql` – alerty, polecenia, logi; 2026-11-17 `20261117120000_readings_feed.sql` –
     kopia odczytów dla lokalnego panelu, zasada 15). Realizacja zasad 1–4:
@@ -852,13 +932,14 @@ src/Glebosaurus.Agent     CLI/monitor: run, stop, pair, status, report, mail-tes
 src/Glebosaurus.Service   usługa Windows bez okna (glebosaurus-service.exe): nadzór monitora, sprawdzanie wydań, przekazanie aktualizacji skryptowi
 src/Glebosaurus.Cloud     klient chmury dla agentów: funkcje SQL przez Data API (HttpClient, bez Npgsql) – ICloudApi z Core
 src/Glebosaurus.Cloud.Admin  narzędzia właściciela chmury: połączenie z bazą Supabase (Npgsql, pooler sesji, VerifyFull), migracje, import, agenci, kopia zapasowa
+src/Glebosaurus.Android  agent na Androida (zasada 12): usługa, radio BLE na API Androida, ekran, rejestracja QR – poza Glebosaurus.slnx
 supabase/migrations/      schemat i funkcje SQL chmury (zasada 13), wbudowane w Glebosaurus.Cloud.Admin
 supabase/prod-ca-2021.crt certyfikat główny Supabase (publiczny, do 2031-04-26), wbudowany w Glebosaurus.Cloud.Admin
 tests/                    testy jednostkowe: protokół i sesja na atrapie czujnika; alerty, raporty, magazyn, silnik na atrapach;
                           Glebosaurus.Cloud.Tests – funkcje SQL na próbnym projekcie Supabase (na żądanie)
-examples/                 wzór konfiguracji            deploy/    install-windows.ps1, package-windows.ps1, wzór unitu systemd
-.github/workflows/        ci.yml (build + testy), release.yml (tag v* → testy, paczka, próba instalacji, wydanie)
-docs/                     dokumentacja                 publish/   gotowe paczki (win-x64, linux-arm64) – wynik budowania, poza repozytorium
+examples/                 wzór konfiguracji            deploy/    install-windows.ps1, package-windows.ps1, build-android.ps1, wzór unitu systemd
+.github/workflows/        ci.yml (build + testy, APK), release.yml (tag v* → testy, paczka, APK, próba instalacji, wydanie)
+docs/                     dokumentacja                 publish/   gotowe paczki (win-x64, linux-arm64, android) – wynik budowania, poza repozytorium
 local/                    robocze pliki użytkownika (konfiguracja, klucze, baza, dzienniki) – poza repozytorium
 ```
 

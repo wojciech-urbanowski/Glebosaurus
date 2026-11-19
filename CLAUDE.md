@@ -19,6 +19,8 @@ dotnet run --project src/Glebosaurus.Agent -f net10.0-windows10.0.19041.0 -- --h
 # Kopia chmury: cloud backup --admin local/cloud-admin.test.json --out <scratchpad> (tylko czyta bazę; plik ZIP z odszyfrowanymi sekretami)
 dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self-contained false -o publish/linux-arm64
 ./deploy/package-windows.ps1                               # pliki wydania Windows (zip samodzielny, install-windows.ps1, SHA256SUMS) w publish/release
+./deploy/build-android.ps1 -Toolchain <katalog> [-Install]   # APK agenta Android (poza slnx), podpis kluczem z local/, -Install = adb; katalog w pamięci Claude
+# Kod QR rejestracji telefonu: cloud agent --admin … --name NAZWA --confirm --qr <scratchpad>\kod.png (zawiera kod rejestracji)
 ```
 
 ## Mapa
@@ -66,6 +68,15 @@ dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self
   więc nie wracają do wysyłki). Klient HTTP:
   `src/Glebosaurus.Cloud` (`SupabaseCloudApi`, sam HttpClient – także dla Androida). Zmiana funkcji SQL = zmiana typów
   protokołu i testów `CloudProtocolTests`/`CloudApiClientTests`. `MonitorEngine` (tryb samodzielny) zostaje bez zmian.
+- `src/Glebosaurus.Android` – agent na Androida (faza 2.2, ARCHITEKTURA.md zasada 12), **poza `Glebosaurus.slnx`** (obciążenie
+  `android`; narzędzia bez administratora w jednym katalogu poza repozytorium – dotnet z obciążeniem, jdk, android-sdk z adb; ścieżka w pamięci Claude).
+  Tylko zbieracz: `AgentHost` składa `CloudRuntime` bez nadawcy (`notifier: null`, `NotifierLockOptions.CollectorOnly`) z
+  kopią odczytów; radio wprost na API Androida (`AndroidRadio` – skan zawsze z filtrem po MAC, `ScanStartLimiter` z Core;
+  `GattConnection` – LE, ponowienia 133, zawsze `close()`), usługa pierwszoplanowa `connectedDevice` + blokada uśpienia,
+  start po `BOOT_COMPLETED`/`MY_PACKAGE_REPLACED`, sekrety przez `KeystoreProtector` (Android Keystore), ekran z
+  `AgentScreenText` (Core, ten sam `MonitorStatus` co panel), rejestracja `EnrollmentLink` z kodu QR (skaner Usług Google
+  Play). Logika i testy w Core – w projekcie Android tylko klej z API systemu. Nazwa `Android` w przestrzeni
+  `Glebosaurus.Android` zasłania globalną – w kodzie `global::Android…`.
 - `tests/` – protokół i sesja na atrapie czujnika; alerty, raporty, magazyn i silnik na atrapach z ręcznie sterowanym czasem;
   `Glebosaurus.Cloud.Tests` – funkcje SQL na próbnym projekcie (zegar przesuwany `glebosaurus.test_now`, tylko w bazie ze
   znacznikiem próbnej).
@@ -124,7 +135,9 @@ dotnet publish src/Glebosaurus.Agent -c Release -f net10.0 -r linux-arm64 --self
   `local/backups/` – odszyfrowane klucze Tuya i hasło Gmaila) – skrypty czytają je bez wypisywania wartości; adresów
   projektów Supabase też nie wpisuj do repozytorium, bo jest publiczne. W trybie chmurowym sekretami są też
   `glebosaurus-cloud.token` (token agenta) i `glebosaurus-cloud-config.bin` (kopia konfiguracji z kluczami Tuya) obok
-  konfiguracji agenta, a także jednorazowe kody rejestracji.
+  konfiguracji agenta, a także jednorazowe kody rejestracji (i pliki PNG z kodem QR z `cloud agent --qr`). Klucz wydań
+  Androida `local/glebosaurus-android.keystore` z hasłem w `….keystore.password` – jedyny klucz aktualizacji APK: nie
+  wypisuj hasła, nie twórz nowego klucza (`-CreateKeystore` odmawia, gdy plik jest), sekrety repozytorium tylko na prośbę.
 - Migracje i testy SQL tylko na próbnym projekcie `glebosaurus-test` (`local/cloud-admin.test.json`). Prawdziwy projekt
   (`local/cloud-admin.json`) zmienia się wyłącznie na prośbę użytkownika – także migracja „gotowa i sprawdzona”, `cloud
   import` i `cloud agent --confirm`. Do prób importu nie używaj prawdziwej konfiguracji (`local/glebosaurus.config.json` ma
@@ -157,6 +170,12 @@ trzeba wiedzieć przed każdą pracą:
   `glebosaurus.standalone.config.json`. Zmiany czujników, progów i poczty idą teraz przez chmurę (`cloud import` nadpisuje
   – tylko na prośbę), nie przez plik usługi. `local/` zostaje do prób (jego `glebosaurus.config.json` to tryb samodzielny,
   z tymi samymi 9 czujnikami co chmura – z niego szedł `cloud import`), a `run` z niego nie wystartuje obok usługi (kod 4).
+- **Android (2.2): od 2026-11-19 10:45 telefon (Xiaomi 11 Lite 5G NE, Android 14, HyperOS) pracuje jako agent `mi11`
+  (tylko zbieracz) w prawdziwym projekcie, obok bestia5** – wyniki próby w ARCHITEKTURA.md, zasada 12. Telefon przez USB:
+  `adb` z katalogu narzędzi (pamięć Claude); APK aktualizuje `build-android.ps1 -Install` bez utraty rejestracji (agent
+  wraca sam). Nie przerywaj procesu (instalacja, `am force-stop`) w trakcie odczytu – sprawdź dziennik (`adb logcat -s
+  Glebosaurus`). Po restarcie telefonu agent rusza dopiero po odblokowaniu PIN-em. Próbny projekt ma jeszcze agenta
+  `telefon-proba` (testy SQL go wyczyszczą).
 - **Zatwierdzone przez użytkownika – nie zmieniaj bez prośby:** układ i kolorystyka maili (kwadratowe, pastelowe, pod
   telefon), wykres w raporcie (`MailChart`: kolumny po 2 godz., temperatura jako blady zakres), panel WWW bez edycji
   konfiguracji (pełny edytor – faza 3c), log administratora w trybie chmurowym jako osobny mail od każdego agenta.

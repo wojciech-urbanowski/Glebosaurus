@@ -38,3 +38,21 @@ jobs:
             foreach ($e in $errors) { Write-Host "::error file=deploy/$($file.Name),line=$($e.Extent.StartLineNumber)::$($e.Message)"; $failed = $true }
           }
           if ($failed) { exit 1 }
+
+  # Agent Android (faza 2.2) – poza Glebosaurus.slnx, bo wymaga obciążenia „android”, JDK i Android SDK (są na runnerze).
+  # Bez klucza wydań: APK podpisany kluczem testowym, tylko sprawdzenie, że projekt się buduje.
+  android:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 11.0.x
+
+      - name: Obciążenie android
+        run: dotnet workload install android
+
+      - name: APK
+        shell: pwsh
+        run: ./deploy/build-android.ps1 -AndroidSdk $env:ANDROID_HOME -JavaSdk $env:JAVA_HOME_17_X64 -Keystore brak -InstallDependencies -OutputDir out

@@ -203,6 +203,19 @@ public sealed class CloudLeaseTests
     }
 
     [Fact]
+    public void Notifier_CollectorOnlyDevice_IgnoresSenderRoleFromCloud()
+    {
+        // Android nie umie wysyłać maili: rola nadawcy nadana przez pomyłkę nie może zabrać blokady prawdziwemu nadawcy.
+        var clock = new ManualTimeProvider(Fixtures.T0);
+        var policy = new NotifierLockPolicy(clock, new LeaseLedger(clock), new NotifierLockOptions { CollectorOnly = true });
+        policy.Observe(Response(me: "mi11", canSendMail: true, priority: 1));
+
+        clock.Advance(TimeSpan.FromHours(1));
+        Assert.Empty(policy.Plan().Claims);
+        Assert.False(policy.CanSendMail);
+    }
+
+    [Fact]
     public void Notifier_FreeLock_TakenAfterPriorityTimesMinute()
     {
         var clock = new ManualTimeProvider(Fixtures.T0);

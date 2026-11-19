@@ -184,6 +184,12 @@ public sealed record NotifierLockOptions
 
     /// <summary>Po oddaniu ważniejszemu nie sięga po blokadę, dopóki tamten jest obecny – przez tyle czasu.</summary>
     public TimeSpan CooldownAfterHandover { get; init; } = TimeSpan.FromMinutes(10);
+
+    /// <summary>
+    /// Urządzenie, które nie umie wysyłać maili (agent Android): nie sięga po blokadę nawet wtedy, gdy właściciel przez
+    /// pomyłkę da mu w chmurze rolę nadawcy – inaczej trzymałoby blokadę, a maile stałyby do jej wygaśnięcia.
+    /// </summary>
+    public bool CollectorOnly { get; init; }
 }
 
 /// <summary>
@@ -242,7 +248,7 @@ public sealed class NotifierLockPolicy(TimeProvider clock, LeaseLedger ledger, N
         var resource = CloudProtocol.NotifierResource;
         var held = ledger.Epoch(resource) is not null;
 
-        if (!me.CanSendMail)
+        if (!me.CanSendMail || settings.CollectorOnly)
         {
             if (held) Give(now);
             return Pending();

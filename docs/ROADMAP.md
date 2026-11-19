@@ -29,6 +29,9 @@ Stan: ✔ zrobione · ◐ w toku albo częściowo · ○ do zrobienia.
 - **Maile pod telefon** (wygląd zatwierdzony 2026-11-13) z wykresem 3 dób w raporcie (2026-11-14). Doszły już prawdziwe
   maile wszystkich rodzajów: próbne, alert, log administratora, raport z harmonogramu (pierwszy 2026-11-16 o 19:00);
   w trybie chmurowym pierwsze 2026-11-18 o 18:09 (alert i log administratora).
+- **Telefon jako drugi zbieracz** (od 2026-11-19 10:45, faza 2.2): agent `mi11` na Xiaomi 11 Lite 5G NE (Android 14,
+  HyperOS) – usługa w tle na ładowarce, czyta czujniki, których nie trzyma bestia5 (pierwszego dnia Alpinarium, obie
+  Laurowiśnie, Hortensje), maili nie wysyła. Na razie leży przy bestia5 – docelowe miejsce do wybrania.
 - **Tryb samodzielny** (bez sekcji `cloud`) zostaje i działa jak dotąd – do prób z `local/` i dla monitorów bez chmury.
 - **Repozytorium** publiczne na GitHubie, CI na każdy push, wydania z tagu `v*`.
 
@@ -38,8 +41,9 @@ Stan: ✔ zrobione · ◐ w toku albo częściowo · ○ do zrobienia.
    strat, maile bez dubli po restartach, dosłanie po przerwie sieci, unieważnienie tokenu odcina agenta (to ostatnie –
    tylko na prośbę; na prawdziwym agencie oznacza ponowny `enroll`). Do obejrzenia po drodze: raporty o 07:00 i 19:00 z
    chmury, codzienna kopia, nocne wyłączenia komputera (healthchecks.io, „brak odczytów” po starcie).
-2. **2.2 – Android:** najpierw próba (spike) na Mi 11 – największa niewiadoma fazy 2; potem agent. Czujniki przy wejściu
-   bestia5 prawie nie słyszy (niżej), więc drugi zbieracz ma konkretny cel.
+2. **2.2 – Android:** agent pracuje na telefonie od 2026-11-19 10:45 jako `mi11` w prawdziwym projekcie, obok bestia5
+   (ARCHITEKTURA.md, zasada 12 – wyniki próby). Teraz: telefon na docelowe miejsce (podgląd zasięgu), noc i tydzień pracy
+   (2.2.4). Pierwszego dnia przeczytał czujniki, których bestia5 nie trzymała – także Laurowiśnię wejście (−93 dBm).
 3. **2.3 – Raspberry Pi 24/7** jako główny nadawca (priorytet 1; bestia5 zostaje zapasowym).
 4. **Faza 3** – interfejs WWW w chmurze (może ruszyć zaraz po 2.1).
 5. **Odtwarzanie z kopii zapasowej** (faza 4) – kopia jest od 2026-11-17 (na bestia5 codziennie od 2026-11-18),
@@ -90,6 +94,9 @@ Stan: ✔ zrobione · ◐ w toku albo częściowo · ○ do zrobienia.
   Laurowiśni szafki i Trawy wyszły 2026-11-18 o 19:23 i 19:33.
 - healthchecks.io: alarm „nadawca milczy” przy każdym wyłączeniu bestia5 na dłużej niż ok. 30 min – jeśli męczy, wyłączyć
   powiadomienia tego sprawdzenia w panelu healthchecks.io (do czasu Raspberry Pi).
+- **Android (2.2):** telefon na docelowe miejsce (przycisk „Zasięg czujników”), stale na ładowarce; decyzja o blokadzie
+  ekranu (z PIN-em agent po restarcie telefonu czeka na odblokowanie); kopia klucza wydań (`local/glebosaurus-android.keystore`
+  i `.password`) poza komputerem; zgoda na sekrety klucza w repozytorium (APK w wydaniach).
 - Decyzje: licencja repozytorium, raport przy wielu czujnikach (1b.7b).
 - Reguła Zapory, jeśli panel ma być dostępny z telefonu.
 - Fizycznie: parowanie kolejnych czujników (reset przyciskiem, baterie w oknie 20 s), pomiary do kalibracji.
@@ -102,6 +109,7 @@ Stan: ✔ zrobione · ◐ w toku albo częściowo · ○ do zrobienia.
 | Usługa Windows | strażnik co godzinę; aktualizacja o 03:30 (komputer był wtedy dotąd wyłączony); uśpienie i wybudzenie; wylogowanie w trakcie odczytu; utrata adaptera BLE; 7 dni ciągłej pracy; usuwanie dzienników starszych niż 7 dni |
 | Panel WWW | wejście z telefonu w sieci domowej; wykresy na prawdziwym monitorze |
 | Tryb chmurowy | (na żywo od 2026-11-18: historia, blokada nadawcy, maile przez kolejkę, nasłuch i dzierżawy, codzienna kopia w `run`, panel – logowanie, raport z harmonogramu, nowe czujniki z `cloud import` bez restartu) tydzień pracy, przerwa sieci i dosłanie, restart bez dubli maili, uśpienie i nocne wyłączenia w trybie chmurowym, unieważnienie tokenu na prawdziwym agencie, polecenia z panelu (odczyt i raport na żądanie) |
+| Android | noc i tydzień pracy, docelowe miejsce, wyłączenie bestia5 (przejęcie czujników), błąd 133, APK z CI |
 | Raspberry Pi | wszystko (paczka tylko zbudowana) |
 | Czujnik | kalibracja wilgotności; profil `ojzlzzsw`; czy niesparowany czujnik milczy po oknie 20 s (2026-11-18 jeden nadawał ponad 2 min – ARCHITEKTURA.md) |
 
@@ -114,7 +122,7 @@ Stan: ✔ zrobione · ◐ w toku albo częściowo · ○ do zrobienia.
 | 0, 1 | Spike sprzętowy, lokalny monitor (SQLite, alerty, raporty, parowanie) | – | ✔ 2026-11-13 |
 | **1b** | Domknięcie lokalnego monitora: prawdziwy mail, praca w tle na Windows, panel, baterie, kalibracja, parowanie | M | ◐ mail, usługa, panel i repozytorium ✔; baterie, kalibracja, parowanie ○ |
 | **2.1** | Chmura Supabase (darmowa) i pierwszy agent – bestia5 | L | ◐ 2.1.1–2.1.4 ✔, 2.1.5 ◐ (od 2026-11-18 – tydzień próby) |
-| **2.2** | Agent na Androida (Xiaomi Mi 11 Lite 5G) – tylko zbieranie | L | ○ |
+| **2.2** | Agent na Androida (Xiaomi 11 Lite 5G NE) – tylko zbieranie | L | ◐ agent na telefonie od 2026-11-19 (`mi11`); tydzień pracy obok bestia5 ○ |
 | **2.3** | Agent na Raspberry Pi 24/7 – główny nadawca maili | M | ○ |
 | **3** | Interfejs webowy w chmurze: pulpit, historia, alerty, raporty, konfiguracja, parowanie zdalne | L | ○ (lokalny panel diagnostyczny jest z 1b) |
 | **4** | Wdrożenie i utwardzanie: aktualizacje, monitoring, bezpieczeństwo, CI, runbook | M | ◐ aktualizacje Windows i CI ✔ |
@@ -190,15 +198,16 @@ tylko wtedy, gdy bestia5 działa – tak jak dziś.
 
 ### 2.2 – agent na Androida (Xiaomi Mi 11 Lite 5G)
 
-Tylko zbieranie, bez roli nadawcy; telefon na Wi-Fi, stale na ładowarce. .NET for Android z tym samym `Glebosaurus.Tuya`,
-zbieraniem z Core i Shiny.BluetoothLE – szczegóły i znane ograniczenia Androida/MIUI w ARCHITEKTURA.md, zasada 12.
+Tylko zbieranie, bez roli nadawcy; telefon na Wi-Fi, stale na ładowarce. .NET for Android z tym samym `Glebosaurus.Tuya` i
+trybem chmurowym z Core; radio BLE wprost na API Androida (Shiny nie filtruje tam skanu po MAC – decyzja przy implementacji
+2026-11-18) – szczegóły i znane ograniczenia Androida/MIUI w ARCHITEKTURA.md, zasada 12; użycie – README, „Android”.
 
 | # | Zadanie | Stan | Wielkość |
 |---|---|---|---|
-| 1 | **Próba (spike):** Shiny na Mi 11 – skan z filtrem, odczyt jednego czujnika, noc przy zgaszonym ekranie na ładowarce. Największa niewiadoma fazy 2 – jak kiedyś spike na Windows. | ○ | S–M |
-| 2 | **Agent:** usługa pierwszoplanowa ze stałym powiadomieniem, start po restarcie telefonu, rejestracja kodem QR, synchronizacja, bufor odczytów, ekran stanu i skanu z sygnałem (wybór miejsca na telefon), stan telefonu w sygnale życia (bateria, temperatura, ładowanie, Wi-Fi); instrukcja ustawień MIUI w README. | ○ | L |
-| 3 | **Wydania:** APK budowany w Actions, podpisany jednym kluczem z sekretów repozytorium (kopia klucza – jego utrata oznacza instalację od nowa); aktualizacja przez powiadomienie o nowej wersji albo Obtainium. | ○ | S |
-| 4 | **Praca obok bestia5 na tych samych czujnikach** – prawdziwa próba dzierżaw: przejęcie czujników po wyłączeniu bestia5, oddanie, gdy bestia5 słyszy czujnik lepiej, żadnych równoczesnych połączeń. | ○ | S + czas |
+| 1 | **Próba na Mi 11:** instalacja APK, rejestracja kodem QR (najpierw próbny projekt), uprawnienia i ustawienia MIUI, podgląd zasięgu, skan z filtrem po MAC i odczyt jednego czujnika, noc przy zgaszonym ekranie na ładowarce, restart telefonu. Największa niewiadoma fazy 2 – jak kiedyś spike na Windows. Agenta zrobiono przed próbą (2026-11-18), bo telefon był niedostępny; próba sprawdziła agenta od razu. | ◐ 2026-11-19 (ARCHITEKTURA.md, zasada 12): wszystko poza nocą – rejestracja, uprawnienia, skan (także przy zgaszonym ekranie), odczyty 4 czujników, start po restarcie (po odblokowaniu PIN-em) i po aktualizacji. ○ Noc na ładowarce. | S–M |
+| 2 | **Agent:** usługa pierwszoplanowa ze stałym powiadomieniem, start po restarcie telefonu, rejestracja kodem QR, synchronizacja, bufor odczytów, ekran stanu i skanu z sygnałem (wybór miejsca na telefon), stan telefonu w sygnale życia (bateria, temperatura, ładowanie, Wi-Fi); instrukcja ustawień MIUI w README. | ◐ 2026-11-18 w kodzie (zasada 12): wszystko z listy; części w Core z testami, APK zbudowany i podpisany; 2026-11-19 na telefonie (3 drobne poprawki ekranu po próbie). ○ Alert mailowy o przegrzaniu (wymaga stanu agentów u nadawcy – nowa funkcja SQL); start bez odblokowania po restarcie (Direct Boot) – jeśli telefon ma mieć blokadę ekranu. | L |
+| 3 | **Wydania:** APK budowany w Actions, podpisany jednym kluczem z sekretów repozytorium (kopia klucza – jego utrata oznacza instalację od nowa); aktualizacja przez powiadomienie o nowej wersji albo Obtainium. | ◐ 2026-11-18: klucz wydań w `local/` (kopia poza komputerem – użytkownik), `deploy/build-android.ps1`, zadanie `android` w CI, APK w `release.yml` przy sekretach `ANDROID_KEYSTORE_BASE64`/`ANDROID_KEYSTORE_PASSWORD`. ○ Sekrety w repozytorium (użytkownik albo Claude na prośbę), pierwszy przebieg CI, powiadomienie o nowej wersji. | S |
+| 4 | **Praca obok bestia5 na tych samych czujnikach** – prawdziwa próba dzierżaw: przejęcie czujników po wyłączeniu bestia5, oddanie, gdy bestia5 słyszy czujnik lepiej, żadnych równoczesnych połączeń. | ◐ od 2026-11-19 10:45: telefon wziął 4 czujniki bez właściciela, reszta przy bestia5, bez kolizji. ○ Tydzień, wyłączenie bestia5, oddawanie przy lepszym sygnale. | S + czas |
 
 **Kryterium:** telefon tydzień pracuje bez dotykania; zero konfliktów z bestia5. Luka do 2.3: gdy bestia5 jest wyłączona,
 Android zbiera odczyty, ale maile nie wychodzą (po powrocie bestia5 alerty są liczone na nowo, a raport nadrobiony w granicach
@@ -250,7 +259,7 @@ alert, zmienić odbiorców.
   kradzież urządzenia; przejęcie konta Supabase), rotacja tokenów, limity zapytań, kopia zapasowa (✔ `cloud backup`, 2026-11-17) i próba
   odtworzenia z niej (○ – polecenie odtwarzania: nowy projekt, migracje do wersji z kopii, tabele z CSV, sekrety do Vault), retencja i agregacja (np. odczyty surowe 90 dni, potem średnie godzinowe – limit 500 MB darmowego planu).
 - **CI/CD:** ✔ build i testy na każdy push, wydanie win-x64 z tagu (2026-11-15); ○ paczka linux-arm64 (2.3.1), APK
-  (2.2.3); testy sprzętowe jako ręczna lista kontrolna.
+  (2.2.3 – w workflowach od 2026-11-18, czeka na sekrety klucza); testy sprzętowe jako ręczna lista kontrolna.
 - **Runbook:** nowy monitor, nowy czujnik, reset czujnika, utrata hasła, utrata tokenu, przeniesienie na inny komputer.
 - **Wspólna biblioteka poczty:** `GmailSender` istnieje dziś w dwóch projektach (tu i w LibrusNotifier); wyciągnąć do
   wspólnego pakietu NuGet albo świadomie zostawić kopię.

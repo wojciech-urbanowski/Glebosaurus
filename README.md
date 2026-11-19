@@ -15,8 +15,9 @@ odczyty do SQLite, alerty, raporty z wykresem i log administratora mailem przez 
 diagnostyczny w przeglądarce (HTTPS, sieć lokalna, hasło; wykresy, odczyt i raport na żądanie – patrz „Panel WWW”).
 **Tryb chmurowy** (Supabase, wielu agentów – faza 2; z panelem WWW i kopią zapasową chmury) jest w wydaniu od 0.2.0;
 od 2026-11-18 pracuje w nim usługa na bestia5 (czujniki, progi, poczta i klucze w prawdziwym projekcie Supabase; 2.1.5 –
-tydzień próby).
-**Niesprawdzone:** Raspberry Pi, kalibracja wilgotności. Co zrobione, co zostało i w jakiej kolejności:
+tydzień próby). **Agent Android** (faza 2.2, tylko zbieranie) pracuje od 2026-11-19 na telefonie obok bestia5 (patrz
+„Android: agent zbierający”).
+**Niesprawdzone:** Android w dłuższej pracy, Raspberry Pi, kalibracja wilgotności. Co zrobione, co zostało i w jakiej kolejności:
 [ROADMAP](docs/ROADMAP.md), „Stan w skrócie”.
 
 | Projekt | Rola |
@@ -30,6 +31,7 @@ tydzień próby).
 | `Glebosaurus.Service` | usługa Windows bez okna (`glebosaurus-service.exe`): uruchamia i pilnuje monitora, sprawdza wydania i przekazuje aktualizację skryptowi |
 | `Glebosaurus.Cloud` | klient chmury dla agentów (faza 2): funkcje SQL Supabase przez Data API, ochrona tokenu i kopii konfiguracji, sygnał dla healthchecks.io |
 | `Glebosaurus.Cloud.Admin` | narzędzia właściciela chmury (faza 2): połączenie z bazą Supabase, migracje schematu z `supabase/migrations/`, import, agenci, kopia zapasowa |
+| `Glebosaurus.Android` | agent na Androida (faza 2.2): usługa w tle, radio BLE na API Androida, ekran stanu, rejestracja kodem QR – poza `Glebosaurus.slnx` (wymaga obciążenia `android`) |
 
 ## Budowanie i testy
 
@@ -51,7 +53,16 @@ Pliki wydania dla Windows (paczka samodzielna, skrypt instalacji, `SHA256SUMS`) 
 (wynik w `publish/release`; `-Version 0.1.1 -OutputDir …` – paczka próbna z innym numerem). Wydanie na GitHubie: wersja w
 `Directory.Build.props`, potem tag `v<wersja>` – workflow [release.yml](.github/workflows/release.yml) uruchamia testy, buduje
 paczkę, próbuje ją zainstalować skryptem i publikuje wydanie; zainstalowane usługi znajdą je same w ciągu doby.
-[ci.yml](.github/workflows/ci.yml) buduje i testuje każdy push do `main` i każdy PR.
+[ci.yml](.github/workflows/ci.yml) buduje i testuje każdy push do `main` i każdy PR (także APK Androida).
+
+Agent Android (`src/Glebosaurus.Android`) nie jest w `Glebosaurus.slnx` – potrzebuje obciążenia `android` (`dotnet workload
+install android`), JDK 17+ i Android SDK. Buduje go skrypt (APK w `publish/android`, podpisany kluczem wydań z `local/`, jeśli
+jest; `-Install` instaluje na podłączonym telefonie przez `adb`):
+
+```powershell
+./deploy/build-android.ps1 -Toolchain D:\narzedzia\android-toolchain -Install   # katalog z dotnet, jdk i android-sdk (bez administratora)
+./deploy/build-android.ps1 -CreateKeystore                                    # jednorazowo: klucz wydań w local/
+```
 
 ## Szybki start
 
@@ -316,7 +327,7 @@ Pliki `glebosaurus-web.password` i `glebosaurus-web.pfx` (z kluczem prywatnym) s
 
 ## Tryb chmurowy (faza 2) – od 0.2.0, na bestia5 od 2026-11-18
 
-Wielu agentów (Windows, Raspberry Pi, później Android) pracuje na wspólnej chmurze Supabase: czujniki, progi, harmonogramy,
+Wielu agentów (Windows, Android, później Raspberry Pi) pracuje na wspólnej chmurze Supabase: czujniki, progi, harmonogramy,
 odbiorcy, klucze Tuya i hasło Gmaila są w chmurze, agenci dzielą się czujnikami przez dzierżawy (żaden czujnik nie ma dwóch
 połączeń naraz), a maile wysyła jeden agent z blokadą nadawcy – każdy najwyżej raz. Projekt: [ARCHITEKTURA](docs/ARCHITEKTURA.md),
 zasady 1–4 i 13–15; stan: [ROADMAP](docs/ROADMAP.md), faza 2.1.
@@ -391,6 +402,46 @@ jak `cloud-admin.json` (na Linuksie prawa 600); poza ten komputer – tylko w za
 okazji (komputer bywa w nocy wyłączony), co najmniej 10 min po starcie; potrzebuje pliku administratora z adresem projektu i
 hasłem bazy – bez klucza tajnego – więc tylko jeden zaufany agent (dziś bestia5, docelowo Raspberry Pi). Odtwarzania z kopii
 jeszcze nie ma (ROADMAP, faza 4).
+
+## Android: agent zbierający (faza 2.2) – od 2026-11-19 na telefonie (agent `mi11`)
+
+Telefon (docelowo Xiaomi Mi 11 Lite 5G, Android 10+) na Wi-Fi i **stale na ładowarce** zbiera odczyty jak każdy agent w trybie
+chmurowym, ale nie wysyła maili (nawet z rolą nadawcy w chmurze). Pomaga tam, gdzie komputer nie słyszy czujników (np. przy
+wejściu). Projekt: [ARCHITEKTURA](docs/ARCHITEKTURA.md), zasada 12.
+
+1. **Agent w chmurze i kod QR** – właściciel na komputerze (plik administratora musi mieć `publishableKey`):
+
+   ```powershell
+   glebosaurus cloud agent --admin local/cloud-admin.json --name mi11 --confirm --qr local/mi11-qr.png
+   ```
+
+   Kod QR zawiera adres projektu, klucz publikowalny i jednorazowy kod rejestracji (24 h) – po rejestracji usuń plik. Bez
+   `--qr` kod QR jest w konsoli.
+2. **Instalacja**: `Glebosaurus-<wersja>-android.apk` z wydania na GitHubie (albo `./deploy/build-android.ps1 -Install` –
+   na Xiaomi w opcjach programisty „Debugowanie USB” i „Instaluj przez USB”, instalację trzeba potwierdzić na telefonie).
+   Android zapyta o zgodę na instalację z tego źródła. Aktualizacja = nowszy APK zainstalowany na starym (dane i rejestracja
+   zostają); APK podpisany innym kluczem trzeba najpierw odinstalować.
+3. **Rejestracja**: w aplikacji „Zeskanuj kod QR” (skaner z Usług Google Play) albo „Wklej kod”, jeśli inny skaner pokazał
+   tekst `glebosaurus://enroll?…`. Agent rusza sam, gdy są uprawnienia.
+4. **Ustawienia telefonu** (sekcja „Przygotowanie telefonu” na ekranie pokazuje, czego brakuje):
+   - uprawnienia: „Urządzenia w pobliżu” (Android 12+; na 10–11 – lokalizacja) i powiadomienia;
+   - „Bateria” → bez optymalizacji baterii;
+   - MIUI/HyperOS: „Autostart” → włącz Glebosaurusa; w ustawieniach aplikacji Oszczędzanie baterii → **Bez ograniczeń**;
+     w ostatnich aplikacjach przytrzymaj Glebosaurusa i zablokuj (kłódka);
+   - jeśli system ma ochronę akumulatora (ładowanie do 80%) – włącz ją: telefon wisi na ładowarce bez przerwy;
+   - nie instaluj na tym telefonie Smart Life (walczyłaby o połączenia z czujnikami);
+   - **blokada ekranu:** po restarcie telefonu (aktualizacja systemu, rozładowanie) agent rusza dopiero po pierwszym
+     odblokowaniu – wcześniej Android nie udostępnia aplikacji jej danych. Bez blokady ekranu rusza sam; z blokadą – po 30
+     min ciszy przyjdzie mail „agent milczy”, wtedy wystarczy odblokować telefon.
+5. **Miejsce na telefon**: „Zasięg czujników” – podgląd na żywo (3 min) mocy sygnału każdego czujnika z konfiguracji i innych
+   urządzeń Tuya w pobliżu. Odczyty udawały się przy -75…-81 dBm; przy ok. -94 dBm czujnika nie słychać.
+
+Ekran pokazuje to samo co panel WWW w trybie chmurowym (który agent czyta który czujnik, ostatnie odczyty wszystkich agentów,
+synchronizacja, alerty, agenci), stan telefonu (bateria, temperatura akumulatora, ładowarka, Wi-Fi – idą też w sygnale życia
+do chmury) i ostatnie wpisy dziennika. Agent pracuje jako usługa ze stałym powiadomieniem, startuje po restarcie telefonu i po
+aktualizacji aplikacji; „Zatrzymaj agenta” kończy bieżący odczyt i oddaje czujniki innym agentom. Gdy system mimo wszystko go
+zabije, nadawca wyśle po 30 min mail „agent milczy”. Token agenta i kopia konfiguracji z kluczami Tuya są zaszyfrowane kluczem
+z Android Keystore (odinstalowanie aplikacji je kasuje – potem nowa rejestracja). Dziennik: `adb logcat -s Glebosaurus`.
 
 ## Raspberry Pi (linux-arm64) – niesprawdzone
 

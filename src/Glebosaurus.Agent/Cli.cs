@@ -20,7 +20,7 @@ internal sealed record CliOptions(
     string Command, int? Seconds, int Timeout, string? Credentials, string? Config, string? Output, bool Verbose, bool Quiet,
     int? Minutes, bool ConfirmBind, string? Id, string? Name, string? Mac, int? Linger, bool Samples, string? Date, string? StopEvent,
     string? Code = null, string? Subcommand = null, string? Admin = null, bool Confirm = false, int? SenderPriority = null, string? TimeZone = null,
-    int? Keep = null, bool Revoke = false, int? ReadInterval = null);
+    int? Keep = null, bool Revoke = false, int? ReadInterval = null, string? Qr = null);
 
 internal static class Cli
 {
@@ -72,9 +72,11 @@ internal static class Cli
               Bez --read-interval: wspólne ustawienia z chmury (odstęp odczytów, raporty, strefa) i czujniki z własnym
               odstępem. Z --read-interval i --confirm zmienia sam odstęp odczytów (np. 125 = 2 h 5 min); reszty
               konfiguracji nie rusza. Agenci przejmą go przy najbliższej synchronizacji (ok. minuty).
-          glebosaurus cloud agent --admin PLIK [--name NAZWA [--sender-priority N] --confirm]
+          glebosaurus cloud agent --admin PLIK [--name NAZWA [--sender-priority N] --confirm [--qr PLIK.png]]
               Bez --name: lista agentów. Z --name i --confirm: tworzy agenta (z --sender-priority 1–9 – kandydat na
-              nadawcę, 1 najważniejszy; bez – tylko zbiera) i wypisuje jednorazowy kod rejestracji (24 h) do enroll.
+              nadawcę, 1 najważniejszy; bez – tylko zbiera) i wypisuje jednorazowy kod rejestracji (24 h) do enroll,
+              a dla telefonu (Android) także kod QR z adresem projektu i kluczem publikowalnym – w konsoli albo z --qr
+              w pliku PNG (zawiera kod rejestracji – usuń plik po użyciu).
               Istniejącemu agentowi zmienia rolę – działający agent przejmuje ją w ciągu ok. minuty, bez enroll.
           glebosaurus cloud agent --admin PLIK --name NAZWA --revoke [--confirm]
               Odcina agenta (zgubione urządzenie, wyciek tokenu): unieważnia token od razu i kasuje jego niewykorzystane
@@ -160,7 +162,7 @@ internal static class Cli
         int? seconds = null, minutes = null, linger = null;
         var timeout = 12;
         string? credentials = null, config = null, output = null, id = null, name = null, mac = null, date = null, stopEvent = null, code = null;
-        string? admin = null, timeZone = null;
+        string? admin = null, timeZone = null, qr = null;
         int? senderPriority = null, keep = null, readInterval = null;
         bool verbose = false, quiet = false, confirmBind = false, samples = false, confirm = false, revoke = false;
         for (var i = (hasCommand ? 1 : 0) + (subcommand is null ? 0 : 1); i < args.Length; i++)
@@ -192,13 +194,14 @@ internal static class Cli
                 case "--time-zone": timeZone = Value(args, ++i, "--time-zone"); break;
                 case "--keep": keep = Number(args, ++i, "--keep", 365); break;
                 case "--read-interval": readInterval = Number(args, ++i, "--read-interval", 1440); break;
+                case "--qr": qr = Value(args, ++i, "--qr"); break;
                 // Prywatny sygnał zatrzymania od usługi Windows (glebosaurus-service); nie dla ludzi, więc bez opisu w pomocy.
                 case "--stop-event": stopEvent = Value(args, ++i, "--stop-event"); break;
                 default: throw new ArgumentException($"Nieznany parametr {args[i]}. Użyj --help.");
             }
         }
         return new(command, seconds, timeout, credentials, config, output, verbose, quiet, minutes, confirmBind, id, name, mac, linger, samples, date, stopEvent, code,
-            subcommand, admin, confirm, senderPriority, timeZone, keep, revoke, readInterval);
+            subcommand, admin, confirm, senderPriority, timeZone, keep, revoke, readInterval, qr);
     }
 
     private static string Value(string[] args, int index, string flag) =>
