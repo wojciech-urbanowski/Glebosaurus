@@ -11,12 +11,13 @@ Laurowiśnia szafka, Hortensje niskie, Trawa, Alpinarium). „Monitor” w stars
 
 ## Wdrożenie autora – stan na 2026-11-19
 
-- **bestia5** (Windows 11, usługa w `%LOCALAPPDATA%\Glebosaurus` od 2026-11-15, wersja 0.2.2 od 2026-11-19 13:45): agent
+- **bestia5** (Windows 11, usługa w `%LOCALAPPDATA%\Glebosaurus` od 2026-11-15, wersja 0.2.3 od 2026-11-19 16:54): agent
   `bestia5`, nadawca z priorytetem 2, panel WWW w sieci lokalnej, codzienna kopia chmury do `data\backups`. Konfiguracja
   trybu samodzielnego sprzed przejścia na chmurę (`data\glebosaurus.standalone.config.json`, z hasłem Gmaila i kluczami
   Tuya) i jej pliki kluczy czujników (`data\*.credentials.json` – klucze są w chmurze) usunięte 2026-11-19.
-- **mi11** (Android 14, HyperOS) od 2026-11-19 10:45: agent `mi11`, tylko zbieracz, na razie przy bestia5.
-- **Prawdziwy projekt Supabase**: 3 migracje, 9 czujników (5 sparowanych lokalnie: Cyprysek, Cisy, Zioła, Wiszący wejście,
+- **mi11** (Android 14, HyperOS) od 2026-11-19 10:45: agent `mi11`, tylko zbieracz, na razie przy bestia5; APK 0.2.3 od
+  2026-11-19 16:48 (instalacja przez adb).
+- **Prawdziwy projekt Supabase**: 4 migracje (ostatnia `20261119120000_agent_device_status` od 2026-11-19 16:46), 9 czujników (5 sparowanych lokalnie: Cyprysek, Cisy, Zioła, Wiszący wejście,
   Laurowiśnia wejście; 4 zostawione w Smart Life i czytane kluczami z chmury Tuya: Laurowiśnia szafka, Hortensje niskie,
   Trawa, Alpinarium), odczyt co 2 h 5 min (od 2026-11-18 21:32), raporty o 07:00 i 19:00, strażnik healthchecks.io.
 
@@ -163,6 +164,15 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   link do kodu w stopce panelu i w `--help`). Rozważane były też licencje z zakazem użytku komercyjnego (CC BY-NC-SA 4.0,
   AGPL + Commons Clause, PolyForm Noncommercial) – odrzucone: nie są open source, a żadna nie łączy spójnie zakazu
   zarabiania z obowiązkiem publikacji kodu; AGPL wybrana zamiast GPL, bo obejmuje też udostępnianie przez sieć.
+  **Stan telefonu w panelu WWW (0.2.3)** – telefon niczego nie wystawia (prośba użytkownika), stan jedzie w `agent_sync`,
+  a chmura oddaje go innym agentom. Migracja `20261119120000_agent_device_status` na prawdziwym projekcie o 16:46: usługa
+  0.2.2 na bestia5 synchronizowała się dalej bez ostrzeżeń (nowe pole w liście agentów pomija). APK 0.2.3 na mi11 o 16:48
+  przez adb, w przerwie między odczytami: agent wstał sam po `MY_PACKAGE_REPLACED` (konfiguracja wersja 60, 9 czujników).
+  Minutę później w chmurze (`agent_status_view`, zapytanie tylko do odczytu) sygnał życia mi11: Wi-Fi −63 dBm, na
+  ładowarce, bateria 97%, akumulator 15,0 °C, stan cieplny `none`; bestia5 – wersja, platforma i Bluetooth. Wydanie 0.2.3
+  (bez APK – nadal bez sekretów klucza Androida) opublikowane 16:50 z tagu `v0.2.3`; na bestia5 `stop` (1 s) i start
+  zadania o 16:54:15 – usługa przeszła 0.2.2 → 0.2.3 w ok. 15 s, konfiguracja z chmury (wersja 60), panel WWW i kopia
+  odczytów od razu, bez ostrzeżeń w dzienniku; w chmurze obaj agenci z wersją 0.2.3 w sygnale życia.
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 
