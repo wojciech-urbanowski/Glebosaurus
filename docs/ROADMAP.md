@@ -6,7 +6,7 @@ użycie – [README](../README.md); kiedy co zrobiono i sprawdzono na sprzęcie 
 Wielkości: **S** – dzień lub mniej, **M** – kilka dni, **L** – tydzień lub więcej (przy pracy w wolnych chwilach).
 Stan: ✔ zrobione · ◐ w toku albo częściowo · ○ do zrobienia.
 
-## Stan w skrócie (wersja 0.2.5)
+## Stan w skrócie (wersja 0.2.6)
 
 **Działa i pracuje na co dzień** (u autora: komputer z Windows 11 jako nadawca i telefon z Androidem jako drugi
 zbieracz, 9 czujników):
@@ -101,7 +101,7 @@ Tylko zbieranie, telefon na Wi-Fi (zasada 12; użycie – README, „Android”)
 | # | Zadanie | Stan | Wielkość |
 |---|---|---|---|
 | 1 | **Próba na telefonie:** instalacja, rejestracja QR, uprawnienia i ustawienia MIUI, skan i odczyty, zgaszony ekran, restart telefonu. | ◐ wszystko poza pracą przez całą noc | S–M |
-| 2 | **Agent:** usługa w tle, start po restarcie, rejestracja QR, synchronizacja, ekran stanu i zasięgu, stan telefonu w sygnale życia i w panelu WWW komputera (bateria, temperatura, stan cieplny, sieć). | ✔ stan telefonu i Raspberry Pi w każdym raporcie (sekcja „Urządzenia”, 2026-11-20; na żywo ○ – migracja `20261120120000` i wydanie); ○ osobny alert mailowy o temperaturze telefonu (na razie wystarcza raport); start bez odblokowania (Direct Boot) | L |
+| 2 | **Agent:** usługa w tle, start po restarcie, rejestracja QR, synchronizacja, ekran stanu i zasięgu, stan telefonu w sygnale życia i w panelu WWW komputera (bateria, temperatura, stan cieplny, sieć). | ✔ stan telefonu i Raspberry Pi w każdym raporcie (sekcja „Urządzenia”, wydanie 0.2.6 z 2026-11-20; pierwszy prawdziwy raport z sekcją ○); ○ osobny alert mailowy o temperaturze telefonu (na razie wystarcza raport); start bez odblokowania (Direct Boot) | L |
 | 3 | **Wydania:** APK z Actions podpisany kluczem wydań z sekretów repozytorium; powiadomienie o nowej wersji albo Obtainium. | ◐ workflowy gotowe, czekają na sekrety klucza | S |
 | 4 | **Praca obok komputera na tych samych czujnikach:** przejęcie czujników po wyłączeniu komputera, oddanie przy lepszym sygnale, żadnych równoczesnych połączeń. | ◐ pierwszy dzień bez kolizji | S + czas |
 

@@ -6,7 +6,7 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Deterministic>true</Deterministic>
     <!-- Jedno źródło wersji dla wszystkich projektów; widać ją w stopce maili (AppInfo.Version) i w nazwie paczki. -->
-    <Version>0.2.5</Version>
+    <Version>0.2.6</Version>
     <!-- Licencja: AGPL-3.0-or-later (LICENSE, NOTICE.md); widać ją we właściwościach plików .exe/.dll. -->
     <Authors>Wojciech Urbanowski</Authors>
     <Company>Wojciech Urbanowski</Company>

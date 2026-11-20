@@ -27,7 +27,7 @@ czujniki BLE ──► agenci (Windows / Android / Raspberry Pi) ──► Supab
 - **Panel WWW** (opcjonalnie, na agencie w sieci domowej): stan wszystkich czujników, wykresy całej historii, odczyt i raport
   na żądanie.
 
-Stan: wersja 0.2.5; agent pracuje na co dzień na Windows 11 i Androidzie; Raspberry Pi jako nadawca maili bez Bluetooth
+Stan: wersja 0.2.6; agent pracuje na co dzień na Windows 11 i Androidzie; Raspberry Pi jako nadawca maili bez Bluetooth
 – zrobione, na Pi jeszcze nieuruchomione; **niesprawdzone:** Raspberry Pi na żywo (także czytanie czujników), kalibracja
 wilgotności, dłuższa praca telefonu – szczegóły w [ROADMAP](docs/ROADMAP.md).
 

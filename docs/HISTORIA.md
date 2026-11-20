@@ -20,7 +20,7 @@ Laurowiśnia szafka, Hortensje niskie, Trawa, Alpinarium). „Monitor” w stars
 - **rasp3** (Raspberry Pi, 64-bit, daleko od czujników) od 2026-11-19 ok. 21:27: agent `rasp3`, **główny nadawca**
   (priorytet 1), bez Bluetooth (faza 2.3a); wersja 0.2.4 z `install-linux.sh` (usługa systemd, samoaktualizacja z timera).
   bestia5 zostaje nadawcą zapasowym.
-- **Prawdziwy projekt Supabase**: 4 migracje (ostatnia `20261119120000_agent_device_status` od 2026-11-19 16:46), 9 czujników (5 sparowanych lokalnie: Cyprysek, Cisy, Zioła, Wiszący wejście,
+- **Prawdziwy projekt Supabase**: 5 migracji (ostatnia `20261120120000_agent_cpu_temperature` od 2026-11-20 08:07), 9 czujników (5 sparowanych lokalnie: Cyprysek, Cisy, Zioła, Wiszący wejście,
   Laurowiśnia wejście; 4 zostawione w Smart Life i czytane kluczami z chmury Tuya: Laurowiśnia szafka, Hortensje niskie,
   Trawa, Alpinarium), odczyt co 2 h 5 min (od 2026-11-18 21:32), raporty o 07:00 i 19:00, strażnik healthchecks.io.
 
@@ -224,8 +224,10 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   procesora, nowe pole sygnału życia `cpuTemperatureCelsius`, migracja `20261120120000_agent_cpu_temperature`), ostrzeżenia
   jak w panelu, gorący procesor od 75 °C; urządzenie z ostrzeżeniem albo milczące liczy się do „Uwag”. Bez wykrywania zbyt
   niskiego napięcia zasilacza Pi (decyzja: odczyt raz na minutę gubiłby krótkie spadki). Testy zielone (także SQL na
-  próbnym projekcie), wygląd sprawdzony w `mail-preview` przy 375 px. Na żywo ○: migracja na prawdziwym projekcie, wydanie,
-  pierwszy raport z sekcją.
+  próbnym projekcie), wygląd sprawdzony w `mail-preview` przy 375 px, APK zbudowany (bez instalacji – telefon wysyła baterię
+  i temperaturę od 0.2.3). Na prośbę użytkownika migracja `20261120120000_agent_cpu_temperature` na prawdziwym projekcie
+  o 08:07 (plan: jedna czekająca; po niej bestia5, mi11 i rasp3 synchronizują się dalej) i **wydanie 0.2.6** z tagu
+  `v0.2.6` – usługi na rasp3 i bestia5 pobiorą je same (przy starcie albo o 03:30). Pierwszy prawdziwy raport z sekcją ○.
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 
