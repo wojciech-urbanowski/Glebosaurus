@@ -34,7 +34,7 @@ zbieracz, 9 czujników):
 | Android | noc i tydzień pracy; przejęcie czujników po wyłączeniu komputera; błąd GATT 133; APK z CI |
 | Raspberry Pi | 2.3a (nadawca bez Bluetooth): instalacja na Pi, tydzień pracy 24/7, przejęcie blokady w obie strony, samoaktualizacja z prawdziwego wydania, powrót poprzedniej wersji przy zepsutym wydaniu; 2.3b (czujniki) – wszystko |
 | Czujnik | kalibracja wilgotności; profil `ojzlzzsw`; czy niesparowany czujnik zawsze milknie po oknie 20 s |
-| Bateria | rzadsze odpytywanie (wydanie 0.2.7 z 2026-11-20; APK na mi11 ○): połączenia na dobę, przejęcia i opóźnienia z odczytów w chmurze, bateria telefonu – HISTORIA.md, „Rzadsze odpytywanie – jak sprawdzić”; potem tryb skanu Balanced dla nasłuchu na telefonie (po 1–2 dniach godzinnych podsumowań nasłuchu) |
+| Bateria | rzadsze odpytywanie (wydanie 0.2.7 z 2026-11-20; APK na mi11 od 15:36): połączenia na dobę, przejęcia i opóźnienia z odczytów w chmurze, bateria telefonu – HISTORIA.md, „Rzadsze odpytywanie – jak sprawdzić”; potem tryb skanu Balanced dla nasłuchu na telefonie (po 1–2 dniach godzinnych podsumowań nasłuchu) |
 
 ### Następne kroki (w tej kolejności)
 

@@ -237,8 +237,10 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   powiadomienie telefonu bez bazy i bez `alert_list` (dotąd ok. 1440 zapytań na dobę); godzinne podsumowanie nasłuchu w
   dzienniku. Tryb skanu Balanced dla nasłuchu na telefonie – dopiero po 1–2 dniach podsumowań z obecnym trybem (punkt
   odniesienia). Testy zielone, APK zbudowany (bez instalacji). Na prośbę użytkownika **wydanie 0.2.7** z tagu `v0.2.7`
-  (bez migracji) – usługi na rasp3 i bestia5 pobiorą je same; APK na mi11 ○. Jak sprawdzić efekt – niżej, „Rzadsze
-  odpytywanie – jak sprawdzić”.
+  (bez migracji) – usługi na rasp3 i bestia5 pobiorą je same. Na prośbę użytkownika APK 0.2.7 na mi11 o 15:36
+  (`adb install -r` w przerwie między nasłuchami, ostatnie połączenie z czujnikiem zamknięte o 14:43): agent wstał sam po
+  `MY_PACKAGE_REPLACED` z tą samą rejestracją, wziął konfigurację i kopię odczytów, nasłuchy idą co 4–5 min. Jak sprawdzić
+  efekt – niżej, „Rzadsze odpytywanie – jak sprawdzić”.
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 
@@ -508,8 +510,8 @@ samym wynikiem (region, wersje, automatyczne RLS, zachowanie kluczy, pooler `aws
 
 ### Rzadsze odpytywanie – jak sprawdzić (2026-11-20)
 
-Po wdrożeniu (usługi bestia5 i rasp3 z wydania, APK na mi11). Punkt odniesienia jest w chmurze wstecz: odczyty mają chwilę
-przyjęcia (`received_at`) i agenta od 2026-11-17.
+Po wdrożeniu (usługi bestia5 i rasp3 z wydania – przy starcie albo o 03:30; APK 0.2.7 na mi11 od 2026-11-20 15:36).
+Punkt odniesienia jest w chmurze wstecz: odczyty mają chwilę przyjęcia (`received_at`) i agenta od 2026-11-17.
 
 **Połączenia, opóźnienia i przejęcia – z odczytów w chmurze** (edytor SQL Supabase, samo czytanie). Jedno udane
 połączenie to jedna paczka odczytów czujnika z tą samą chwilą przyjęcia: zaległe rekordy i stan bieżący idą w jednej
