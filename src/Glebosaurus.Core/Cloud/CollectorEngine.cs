@@ -72,6 +72,7 @@ public sealed class CollectorEngine(
 
     private readonly CollectorOptions settings = options ?? new();
     private readonly Dictionary<string, Attempt> attempts = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, (long Epoch, DateTimeOffset? LatestAt)> cloudChecked = new(StringComparer.Ordinal);
     private readonly Lock gate = new();
     private readonly Dictionary<string, List<long>> requested = new(StringComparer.Ordinal);
     private readonly List<(long Id, JsonObject Result)> unreported = [];
@@ -293,12 +294,45 @@ public sealed class CollectorEngine(
             if (!leases.CanRead(sensor.Id, TimeSpan.FromSeconds(agent.ScanWindowSeconds) + settings.PerQueuedSensor * due.Count)) continue;
             if (!requested)
             {
+                var interval = Interval(agent, sensor);
                 var latest = await store.GetLatestAsync(sensor.Id, cancellationToken);
-                if (latest is not null && now - latest.At < Interval(agent, sensor)) continue;
+                if (latest is not null && now - latest.At < interval) continue;
+                if (await LatestInCloudAsync(sensor, interval, now, cancellationToken) is { } cloudAt && now - cloudAt < interval) continue;
             }
             due.Add(sensor);
         }
         return due;
+    }
+
+    /// <summary>
+    /// Ostatni odczyt czujnika w chmurze – sprawdzany raz na epokę dzierżawy (przejęcie od innego agenta albo start agenta):
+    /// poprzedni właściciel mógł czytać przed chwilą, a jego odczyt nie dotarł jeszcze przez kopię odczytów (albo ten agent
+    /// kopii nie ma – bez sekcji <c>web</c>). Bez tego nowy właściciel łączyłby się z czujnikiem zaraz po poprzednim. Bez
+    /// sieci – null: odczyt według lokalnej bazy, jak bez sprawdzenia.
+    /// </summary>
+    private async Task<DateTimeOffset?> LatestInCloudAsync(SensorConfig sensor, TimeSpan interval, DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        if (leases.Epoch(sensor.Id) is not { } epoch) return null;
+        if (cloudChecked.TryGetValue(sensor.Id, out var known) && known.Epoch == epoch) return known.LatestAt;
+        DateTimeOffset? latestAt;
+        try
+        {
+            // Kilka minut „w przyszłość” – zegar poprzedniego właściciela bywa odrobinę przed zegarem tego agenta.
+            var recent = await api.ReadingsRangeAsync([sensor.Id], now - interval, now + TimeSpan.FromMinutes(10), cancellationToken);
+            latestAt = recent.Count > 0 ? recent.Max(r => r.At) : null;
+        }
+        catch (CloudApiException e)
+        {
+            logger.LogWarning("{Sensor}: nie udało się sprawdzić w chmurze ostatniego odczytu przejętego czujnika ({Error}) – czytam według lokalnej bazy.",
+                sensor.Name, e.Message);
+            return null;
+        }
+        cloudChecked[sensor.Id] = (epoch, latestAt);
+        if (latestAt is { } at && now - at < interval)
+            logger.LogInformation("{Sensor}: czujnik przejęty – w chmurze jest odczyt sprzed {Minutes} min, następny po zwykłym odstępie (bez zbędnego połączenia).",
+                sensor.Name, Math.Max(0, (int)(now - at).TotalMinutes));
+        return latestAt;
     }
 
     private async Task ReadAsync(AgentConfig agent, IReadOnlyList<SensorConfig> due, IReadOnlyDictionary<string, List<long>> onRequest,

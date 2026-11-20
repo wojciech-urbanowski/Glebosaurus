@@ -115,9 +115,17 @@ internal sealed class FakeCloudApi(ManualTimeProvider clock) : ICloudApi
         return Task.FromResult(Credentials);
     }
 
+    public List<string[]> RangeCalls { get; } = [];
+    public Queue<CloudApiException> RangeFailures { get; } = new();
+
     public Task<IReadOnlyList<StoredReading>> ReadingsRangeAsync(IReadOnlyCollection<string> sensors, DateTimeOffset from, DateTimeOffset to,
-        CancellationToken cancellationToken) =>
-        Task.FromResult<IReadOnlyList<StoredReading>>([.. CloudReadings.Where(r => sensors.Contains(r.SensorId) && r.At >= from && r.At <= to).OrderBy(r => r.At)]);
+        CancellationToken cancellationToken)
+    {
+        RangeCalls.Add([.. sensors]);
+        if (RangeFailures.TryDequeue(out var failure)) throw failure;
+        return Task.FromResult<IReadOnlyList<StoredReading>>(
+            [.. CloudReadings.Where(r => sensors.Contains(r.SensorId) && r.At >= from && r.At <= to).OrderBy(r => r.At)]);
+    }
 
     // ---- Kopia odczytów (readings_feed): numery kolejne jak w bazie ----
 

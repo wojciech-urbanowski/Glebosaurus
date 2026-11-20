@@ -42,8 +42,8 @@ public sealed class CollectorTests : IDisposable
 
     public void Dispose() => db.Dispose();
 
-    private void Grant(string sensor, double seconds = 1800) =>
-        ledger.Apply(ledger.Now(), [new LeaseResult(CloudProtocol.SensorResource(sensor), true) { Epoch = 1, ValidSeconds = seconds }]);
+    private void Grant(string sensor, double seconds = 1800, long epoch = 1) =>
+        ledger.Apply(ledger.Now(), [new LeaseResult(CloudProtocol.SensorResource(sensor), true) { Epoch = epoch, ValidSeconds = seconds }]);
 
     private static CloudCommand Command(long id, string kind, string? sensor = null) =>
         new(id, kind, sensor, null, Fixtures.T0, 600);
@@ -202,6 +202,68 @@ public sealed class CollectorTests : IDisposable
         await collector.CycleAsync(Ct);
         Assert.Equal(2, reader.Calls.Count);
         Assert.Equal(96, (await db.Store.GetLatestAsync("s1", Ct))!.MoisturePercent);
+    }
+
+    [Fact]
+    public async Task TakenOverSensor_ReadRecentlyByPreviousOwner_WaitsForTheInterval()
+    {
+        // Poprzedni właściciel czytał 5 min temu, a jego odczyt nie dotarł jeszcze przez kopię odczytów.
+        api.CloudReadings.Add(Fixtures.Reading("s1", Fixtures.T0 - 5 * Minute));
+        Grant("s1", epoch: 7);
+
+        await collector.CycleAsync(Ct);
+        clock.Advance(Minute);
+        Grant("s1", epoch: 7);
+        await collector.CycleAsync(Ct);
+
+        Assert.Empty(reader.Calls);
+        Assert.Equal([["s1"]], api.RangeCalls);           // raz na epokę – nie co obrót pętli
+
+        clock.Advance(9 * Minute);                        // odstęp (15 min) od odczytu poprzedniego właściciela
+        Grant("s1", epoch: 7);
+        await collector.CycleAsync(Ct);
+        Assert.Equal([["s1"]], reader.Calls);
+        Assert.Single(api.RangeCalls);
+    }
+
+    [Fact]
+    public async Task TakenOverSensor_WithoutARecentReadingInTheCloud_IsReadAtOnce()
+    {
+        api.CloudReadings.Add(Fixtures.Reading("s1", Fixtures.T0 - TimeSpan.FromHours(2)));
+        Grant("s1", epoch: 3);
+        await collector.CycleAsync(Ct);
+        Assert.Single(reader.Calls);
+
+        // Kolejna epoka (czujnik oddany i odzyskany) – własny odczyt jest świeży, więc chmura nie jest nawet pytana.
+        clock.Advance(Minute);
+        Grant("s1", epoch: 5);
+        await collector.CycleAsync(Ct);
+        Assert.Single(reader.Calls);
+        Assert.Single(api.RangeCalls);
+    }
+
+    [Fact]
+    public async Task TakeoverCheck_WithoutNetwork_ReadsByTheLocalDatabase()
+    {
+        api.RangeFailures.Enqueue(new(CloudErrorKind.Unavailable, "brak sieci"));
+        Grant("s1");
+
+        await collector.CycleAsync(Ct);
+
+        Assert.Equal([["s1"]], reader.Calls);
+    }
+
+    [Fact]
+    public async Task ReadNow_DoesNotAskTheCloudForTheLatestReading()
+    {
+        api.CloudReadings.Add(Fixtures.Reading("s1", Fixtures.T0 - Minute));
+        Grant("s1");
+
+        await collector.HandleCommandAsync(Command(9, "read_now", "s1"), Ct);
+        await collector.CycleAsync(Ct);
+
+        Assert.Equal([["s1"]], reader.Calls);
+        Assert.Empty(api.RangeCalls);
     }
 
     [Fact]

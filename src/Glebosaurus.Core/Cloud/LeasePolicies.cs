@@ -78,6 +78,9 @@ public sealed class SensorLeasePolicy(TimeProvider clock, LeaseLedger ledger, Se
     public bool CanRead(string sensorId, TimeSpan extra = default) =>
         ledger.Holds(CloudProtocol.SensorResource(sensorId), settings.MinimumForRead + extra);
 
+    /// <summary>Epoka dzierżawy czujnika, którą agent uważa za swoją; nowa epoka = czujnik przejęty (albo start agenta).</summary>
+    public long? Epoch(string sensorId) => ledger.Epoch(CloudProtocol.SensorResource(sensorId));
+
     /// <summary>Oddanie na żądanie (polecenie <c>release</c>, zatrzymanie agenta) – od razu przestaje czytać ten czujnik.</summary>
     public void Release(string sensorId, TimeSpan? cooldown = null)
     {

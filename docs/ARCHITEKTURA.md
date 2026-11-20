@@ -204,7 +204,10 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
        zepsute wydanie, powrót do starszej wersji, odinstalowanie; z `--systemd` (root) pełna usługa bez startu. CI
        uruchamia go przy każdym pushu na `ubuntu-24.04-arm`, a wydanie instaluje swoją paczkę na arm64 przed publikacją.
 8. **Odczyty.** Agent słucha reklam i łączy się, gdy czujnik jest widoczny, a odczyt należny (odstęp od ostatniego
-   odczytu w bazie – własnego albo z kopii odczytów innych agentów). **Nasłuch na przemian z odczytem**
+   odczytu w bazie – własnego albo z kopii odczytów innych agentów). Przy nowej epoce dzierżawy (przejęcie czujnika, start
+   agenta) zbieracz przed pierwszym zwykłym odczytem raz pyta chmurę o ostatni odczyt czujnika (`readings_range`) – odczyt
+   poprzedniego właściciela mógł jeszcze nie dojść przez kopię odczytów, a agent bez panelu kopii nie ma; bez sieci czyta
+   według lokalnej bazy. **Nasłuch na przemian z odczytem**
    (`ListenThenReadSensorReader` w Core, radio za `ISensorRadio`): gdy w reklamach pojawi się którykolwiek z należnych
    czujników, nasłuch się kończy, czujnik jest czytany od razu, potem nasłuch wraca po pozostałe. Radio nigdy nie słucha i
    nie łączy się jednocześnie (na Pi Wi-Fi i BLE dzielą układ). Okno `scanWindowSeconds` (domyślnie 60 s) liczy tylko
@@ -478,7 +481,7 @@ tabeli; pilnuje ich `TimingDependenciesTests` (wartości po stronie chmury czyta
 | Ponowienia po porażce | 2, 5, potem 10 min (nie dłużej niż odstęp odczytów) | trzecia porażka z rzędu (ok. 7 min po pierwszej) oddaje czujnik; okres ochronny 30 min mieści 5 prób |
 | Sesja urwana w trakcie historii | 2 min | bez liczenia porażki |
 | Synchronizacja | 90 s; od razu po nowych odczytach, oddaniu czujnika i poleceniach z panelu | kandydat na nadawcę jest obecny, gdy jego sygnał życia ma najwyżej 4 min (po jednym chybionym cyklu – do 180 s); blokadzie nadawcy (5 min) po chybionym cyklu zostają 2 min, a do maila trzeba 1 – maile stają dopiero przy trzeciej nieudanej synchronizacji z rzędu; dzierżawa czujnika 30 min; strażnik wymaga udanej synchronizacji w ostatnich 3 min; „agent milczy” po 30 min; polecenia docierają do 90 s, wygasają po 10 min |
-| Kopia odczytów | 2 min | zlecony odczyt czeka w panelu do 6 min: synchronizacja właściciela, nasłuch i odczyt, 30 s „ustalenia” wiersza, kopia |
+| Kopia odczytów | 2 min | zlecony odczyt czeka w panelu do 6 min: synchronizacja właściciela, nasłuch i odczyt, 30 s „ustalenia” wiersza, kopia; nowy właściciel czujnika nie czeka na kopię – raz na epokę dzierżawy pyta chmurę o ostatni odczyt (zasada 8) |
 | Pętla nadawcy | 60 s | raporty o stałych porach; raport na żądanie budzi ją od razu |
 | Przeliczanie alertów | 5 min (3 zapytania do chmury) | przerwa ponad 10 min to przestój i 30 min okresu ochronnego (`SilenceGrace`); przyrostowe pobieranie odczytów cofa się o 30 min |
 | Strażnik healthchecks.io | 5 min (z pętlą 5–6 min) | ustawienie sprawdzenia: Period 5 min, Grace 25 min |
