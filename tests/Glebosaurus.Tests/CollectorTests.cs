@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Text;
 using Glebosaurus.Core.Cloud;
 using Glebosaurus.Core.Monitoring;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Glebosaurus.Tests;
@@ -135,6 +136,30 @@ public sealed class CollectorTests : IDisposable
         Assert.Equal(-73, s2.Rssi);   // średnia wykładnicza (-71, -75)
         Assert.Equal(Fixtures.T0 + 4 * Minute, s2.LastHeardAt);
         Assert.False(hearing.Observations().ContainsKey("s1"));
+    }
+
+    [Fact]
+    public async Task HearingSummary_OncePerHour_CountsHeardSensorsAndPackets()
+    {
+        var log = new CapturingLogger();
+        var config = new CloudAgentConfig(Fixtures.Config(Fixtures.Sensor("s1"), Fixtures.Sensor("s2", uuid: "07aaad78f40b0a75")),
+            TimeZoneInfo.Utc, 1, new("mi11", false, null), null, []);
+        var engine = new CollectorEngine(() => config, db.Store, reader, listener, leases, hearing, api, logs, clock, log);
+        var round = 0;
+        listener.Script = _ => round++ % 2 == 0 ? [new("s1", -70, 6), new("s2", -80, 2)] : [new("s2", -80, 4)];
+
+        for (var minute = 0; minute < 60; minute += 4)
+        {
+            await engine.CycleAsync(Ct);
+            clock.Advance(4 * Minute);
+        }
+        Assert.DoesNotContain(log.Entries, e => e.Message.StartsWith("Nasłuch za", StringComparison.Ordinal));
+        await engine.CycleAsync(Ct);                    // 16. nasłuch, godzina od pierwszego
+
+        var summary = Assert.Single(log.Entries, e => e.Message.StartsWith("Nasłuch za", StringComparison.Ordinal));
+        Assert.Equal(LogLevel.Information, summary.Level);
+        Assert.Equal("Nasłuch za ostatnie 60 min: nasłuchów 16 (po 30 s), słyszanych czujników średnio 1,5 z 2 (najmniej 1), " +
+            "pakietów na słyszany czujnik średnio 4,0.", summary.Message);
     }
 
     [Fact]

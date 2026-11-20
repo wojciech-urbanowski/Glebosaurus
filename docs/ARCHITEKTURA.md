@@ -414,7 +414,8 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
       `CloudConfigCache` – ostatnia dobra kopia (z kluczami Tuya) chroniona `ILocalProtector`. `CloudConfigSource` – start
       z chmury, bez niej z kopii, bez obu – czytelny błąd; odświeżanie przy nowej wersji albo zmienionej roli agenta.
     - **(d) Zbieracz** (`CollectorEngine`): cykl co 60 s, czyta tylko czujniki z dzierżawą starczającą na odczyt; co 4 min
-      30 s nasłuchu wszystkich czujników (`ISensorListener`) dla przydziału; polecenia `read_now`, `release`, `send_log`;
+      30 s nasłuchu wszystkich czujników (`ISensorListener`) dla przydziału, co godzinę podsumowanie nasłuchu w dzienniku
+      (nasłuchy, ilu czujników słychać, pakiety na czujnik – do oceny zmian radia); polecenia `read_now`, `release`, `send_log`;
       dziennik z poprzedniego dnia do chmury. Alertów nie liczy. **Bez radia** (agent z `"bluetooth": false`, np.
       Raspberry Pi jako sam nadawca – ROADMAP 2.3a): zbieracz dostaje `null` zamiast odczytu i nasłuchu – nie słucha i nie
       czyta, a synchronizacja nie przekazuje czujników do przydziału, więc agent o żaden się nie ubiega; zlecony odczyt

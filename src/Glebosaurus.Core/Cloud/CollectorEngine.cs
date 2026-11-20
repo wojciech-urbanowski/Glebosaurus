@@ -24,6 +24,10 @@ public sealed record CollectorOptions
     /// <summary>…i jak długi. Sparowany czujnik nadaje rzadko (pakiet co kilka–kilkanaście sekund).</summary>
     public TimeSpan HearWindow { get; init; } = TimeSpan.FromSeconds(30);
 
+    /// <summary>Co ile podsumowanie nasłuchu w dzienniku (ilu czujników słychać, ile pakietów) – do oceny zmian radia, np.
+    /// trybu skanu na telefonie, i zasięgu w logu administratora.</summary>
+    public TimeSpan HearingSummaryEvery { get; init; } = TimeSpan.FromHours(1);
+
     /// <summary>
     /// Kolejne odstępy po nieudanych odczytach (ostatni się powtarza), nigdy dłuższe niż zwykły odstęp odczytów czujnika.
     /// Każda nieudana próba, która doszła do połączenia, kosztuje baterię czujnika.
@@ -78,6 +82,7 @@ public sealed class CollectorEngine(
     private readonly List<(long Id, JsonObject Result)> unreported = [];
     private TaskCompletionSource wakeSignal = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private DateTimeOffset lastHearAt = DateTimeOffset.MinValue;
+    private HearingTally tally = new();
     private DateOnly? logUploadedFor;
     private DateTimeOffset logRetryAt = DateTimeOffset.MinValue;
     private DateTimeOffset nextPurgeAt = DateTimeOffset.MinValue;
@@ -267,6 +272,8 @@ public sealed class CollectorEngine(
         {
             logger.LogWarning("Nasłuch BLE (kto słyszy które czujniki) przerwany błędem: {Error}; kolejna próba za {Minutes} min.",
                 e.Message, settings.HearEvery.TotalMinutes);
+            tally.Failed++;
+            SummarizeHearing();
             return;
         }
         foreach (var sensor in heard)
@@ -275,6 +282,39 @@ public sealed class CollectorEngine(
             if (sensor.Rssi is { } rssi) lastSignal[sensor.SensorId] = (rssi, lastHearAt);
         }
         logger.LogDebug("Nasłuch: słyszę {Heard} z {Count} czujników.", heard.Count, agent.Sensors.Count);
+        tally.Hearings++;
+        tally.Heard += heard.Count;
+        tally.Packets += heard.Sum(h => h.Packets);
+        tally.Sensors = agent.Sensors.Count;
+        tally.Fewest = Math.Min(tally.Fewest, heard.Count);
+        SummarizeHearing();
+    }
+
+    /// <summary>Raz na <see cref="CollectorOptions.HearingSummaryEvery"/> – podsumowanie nasłuchów do dziennika.</summary>
+    private void SummarizeHearing()
+    {
+        tally.Since ??= lastHearAt;
+        var span = lastHearAt - tally.Since.Value;
+        if (span < settings.HearingSummaryEvery) return;
+        if (tally.Hearings > 0)
+            logger.LogInformation("Nasłuch za ostatnie {Minutes} min: nasłuchów {Hearings} (po {Window} s), słyszanych czujników średnio {Average} z {Sensors} " +
+                "(najmniej {Fewest}), pakietów na słyszany czujnik średnio {Packets}{Failures}.",
+                (int)Math.Round(span.TotalMinutes), tally.Hearings, (int)settings.HearWindow.TotalSeconds, Decimal((double)tally.Heard / tally.Hearings),
+                tally.Sensors, tally.Fewest, tally.Heard > 0 ? Decimal((double)tally.Packets / tally.Heard) : "–",
+                tally.Failed > 0 ? $", przerwanych błędem {tally.Failed}" : "");
+        else
+            logger.LogWarning("Nasłuch za ostatnie {Minutes} min: wszystkie {Failed} nasłuchy przerwane błędem.", (int)Math.Round(span.TotalMinutes), tally.Failed);
+        tally = new() { Since = lastHearAt };
+    }
+
+    private static string Decimal(double value) => value.ToString("0.0", CultureInfo.InvariantCulture).Replace('.', ',');
+
+    /// <summary>Liczniki nasłuchów od ostatniego podsumowania.</summary>
+    private sealed class HearingTally
+    {
+        public DateTimeOffset? Since;
+        public int Hearings, Failed, Heard, Packets, Sensors;
+        public int Fewest = int.MaxValue;
     }
 
     /// <summary>
