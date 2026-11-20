@@ -38,9 +38,10 @@ public sealed class CloudPanel(
     Func<MonitorRuntimeState> collector, Func<CloudSyncState> sync, Func<MailRuntimeState> mail, Func<ReadingMirrorState>? mirror,
     Action wakeSync, TimeProvider clock, ILogger logger)
 {
-    /// <summary>Jak długo zlecony odczyt „czeka” w panelu, jeśli nowy odczyt nie przyjdzie wcześniej (polecenie trafia do
-    /// właściciela przy jego synchronizacji, ok. minuty, potem odczyt i wysłanie).</summary>
-    public static readonly TimeSpan ReadPending = TimeSpan.FromMinutes(3);
+    /// <summary>Jak długo zlecony odczyt „czeka” w panelu, jeśli nowy odczyt nie przyjdzie wcześniej: polecenie trafia do
+    /// właściciela przy jego synchronizacji (do 90 s), potem nasłuch i odczyt (do ok. 80 s), a odczyt innego agenta dochodzi
+    /// jeszcze przez kopię odczytów (co 2 min, wiersze przyjęte co najmniej 30 s wcześniej).</summary>
+    public static readonly TimeSpan ReadPending = TimeSpan.FromMinutes(6);
 
     /// <summary>To samo polecenie najwyżej raz na minutę – tak liczy też chmura (<c>command_create</c>).</summary>
     public static readonly TimeSpan RequestCooldown = TimeSpan.FromMinutes(1);

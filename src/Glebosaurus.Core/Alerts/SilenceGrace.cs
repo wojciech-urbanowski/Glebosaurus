@@ -10,12 +10,13 @@ namespace Glebosaurus.Core.Alerts;
 /// </summary>
 public sealed class SilenceGrace(TimeSpan grace, TimeSpan pauseAfter)
 {
-    /// <summary>Tyle monitor ma na odczyty po starcie albo przerwie (z wykładniczym odstępem ponowień to ok. 6 prób).</summary>
+    /// <summary>Tyle monitor ma na odczyty po starcie albo przerwie (z odstępami ponowień 2, 5, 10 min to 5 prób).</summary>
     public static readonly TimeSpan DefaultGrace = TimeSpan.FromMinutes(30);
 
     /// <summary>
     /// Dłuższa przerwa między kolejnymi przeliczeniami alertów to przestój (uśpienie, brak blokady nadawcy); zwykle
-    /// przeliczenia idą co pół minuty do kilku minut. Fałszywe rozpoznanie przerwy tylko opóźnia alert o ciszy.
+    /// przeliczenia idą co 5–6 min (<c>NotifierOptions.AlertEvery</c> plus obrót pętli). Fałszywe rozpoznanie przerwy tylko
+    /// opóźnia alert o ciszy.
     /// </summary>
     public static readonly TimeSpan DefaultPauseAfter = TimeSpan.FromMinutes(10);
 

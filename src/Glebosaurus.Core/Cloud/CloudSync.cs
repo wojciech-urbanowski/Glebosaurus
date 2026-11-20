@@ -31,7 +31,13 @@ public interface ISensorHearingSource
 
 public sealed record CloudSyncOptions
 {
-    public TimeSpan Interval { get; init; } = TimeSpan.FromSeconds(60);
+    /// <summary>
+    /// Odstęp synchronizacji. Odnawia dzierżawy (czujnik 30 min, blokada nadawcy 5 min) i sygnał życia, który decyduje o
+    /// „obecności” agenta (<see cref="NotifierLockOptions.AliveWithin"/>) – po jednym chybionym cyklu blokadzie zostają 2 min
+    /// (do maila trzeba 1), a obecność trwa (ARCHITEKTURA.md, „Zależności czasów”). Nowe odczyty, oddanie czujnika i polecenia
+    /// z panelu budzą synchronizację od razu (<see cref="CloudSync.Wake"/>).
+    /// </summary>
+    public TimeSpan Interval { get; init; } = TimeSpan.FromSeconds(90);
 
     /// <summary>Odczytów w jednej synchronizacji (baza przyjmuje do 1000).</summary>
     public int BatchSize { get; init; } = 500;

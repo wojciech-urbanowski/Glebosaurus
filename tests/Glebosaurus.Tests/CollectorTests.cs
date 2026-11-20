@@ -80,7 +80,7 @@ public sealed class CollectorTests : IDisposable
         var s1 = state.Sensors["s1"];
         Assert.Equal((SensorReadFailure.None, 0, -77), (s1.LastResult!.Value, s1.Failures, s1.LastSignalDbm!.Value));
         var s2 = state.Sensors["s2"];
-        Assert.Equal((SensorReadFailure.NotFound, 1, Fixtures.T0 + Minute), (s2.LastResult!.Value, s2.Failures, s2.RetryAt!.Value));
+        Assert.Equal((SensorReadFailure.NotFound, 1, Fixtures.T0 + 2 * Minute), (s2.LastResult!.Value, s2.Failures, s2.RetryAt!.Value));
     }
 
     [Fact]
@@ -119,12 +119,12 @@ public sealed class CollectorTests : IDisposable
     }
 
     [Fact]
-    public async Task ListensToAllSensorsEveryThreeMinutes()
+    public async Task ListensToAllSensorsEveryFourMinutes()
     {
         listener.Script = sensors => [new("s2", -71, 4)];
 
         await collector.CycleAsync(Ct);
-        clock.Advance(2 * Minute);
+        clock.Advance(3 * Minute);
         await collector.CycleAsync(Ct);
         clock.Advance(Minute);
         listener.Script = sensors => [new("s2", -75, 3)];
@@ -133,7 +133,7 @@ public sealed class CollectorTests : IDisposable
         Assert.Equal([["s1", "s2"], ["s1", "s2"]], listener.Calls);
         var s2 = hearing.Observations()["s2"];
         Assert.Equal(-73, s2.Rssi);   // średnia wykładnicza (-71, -75)
-        Assert.Equal(Fixtures.T0 + 3 * Minute, s2.LastHeardAt);
+        Assert.Equal(Fixtures.T0 + 4 * Minute, s2.LastHeardAt);
         Assert.False(hearing.Observations().ContainsKey("s1"));
     }
 
@@ -144,20 +144,41 @@ public sealed class CollectorTests : IDisposable
         reader.Script = sensor => new(sensor, null, SensorReadFailure.NotFound);
 
         await collector.CycleAsync(Ct);
-        await collector.CycleAsync(Ct);                 // wstrzymanie 1 min
-        clock.Advance(Minute);
-        await collector.CycleAsync(Ct);
+        await collector.CycleAsync(Ct);                 // wstrzymanie 2 min
         clock.Advance(2 * Minute);
+        await collector.CycleAsync(Ct);
+        clock.Advance(4 * Minute);
+        await collector.CycleAsync(Ct);                 // drugie wstrzymanie – 5 min
+        Assert.Equal(2, reader.Calls.Count);
+        clock.Advance(Minute);
         await collector.CycleAsync(Ct);
 
         Assert.Equal(3, reader.Calls.Count);
+        Assert.Equal(Fixtures.T0 + 17 * Minute, collector.State.Sensors["s1"].RetryAt);   // trzecie – 10 min
         Assert.Equal(3, hearing.Observations()["s1"].ConsecutiveFailures);
         var plan = leases.Plan(["s1", "s2"], hearing.Observations().ToDictionary(o => o.Key, o => o.Value.ToHearing()));
         Assert.Equal("sensor:s1", Assert.Single(plan.Releases).Resource);
     }
 
     [Fact]
-    public async Task SessionCutInHistory_StoresHistoryWithSensorTimes_KeepsLease_AndRetriesAfterAMinute()
+    public async Task Retries_NeverWaitLongerThanTheReadInterval()
+    {
+        var sensor = Fixtures.Sensor("s1");
+        sensor.ReadIntervalMinutes = 3;
+        var config = new CloudAgentConfig(Fixtures.Config(sensor), TimeZoneInfo.Utc, 1, new("bestia5", false, null), null, []);
+        var engine = new CollectorEngine(() => config, db.Store, reader, listener, leases, hearing, api, logs, clock, NullLogger.Instance);
+        Grant("s1");
+        reader.Script = s => new(s, null, SensorReadFailure.Error, "rozłączono");
+
+        await engine.CycleAsync(Ct);
+        clock.Advance(2 * Minute);
+        await engine.CycleAsync(Ct);                    // druga porażka: 5 min > odstęp 3 min
+
+        Assert.Equal(Fixtures.T0 + 5 * Minute, engine.State.Sensors["s1"].RetryAt);
+    }
+
+    [Fact]
+    public async Task SessionCutInHistory_StoresHistoryWithSensorTimes_KeepsLease_AndRetriesAfterTwoMinutes()
     {
         // Alpinarium 2026-11-18: przerwana sesja oddała najstarszą część historii; agent wpisał jej ostatni rekord jako „teraz”.
         Grant("s1");
@@ -166,7 +187,8 @@ public sealed class CollectorTests : IDisposable
             { Earlier = [Fixtures.Soil(threeDaysAgo, 94), Fixtures.Soil(threeDaysAgo + TimeSpan.FromHours(1), 93)] };
 
         await collector.CycleAsync(Ct);
-        await collector.CycleAsync(Ct);                 // przed upływem minuty – bez ponownego połączenia
+        clock.Advance(Minute);
+        await collector.CycleAsync(Ct);                 // przed upływem 2 min – bez ponownego połączenia (czujnik odpoczywa)
 
         var stored = await db.Store.GetRecentAsync("s1", 10, Ct);
         Assert.Equal([threeDaysAgo + TimeSpan.FromHours(1), threeDaysAgo], stored.Select(r => r.At));

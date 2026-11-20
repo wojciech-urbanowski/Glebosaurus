@@ -10,13 +10,30 @@ namespace Glebosaurus.Core.Cloud;
 
 public sealed record CollectorOptions
 {
-    public TimeSpan TickInterval { get; init; } = TimeSpan.FromSeconds(30);
+    /// <summary>Obrót pętli: sprawdzenie, co jest do odczytu. Polecenia (<c>read_now</c>) budzą ją od razu, osobnym sygnałem.</summary>
+    public TimeSpan TickInterval { get; init; } = TimeSpan.FromSeconds(60);
 
-    /// <summary>Co ile nasłuch wszystkich czujników z konfiguracji (słyszenia do przydziału)…</summary>
-    public TimeSpan HearEvery { get; init; } = TimeSpan.FromMinutes(3);
+    /// <summary>
+    /// Co ile nasłuch wszystkich czujników z konfiguracji (słyszenia do przydziału)… Nasłuch rusza w pierwszym obrocie po
+    /// upływie tego czasu, więc faktycznie co <c>HearEvery</c> + do jednego <see cref="TickInterval"/> (4,5–5 min). Dwa
+    /// kolejne nasłuchy muszą się mieścić w <see cref="SensorLeaseOptions.HeardWithin"/> (10 min) – jeden niesłyszany
+    /// nasłuch nie może zerować czekania na wolny czujnik (ARCHITEKTURA.md, „Zależności czasów”).
+    /// </summary>
+    public TimeSpan HearEvery { get; init; } = TimeSpan.FromMinutes(4);
 
     /// <summary>…i jak długi. Sparowany czujnik nadaje rzadko (pakiet co kilka–kilkanaście sekund).</summary>
     public TimeSpan HearWindow { get; init; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Kolejne odstępy po nieudanych odczytach (ostatni się powtarza), nigdy dłuższe niż zwykły odstęp odczytów czujnika.
+    /// Każda nieudana próba, która doszła do połączenia, kosztuje baterię czujnika.
+    /// </summary>
+    public IReadOnlyList<TimeSpan> RetryDelays { get; init; } =
+        [TimeSpan.FromMinutes(2), TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(10)];
+
+    /// <summary>Sesja urwana w trakcie historii czujnika: reszta i stan bieżący po krótkiej przerwie (czujnik właśnie był
+    /// połączony do 3 min) – bez liczenia porażki.</summary>
+    public TimeSpan IncompleteRetryDelay { get; init; } = TimeSpan.FromMinutes(2);
 
     /// <summary>Zapas dzierżawy na każdy czujnik wcześniej w tej samej kolejce odczytów (odczyt trwa 11–14 s).</summary>
     public TimeSpan PerQueuedSensor { get; init; } = TimeSpan.FromSeconds(20);
@@ -52,9 +69,6 @@ public sealed class CollectorEngine(
         : throw new ArgumentException("Zbieracz ma radio do odczytu i nasłuchu albo nie ma go wcale (agent bez Bluetooth).", nameof(reader));
 
     private static readonly TimeSpan UnboundRetryDelay = TimeSpan.FromMinutes(30);
-
-    /// <summary>Sesja urwana w trakcie historii czujnika: reszta i stan bieżący – szybko, przy następnej okazji.</summary>
-    private static readonly TimeSpan IncompleteRetryDelay = TimeSpan.FromMinutes(1);
 
     private readonly CollectorOptions settings = options ?? new();
     private readonly Dictionary<string, Attempt> attempts = new(StringComparer.Ordinal);
@@ -273,13 +287,15 @@ public sealed class CollectorEngine(
         var due = new List<SensorConfig>();
         foreach (var sensor in agent.Sensors)
         {
-            if (!onRequest.ContainsKey(sensor.Id))
+            var requested = onRequest.ContainsKey(sensor.Id);
+            if (!requested && attempts.TryGetValue(sensor.Id, out var attempt) && attempt.NextAttemptAt > now) continue;
+            // Najpierw dzierżawa (w pamięci) – baza tylko dla czujników, które ten agent w ogóle może czytać.
+            if (!leases.CanRead(sensor.Id, TimeSpan.FromSeconds(agent.ScanWindowSeconds) + settings.PerQueuedSensor * due.Count)) continue;
+            if (!requested)
             {
-                if (attempts.TryGetValue(sensor.Id, out var attempt) && attempt.NextAttemptAt > now) continue;
                 var latest = await store.GetLatestAsync(sensor.Id, cancellationToken);
                 if (latest is not null && now - latest.At < Interval(agent, sensor)) continue;
             }
-            if (!leases.CanRead(sensor.Id, TimeSpan.FromSeconds(agent.ScanWindowSeconds) + settings.PerQueuedSensor * due.Count)) continue;
             due.Add(sensor);
         }
         return due;
@@ -309,7 +325,7 @@ public sealed class CollectorEngine(
                 // Historia zapisana, stanu bieżącego brak: połączenie działało (bez porażki w dzierżawie), szybko po resztę.
                 var saved = await StoreEarlierAsync(sensor, outcome, now, cancellationToken);
                 stored |= saved > 0;
-                attempts[sensor.Id] = new(now + IncompleteRetryDelay, 0);
+                attempts[sensor.Id] = new(now + settings.IncompleteRetryDelay, 0);
                 var incomplete = $"sesja urwana w trakcie historii czujnika – zapisano {saved} zaległych pomiarów, reszta i stan bieżący przy następnym połączeniu";
                 lastOutcome[sensor.Id] = (now, SensorReadFailure.Error, incomplete);
                 hearing.RecordAttempt(sensor.Id, success: true);
@@ -373,7 +389,6 @@ public sealed class CollectorEngine(
     private static TimeSpan Interval(AgentConfig agent, SensorConfig sensor) =>
         TimeSpan.FromMinutes(sensor.ReadIntervalMinutes ?? agent.ReadIntervalMinutes);
 
-    /// <summary>Wykładniczy odstęp ponowień (1, 2, 4, 8, do 10 min), nigdy dłuższy niż zwykły odstęp odczytów.</summary>
     /// <summary>Zaległe rekordy czujnik kasuje po odebraniu – od razu do bazy; rekord z przyszłości to zły zegar czujnika.</summary>
     private async Task<int> StoreEarlierAsync(SensorConfig sensor, SensorReadOutcome outcome, DateTimeOffset now, CancellationToken cancellationToken)
     {
@@ -387,11 +402,18 @@ public sealed class CollectorEngine(
         return count;
     }
 
+    /// <summary>Odstęp ponowień z <see cref="CollectorOptions.RetryDelays"/> (2, 5, 10 min), nigdy dłuższy niż zwykły odstęp odczytów.</summary>
     private void RegisterFailure(AgentConfig agent, SensorConfig sensor, DateTimeOffset now, TimeSpan? fixedDelay = null)
     {
         var failures = attempts.TryGetValue(sensor.Id, out var previous) ? previous.Failures + 1 : 1;
-        var delay = fixedDelay ?? TimeSpan.FromMinutes(Math.Min(Math.Pow(2, failures - 1), Math.Min(10, Interval(agent, sensor).TotalMinutes)));
+        var delay = fixedDelay ?? RetryDelay(failures, Interval(agent, sensor));
         attempts[sensor.Id] = new(now + delay, failures);
+    }
+
+    private TimeSpan RetryDelay(int failures, TimeSpan interval)
+    {
+        var delay = settings.RetryDelays[Math.Clamp(failures - 1, 0, settings.RetryDelays.Count - 1)];
+        return delay < interval ? delay : interval;
     }
 
     /// <summary>Raz dziennie (pierwszy cykl nowego dnia w strefie raportów) – dziennik z całego poprzedniego dnia do chmury.</summary>

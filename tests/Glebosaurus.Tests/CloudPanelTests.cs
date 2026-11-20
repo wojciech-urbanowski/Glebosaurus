@@ -244,7 +244,7 @@ public sealed class CloudPanelTests : IDisposable
         Assert.False(status.Sensors.Single(s => s.Id == "s1").ReadRequested);
         Assert.True(status.Sensors.Single(s => s.Id == "s2").ReadRequested);
 
-        clock.Advance(CloudPanel.ReadPending);   // wynik nie przyszedł – po 3 min przycisk wraca
+        clock.Advance(CloudPanel.ReadPending);   // wynik nie przyszedł – po 6 min przycisk wraca
         Assert.All((await panel.StatusAsync(Host, Ct)).Sensors, s => Assert.False(s.ReadRequested));
     }
 

@@ -292,6 +292,23 @@ public sealed class CloudLeaseTests
     }
 
     [Fact]
+    public void Notifier_CandidateAfterOneMissedSync_IsStillPresent()
+    {
+        // Synchronizacja co 90 s: po jednej chybionej sygnał życia ma do 180 s (+ czas zapytania) – kandydat wciąż jest obecny.
+        var clock = new ManualTimeProvider(Fixtures.T0);
+        var ledger = new LeaseLedger(clock);
+        var policy = new NotifierLockPolicy(clock, ledger);
+        ledger.Apply(ledger.Now(), [Granted("notifier", 6, 300)]);
+        policy.Observe(Response(canSendMail: true, priority: 2, notifier: new("bestia5", 6, 290),
+            agents: [new("pi", true, 1, 200), new("bestia5", true, 2, 0)]));
+
+        policy.Plan();
+        clock.Advance(2 * Minute);
+
+        Assert.Equal([new LeaseRelease("notifier", 6)], policy.Plan().Releases);
+    }
+
+    [Fact]
     public void Notifier_HandsOverToReturningMoreImportantCandidate_AtSafePoint()
     {
         var clock = new ManualTimeProvider(Fixtures.T0);

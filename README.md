@@ -112,7 +112,7 @@ jeden agent z kopią zapasową – niżej).
    Na Windows zamiast `run` z konsoli zainstaluj usługę (niżej), na telefonie – aplikację (niżej, „Android”), na Raspberry
    Pi – usługę systemd (niżej, „Raspberry Pi”).
 
-Pierwsze odczyty pojawiają się, gdy agent usłyszy czujnik (nasłuch co 3 min), pierwszy raport – o najbliższej porze z
+Pierwsze odczyty pojawiają się, gdy agent usłyszy czujnik (nasłuch co 4 min), pierwszy raport – o najbliższej porze z
 `reports.times`.
 
 ## Windows: instalacja jako usługa
@@ -250,7 +250,7 @@ kasuje. Agent zapisuje te zaległe pomiary z czasem czujnika, a najnowszy traktu
 odstęp odczytów to **2 h 5 min** (`readIntervalMinutes`): wykres i alerty mają dane godzinowe, a bateria – mniej połączeń.
 Agent nasłuchuje reklam BLE i każdy należny czujnik, który się pojawi, czyta od razu (czujnik poza zasięgiem nie opóźnia
 pozostałych); `scanWindowSeconds` (domyślnie 60 s) to łączny czas nasłuchu. Czujnik, który nie odpowiada, jest ponawiany z
-rosnącym odstępem (1, 2, 4, 8, max 10 min). Połączenie trwa ok. 14–17 s plus ok. 1,1 s na każdy zaległy rekord.
+rosnącym odstępem (2, 5, potem co 10 min – każda próba, która doszła do połączenia, kosztuje baterię czujnika). Połączenie trwa ok. 14–17 s plus ok. 1,1 s na każdy zaległy rekord.
 
 **Zasięg.** W dzienniku przy każdym odczycie jest poziom sygnału („sygnał -77 dBm”). Odczyty udają się zwykle przy
 −75…−81 dBm (na Androidzie nawet ok. −93 dBm); przy ok. −94 dBm czujnika nie słychać. Poziom zależy od ułożenia czujnika

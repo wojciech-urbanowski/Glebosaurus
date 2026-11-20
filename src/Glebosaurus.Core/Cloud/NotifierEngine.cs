@@ -20,15 +20,26 @@ public interface IHeartbeat
 
 public sealed record NotifierOptions
 {
-    public TimeSpan TickInterval { get; init; } = TimeSpan.FromSeconds(30);
+    /// <summary>Obrót pętli nadawcy (raporty o stałych porach, strażnik). Raport na żądanie budzi ją od razu.</summary>
+    public TimeSpan TickInterval { get; init; } = TimeSpan.FromSeconds(60);
 
-    /// <summary>Co ile alerty są przeliczane i wysyłane (każde przeliczenie to zapytanie o odczyty i alerty w chmurze).</summary>
-    public TimeSpan AlertEvery { get; init; } = TimeSpan.FromMinutes(1);
+    /// <summary>
+    /// Co ile alerty są przeliczane i wysyłane (każde przeliczenie to trzy zapytania do chmury: odczyty i dwa razy alerty).
+    /// Odczyty przychodzą co ok. 2 godz., więc kilka minut opóźnienia alertu nic nie zmienia. Musi zostać wyraźnie poniżej
+    /// <see cref="SilenceGrace.DefaultPauseAfter"/> (10 min) – dłuższa przerwa między przeliczeniami to przestój i nowy okres
+    /// ochronny – i poniżej <see cref="IncrementalOverlap"/> (30 min).
+    /// </summary>
+    public TimeSpan AlertEvery { get; init; } = TimeSpan.FromMinutes(5);
 
     /// <summary>Po pewnej porażce SMTP (połączenie, logowanie) kolejna próba dopiero po tym czasie.</summary>
     public TimeSpan MailRetryDelay { get; init; } = TimeSpan.FromMinutes(5);
 
+    /// <summary>Sygnał strażnika – zgodny z ustawieniem sprawdzenia w healthchecks.io (Period 5 min, Grace 25 min); z obrotem
+    /// pętli co minutę faktycznie co 5–6 min.</summary>
     public TimeSpan HeartbeatEvery { get; init; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>Sygnał strażnika tylko, gdy ostatnia udana synchronizacja jest nie starsza niż tyle (synchronizacja co 90 s).</summary>
+    public TimeSpan HeartbeatSyncedWithin { get; init; } = TimeSpan.FromMinutes(3);
 
     /// <summary>Agent bez synchronizacji dłużej niż tyle – mail „agent milczy” do administratora.</summary>
     public TimeSpan AgentSilentAfter { get; init; } = TimeSpan.FromMinutes(30);
@@ -477,7 +488,7 @@ public sealed class NotifierEngine(
 
     // ---- Strażnik ---------------------------------------------------------------------------------------------------
 
-    /// <summary>Sygnał tylko, gdy działa wszystko: blokada, synchronizacja z chmurą (udana w ostatnich 3 min) i SMTP.
+    /// <summary>Sygnał tylko, gdy działa wszystko: blokada, synchronizacja z chmurą (<see cref="NotifierOptions.HeartbeatSyncedWithin"/>) i SMTP.
     /// Cisza dłuższa niż ustawiona w healthchecks.io = mail stamtąd.</summary>
     private async Task HeartbeatAsync(CancellationToken cancellationToken)
     {
@@ -486,7 +497,7 @@ public sealed class NotifierEngine(
         if (now - lastHeartbeat < settings.HeartbeatEvery) return;
         var sync = syncState();
         var healthy = lockPolicy.CanSendMail && smtpHealthy && sync.ConsecutiveFailures == 0
-                      && sync.LastSuccessAt is { } synced && now - synced <= TimeSpan.FromMinutes(3);
+                      && sync.LastSuccessAt is { } synced && now - synced <= settings.HeartbeatSyncedWithin;
         if (!healthy) return;
         if (!Uri.TryCreate(address, UriKind.Absolute, out var url) || url.Scheme != Uri.UriSchemeHttps)
         {

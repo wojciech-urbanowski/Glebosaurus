@@ -105,7 +105,7 @@ public sealed class CloudSyncTests : IDisposable
         Assert.Equal(5, api.Stored.Count);
         Assert.Equal(0, sync.State.ConsecutiveFailures);
         Assert.Null(sync.State.LastError);
-        Assert.Equal(TimeSpan.FromSeconds(60), sync.NextDelay(SyncOutcome.Synced));
+        Assert.Equal(TimeSpan.FromSeconds(90), sync.NextDelay(SyncOutcome.Synced));
     }
 
     [Fact]

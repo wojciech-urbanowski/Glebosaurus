@@ -81,14 +81,14 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
    2 min zapasu) albo już należy do pytającego, i zwraca numer epoki i czas ważności; `lease_release` ją oddaje. Czas
    liczy baza, a agent liczy ważność na własnym zegarze monotonicznym od chwili **wysłania** prośby – wychodzi mu krócej
    niż bazie, więc rozjechane zegary nie szkodzą.
-   - **Dzierżawa czujnika: 30 min**, odnawiana przy każdej synchronizacji (ok. 60 s). Bez dzierżawy agent się nie łączy i
+   - **Dzierżawa czujnika: 30 min**, odnawiana przy każdej synchronizacji (ok. 90 s). Bez dzierżawy agent się nie łączy i
      nie zaczyna odczytu, gdy zostały mniej niż 2 min. Bez sieci agent czyta swoje czujniki do końca dzierżawy, a baza
      oddaje czujnik innemu dopiero po wygaśnięciu i zapasie – przy podziale sieci nie ma dwóch właścicieli naraz. Koszt:
      nagłe zniknięcie agenta to ok. 32 min bez odczytów jego czujników. Agent ubiega się tylko o czujnik, który słyszy;
      słabszy sygnał czeka dłużej; właściciel oddaje czujnik po 3 porażkach z rzędu albo gdy inny agent słyszy go dłużej
      co najmniej o 6 dB lepiej (histereza); przy zatrzymaniu (np. `stop`) kończy trwający odczyt i oddaje od razu.
      Słyszenia to jeden wiersz na parę agent–czujnik, nadpisywany – bez historii.
-   - **Blokada nadawcy** (zasób `notifier`): 5 min, odnawiana co ok. 60 s, jedna na całą pocztę (alerty, raporty, log
+   - **Blokada nadawcy** (zasób `notifier`): 5 min, odnawiana co ok. 90 s, jedna na całą pocztę (alerty, raporty, log
      administratora). Kandydaci mają w tabeli agentów `can_send_mail` i `sender_priority`; przy wolnej blokadzie kandydat
      z priorytetem N czeka N × 1 min. Gdy wraca ważniejszy kandydat, obecny nadawca oddaje blokadę w bezpiecznej chwili
      (nic w trakcie wysyłki). Po nagłym zniknięciu nadawcy przejęcie po ok. 7 min. Bez blokady agent nie wysyła żadnego
@@ -112,7 +112,7 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
    znacznika bazy próbnej.
 3. **Synchronizacja agent ↔ Supabase.** Tylko ruch wychodzący: HTTPS do funkcji SQL (`/rest/v1/rpc/…`) zwykłym
    `HttpClient` z kluczem publikowalnym projektu (`sb_publishable_…` w nagłówku `apikey`, rola `anon`) i tokenem agenta –
-   bez SDK i bez hasła bazy na urządzeniach. Główne wywołanie `agent_sync` co ok. 60 s: sygnał życia (wersja, stan BLE;
+   bez SDK i bez hasła bazy na urządzeniach. Główne wywołanie `agent_sync` co ok. 90 s: sygnał życia (wersja, stan BLE;
    telefon także bateria, ładowarka, temperatura akumulatora, stan cieplny, sieć i siła Wi-Fi; agent na Linuksie –
    temperatura procesora ze stref cieplnych jądra, `LinuxThermal`), słyszenia, paczka odczytów
    z lokalnego bufora, odnowienie dzierżaw → w odpowiedzi przydziały z epoką i czasem ważności, wersja konfiguracji,
@@ -209,14 +209,14 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
    czujników, nasłuch się kończy, czujnik jest czytany od razu, potem nasłuch wraca po pozostałe. Radio nigdy nie słucha i
    nie łączy się jednocześnie (na Pi Wi-Fi i BLE dzielą układ). Okno `scanWindowSeconds` (domyślnie 60 s) liczy tylko
    nasłuch, łącznie ze wszystkich rund; czujnik, którego nie było przez całe okno, dostaje „nie znaleziono”. Ponowienia
-   po porażce rosną wykładniczo (1, 2, 4, 8, do 10 min) i tylko odsuwają odczyt, a odczyt na żądanie pomija i odstęp, i
+   po porażce rosną (2, 5, potem co 10 min, nigdy dłużej niż odstęp odczytów) i tylko odsuwają odczyt, a odczyt na żądanie pomija i odstęp, i
    ponowienia. **Błąd nasłuchu:** skan Shiny na Windows potrafi przerwać się `COMException 0x80004005` (Shiny pyta system o
    każde słyszane urządzenie bez obsługi błędu), więc nieudany nasłuch jest wznawiany po 1 s w tym samym oknie, najwyżej 3
    razy z rzędu, a potem czekające czujniki dostają „błąd odczytu” i działa zwykły odstęp ponowień. **Sesja dłuższa niż
    limit:** sesja trwa najwyżej 180 s, a czujnik z długą historią oddaje ją na raty (ok. 110 rekordów na sesję).
    `TuyaReadResult.Truncated` mówi, że sesję urwał limit; bez zwykłego raportu stanu (`SoilSensorProfiles.MapSession`)
    nie ma wtedy stanu bieżącego, a rekordy zostają z czasem czujnika. Radio zwraca `SensorReadFailure.Incomplete`;
-   zbieracz zapisuje rekordy od razu (czujnik już je skasował), wraca po resztę po 1 min i nie liczy tego jako porażki
+   zbieracz zapisuje rekordy od razu (czujnik już je skasował), wraca po resztę po 2 min (czujnik odpoczywa po sesji do 3 min) i nie liczy tego jako porażki
    dzierżawy. Parowanie to osobna, interaktywna komenda (okno czujnika ok. 20 s – skan musi już działać, gdy użytkownik
    wkłada baterie); przy kilku niesparowanych kandydatach wymaga `--mac`.
 9. **Alerty i raporty.** Liczy je nadawca z odczytów wszystkich agentów (`AlertEvaluator`): progi per czujnik z
@@ -257,8 +257,8 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
     bez Storage i bez własnego serwera. Własny serwer (VPS) i Azure odrzucone ze względu na koszt. Limity darmowego planu:
     - baza 500 MB, po przekroczeniu tylko do odczytu – odczyty to ok. 0,4 mln wierszy rocznie przy kilkunastu czujnikach,
       szacunkowo 50–80 MB, więc starczy na kilka lat (potem uśrednianie starych odczytów – ROADMAP, faza 4);
-    - transfer 5 GB/mies. – synchronizacja kilku agentów co 60 s to setki MB;
-    - uśpienie po 7 dniach bez ruchu – agenci wołają bazę co minutę; po tygodniowej awarii trzeba ręcznie wznowić projekt
+    - transfer 5 GB/mies. – synchronizacja kilku agentów co 90 s to setki MB;
+    - uśpienie po 7 dniach bez ruchu – agenci wołają bazę co półtorej minuty; po tygodniowej awarii trzeba ręcznie wznowić projekt
       (dane zostają), a ciszę zgłosi strażnik (zasada 2);
     - **brak kopii zapasowych** – robi je `cloud backup` (`CloudBackup` w `Glebosaurus.Cloud.Admin`): bez `pg_dump`, jedna
       transakcja `REPEATABLE READ READ ONLY`, każda tabela schematu `glebosaurus` przez `COPY … TO STDOUT` jako CSV (bez
@@ -298,7 +298,8 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
     **Akcje przez chmurę:** „Odczytaj teraz” → `command_create('read_now')` dla każdego czujnika – chmura kieruje je do
     właściciela dzierżawy; „Wyślij raport teraz” (prawdziwy mail – strona pyta o potwierdzenie z listą odbiorców) →
     `report_now` do obecnego nadawcy. Ten sam czujnik i raport najwyżej raz na minutę; zlecony odczyt „czeka” w panelu,
-    dopóki nie przyjdzie nowszy odczyt, najwyżej 3 min. **Strony:** statyczny HTML + JS wbudowany w bibliotekę, dane z
+    dopóki nie przyjdzie nowszy odczyt, najwyżej 6 min (odczyt innego agenta dochodzi przez jego synchronizację i kopię
+    odczytów). **Strony:** statyczny HTML + JS wbudowany w bibliotekę, dane z
     JSON API, wstawiane wyłącznie jako tekst. Pulpit (`/`) ma przy każdym czujniku wykres ostatnich 72 h; strona czujnika
     (`/sensor?id=…`) – wszystko o jednym czujniku z przeglądalnym wykresem całej historii. Dane wykresów:
     `GET /api/sensors/{id}/series?from&to&points` → `ReadingSeriesBuilder` (Core): dopóki odczytów jest nie więcej niż
@@ -398,7 +399,7 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
       (`src/Glebosaurus.Cloud`, `SupabaseCloudApi`) to sam `HttpClient`, ten sam dla Windows, Pi i Androida. Księga
       dzierżaw (`LeaseLedger`) i zasady przydziału (`SensorLeasePolicy`, `NotifierLockPolicy`) – zasada 2.
     - **(b) Bufor odczytów i synchronizacja:** `IReadingOutbox` (w SQLite kolumna `sync_state`: 0 – do wysłania,
-      1 – przyjęty, 2 – odrzucony), pętla `CloudSync` – co 60 s jedno `agent_sync` z najwyżej 500 najstarszymi
+      1 – przyjęty, 2 – odrzucony), pętla `CloudSync` – co 90 s jedno `agent_sync` z najwyżej 500 najstarszymi
       niewysłanymi odczytami; zaległy bufor idzie paczkami co 2 s; po porażce odstępy 30 s, 1, 2, 5 min; utrata
       odpowiedzi kończy się ponownym wysłaniem bez dubli; przy zatrzymaniu – ostatnia paczka i oddanie dzierżaw.
     - **(c) Konfiguracja z chmury:** `CloudConfigMapper` składa `AgentConfig` z chmury (czujniki, progi, odstępy, raporty,
@@ -406,14 +407,15 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
       raportów to nazwa IANA – agent działa z `InvariantGlobalization`, więc na Windows zapasowa mapa najczęstszych stref.
       `CloudConfigCache` – ostatnia dobra kopia (z kluczami Tuya) chroniona `ILocalProtector`. `CloudConfigSource` – start
       z chmury, bez niej z kopii, bez obu – czytelny błąd; odświeżanie przy nowej wersji albo zmienionej roli agenta.
-    - **(d) Zbieracz** (`CollectorEngine`): cykl co 30 s, czyta tylko czujniki z dzierżawą starczającą na odczyt; co 3 min
+    - **(d) Zbieracz** (`CollectorEngine`): cykl co 60 s, czyta tylko czujniki z dzierżawą starczającą na odczyt; co 4 min
       30 s nasłuchu wszystkich czujników (`ISensorListener`) dla przydziału; polecenia `read_now`, `release`, `send_log`;
       dziennik z poprzedniego dnia do chmury. Alertów nie liczy. **Bez radia** (agent z `"bluetooth": false`, np.
       Raspberry Pi jako sam nadawca – ROADMAP 2.3a): zbieracz dostaje `null` zamiast odczytu i nasłuchu – nie słucha i nie
       czyta, a synchronizacja nie przekazuje czujników do przydziału, więc agent o żaden się nie ubiega; zlecony odczyt
       (chmura kieruje go i tak do właściciela dzierżawy) zgłasza jako niewykonalny. Dziennik do chmury, `send_log`,
       `release` i sprzątanie bazy działają jak zwykle, a sygnał życia ma „Bluetooth: wyłączony w konfiguracji”.
-    - **(e) Nadawca** (`NotifierEngine`): pracuje tylko z blokadą ważną co najmniej minutę i z hasłem Gmaila na tę epokę.
+    - **(e) Nadawca** (`NotifierEngine`): pracuje tylko z blokadą ważną co najmniej minutę i z hasłem Gmaila na tę epokę;
+      pętla co 60 s, alerty przelicza co 5 min (odczyty przychodzą co ok. 2 godz.).
       Każdy mail przez kolejkę: `mail_claim` → SMTP → `mail_sent`; pewna porażka SMTP (`MailTransportException.MaybeDelivered
       = false`) oddaje rezerwację i jest ponawiana po 5 min, niepewna zostawia rezerwację – mail może przepaść, ale nie
       pójdzie drugi raz. Alerty z odczytów wszystkich agentów (`readings_range`), raporty o stałych porach i na żądanie
@@ -459,6 +461,28 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
     - **Pozostałe polecenia:** `pair` (zasada 5; klucz obok pliku konfiguracji chmury i gotowy wpis do niego), `mail-test`
       (próbny mail z konta z pliku konfiguracji chmury – sprawdza hasło aplikacji przed `cloud config`), `mail-preview`,
       `web-password`, `stop`, diagnostyka `scan`, `read`, `listen`.
+
+## Zależności czasów
+
+Baterię czujnika zużywa tylko połączenie: odczyt i ponowienie, które doszło do połączenia. Nasłuch jest bierny (czujnik i
+tak się reklamuje), a synchronizacja i pętle czujnika nie dotyczą – od nich zależy bateria telefonu (radio Bluetooth i
+Wi-Fi) i ruch do Supabase. Odstępy są dobrane tak, żeby rzadko budzić radio i pytać chmurę, nie łamiąc zależności z
+tabeli; pilnuje ich `TimingDependenciesTests` (wartości po stronie chmury czyta z migracji).
+
+| Odstęp | Wartość | Zależność |
+|---|---|---|
+| Pętla zbieracza | 60 s | `read_now` budzi ją od razu; dokładność nasłuchu i ponowień |
+| Nasłuch do przydziału | co 4 min, okno 30 s | rusza w pierwszym obrocie pętli po 4 min, więc co 4,5–5 min; dwa kolejne nasłuchy mieszczą się w świeżości słyszenia 10 min (`HeardWithin`) – jeden niesłyszany nasłuch nie zeruje czekania na wolny czujnik; chmura oddaje słyszenia innych agentów z 15 min |
+| Okno nasłuchu przed odczytem | 60 s | adapter Windows dostarcza pakiety seriami z przerwami do ok. 27 s |
+| Odstęp odczytów | 125 min (chmura) | główny koszt baterii czujnika |
+| Ponowienia po porażce | 2, 5, potem 10 min (nie dłużej niż odstęp odczytów) | trzecia porażka z rzędu (ok. 7 min po pierwszej) oddaje czujnik; okres ochronny 30 min mieści 5 prób |
+| Sesja urwana w trakcie historii | 2 min | bez liczenia porażki |
+| Synchronizacja | 90 s; od razu po nowych odczytach, oddaniu czujnika i poleceniach z panelu | kandydat na nadawcę jest obecny, gdy jego sygnał życia ma najwyżej 4 min (po jednym chybionym cyklu – do 180 s); blokadzie nadawcy (5 min) po chybionym cyklu zostają 2 min, a do maila trzeba 1 – maile stają dopiero przy trzeciej nieudanej synchronizacji z rzędu; dzierżawa czujnika 30 min; strażnik wymaga udanej synchronizacji w ostatnich 3 min; „agent milczy” po 30 min; polecenia docierają do 90 s, wygasają po 10 min |
+| Kopia odczytów | 2 min | zlecony odczyt czeka w panelu do 6 min: synchronizacja właściciela, nasłuch i odczyt, 30 s „ustalenia” wiersza, kopia |
+| Pętla nadawcy | 60 s | raporty o stałych porach; raport na żądanie budzi ją od razu |
+| Przeliczanie alertów | 5 min (3 zapytania do chmury) | przerwa ponad 10 min to przestój i 30 min okresu ochronnego (`SilenceGrace`); przyrostowe pobieranie odczytów cofa się o 30 min |
+| Strażnik healthchecks.io | 5 min (z pętlą 5–6 min) | ustawienie sprawdzenia: Period 5 min, Grace 25 min |
+| Dzierżawy w chmurze | czujnik 30 min, blokada 5 min, zapas 2 min | stałe w migracji |
 
 ## Czujnik ATLO SMS1 (Tuya `gvygg3m8`) – fakty zmierzone na sprzęcie
 

@@ -175,8 +175,11 @@ public sealed record NotifierLockOptions
     /// <summary>Kandydat z priorytetem N czeka N razy tyle, zanim sięgnie po wolną blokadę (1 = najważniejszy).</summary>
     public TimeSpan PriorityStep { get; init; } = TimeSpan.FromMinutes(1);
 
-    /// <summary>Kandydat uchodzi za obecnego, gdy jego sygnał życia jest nie starszy niż…</summary>
-    public TimeSpan AliveWithin { get; init; } = TimeSpan.FromMinutes(3);
+    /// <summary>
+    /// Kandydat uchodzi za obecnego, gdy jego sygnał życia jest nie starszy niż… Synchronizacja co 90 s: zwykle ≤ 90 s, po
+    /// jednym chybionym cyklu do 180 s – zostaje zapas. Pomyłka opóźnia tylko oddanie blokady ważniejszemu kandydatowi.
+    /// </summary>
+    public TimeSpan AliveWithin { get; init; } = TimeSpan.FromMinutes(4);
 
     /// <summary>Ważniejszy kandydat musi być obecny tyle czasu, zanim obecny nadawca odda mu blokadę.</summary>
     public TimeSpan HandoverAfter { get; init; } = TimeSpan.FromMinutes(2);
