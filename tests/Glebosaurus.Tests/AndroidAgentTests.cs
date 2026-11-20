@@ -297,4 +297,37 @@ public sealed class AndroidAgentTests : IDisposable
         Assert.Contains("Synchronizacja nieudana 3× z rzędu: brak sieci", text);
         Assert.Contains("Odczyty czekają w telefonie", text);
     }
+
+    // ---- Stałe powiadomienie ---------------------------------------------------------------------------------------------
+
+    private static CloudSyncState Synced(DateTimeOffset at) => CloudSyncState.NotStarted with
+    {
+        LastSuccessAt = at,
+        View = new(at, new("mi11", false, null), [new("s1", "mi11", 1500, null), new("s2", "bestia5", 600, null), new("s3", null, null, null)],
+            null, [])
+    };
+
+    [Fact]
+    public void Notification_InNormalWork_StaysTheSameBetweenSyncs()
+    {
+        var first = AgentScreenText.Notification(Synced(Fixtures.T0), 3, Fixtures.T0.AddSeconds(5), TimeZoneInfo.Utc);
+        var later = AgentScreenText.Notification(Synced(Fixtures.T0.AddSeconds(90)), 3, Fixtures.T0.AddSeconds(100), TimeZoneInfo.Utc);
+
+        Assert.Equal("Czyta 1 z 3 czujników · chmura OK", first);
+        Assert.Equal(first, later);   // bez godziny każdej synchronizacji – powiadomienie nie jest odświeżane co 90 s
+    }
+
+    [Fact]
+    public void Notification_ShowsTheTime_OnlyWhenSomethingIsWrong()
+    {
+        var failing = Synced(Fixtures.T0) with { ConsecutiveFailures = 2 };
+        Assert.Equal("Czyta 1 z 3 czujników · brak łączności z chmurą od 06:00",
+            AgentScreenText.Notification(failing, 3, Fixtures.T0.AddMinutes(3), TimeZoneInfo.Utc));
+        Assert.Equal("Czyta 1 z 3 czujników · ostatnia synchronizacja 06:00",
+            AgentScreenText.Notification(Synced(Fixtures.T0), 3, Fixtures.T0.AddMinutes(6), TimeZoneInfo.Utc));
+        Assert.Equal("Czyta 0 z 3 czujników · pierwsza synchronizacja…",
+            AgentScreenText.Notification(CloudSyncState.NotStarted, 3, Fixtures.T0, TimeZoneInfo.Utc));
+        Assert.Equal("Agent odcięty – zarejestruj ponownie",
+            AgentScreenText.Notification(Synced(Fixtures.T0) with { Revoked = true }, 3, Fixtures.T0, TimeZoneInfo.Utc));
+    }
 }

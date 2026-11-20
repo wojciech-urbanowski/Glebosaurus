@@ -130,17 +130,13 @@ internal sealed class AgentHost
         return AgentScreenText.Build(status, PhoneState.Read(context, Radio.State), TimeZoneInfo.Local);
     }
 
-    /// <summary>Jedno zdanie do stałego powiadomienia.</summary>
-    public async Task<string> SummaryAsync(CancellationToken cancellationToken)
+    /// <summary>Jedno zdanie do stałego powiadomienia – ze stanu w pamięci, bez bazy i bez zapytań do chmury.</summary>
+    public string Summary()
     {
         var host = state;
         if (host.Phase != HostPhase.Running) return Describe(host);
-        if (await StatusAsync(cancellationToken) is not { Cloud: { } cloud } status) return "Wczytuje konfigurację…";
-        if (cloud.Revoked) return "Agent odcięty – zarejestruj ponownie";
-        var mine = status.Sensors.Count(s => s.HolderIsMe);
-        var sync = cloud.SyncFailures > 0 ? "brak łączności z chmurą"
-            : cloud.LastSyncAt is { } at ? $"synchronizacja {at.ToLocalTime():HH:mm}" : "pierwsza synchronizacja…";
-        return $"Czyta {mine} z {status.Sensors.Count} czujników · {sync}";
+        if (current is not { Config.Current: { } config } run) return "Wczytuje konfigurację…";
+        return AgentScreenText.Notification(run.Sync.State, config.Config.Sensors.Count, DateTimeOffset.UtcNow, TimeZoneInfo.Local);
     }
 
     public static string Describe(HostState host) => host.Phase switch

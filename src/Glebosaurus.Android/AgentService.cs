@@ -38,10 +38,16 @@ internal sealed class AgentService : Service
     public const string ActionStop = "pl.glebosaurus.agent.STOP";
     private const string Channel = "agent";
     private const int NotificationId = 1;
+    /// <summary>
+    /// Sprawdzanie tekstu powiadomienia – sam stan w pamięci (bez bazy i bez chmury), więc tanio; system dostaje tylko zmieniony
+    /// tekst (przy zwykłej pracy rzadko: liczba czytanych czujników, kłopot z chmurą). Zmiana fazy agenta odświeża od razu.
+    /// </summary>
     private static readonly TimeSpan NotificationRefresh = TimeSpan.FromMinutes(1);
 
+    private readonly Lock notificationGate = new();
     private PowerManager.WakeLock? wakeLock;
     private Timer? refresh;
+    private string? shownText;
     private bool stopping;
 
     /// <summary>Uruchamia usługę (z ekranu albo po starcie telefonu); bez uprawnień radia nic nie robi – zwraca false.</summary>
@@ -74,7 +80,9 @@ internal sealed class AgentService : Service
         }
 
         EnsureChannel();
-        StartForeground(NotificationId, Notification(AgentHost.Describe(host.State)), ForegroundService.TypeConnectedDevice);
+        var initial = AgentHost.Describe(host.State);
+        lock (notificationGate) shownText = initial;
+        StartForeground(NotificationId, Notification(initial), ForegroundService.TypeConnectedDevice);
         if (wakeLock is null && GetSystemService(PowerService) is PowerManager power)
         {
             wakeLock = power.NewWakeLock(WakeLockFlags.Partial, "Glebosaurus:agent");
@@ -83,7 +91,7 @@ internal sealed class AgentService : Service
         }
         host.StateChanged -= OnHostStateChanged;
         host.StateChanged += OnHostStateChanged;
-        refresh ??= new Timer(_ => _ = RefreshNotificationAsync(), null, TimeSpan.FromSeconds(5), NotificationRefresh);
+        refresh ??= new Timer(_ => RefreshNotification(), null, TimeSpan.FromSeconds(5), NotificationRefresh);
         host.Start();
         // Usługa ubita przez system wraca sama (bez intencji – wtedy też startujemy agenta).
         return StartCommandResult.Sticky;
@@ -110,17 +118,23 @@ internal sealed class AgentService : Service
         StopSelf();
     }
 
-    private void OnHostStateChanged() => _ = RefreshNotificationAsync();
+    private void OnHostStateChanged() => RefreshNotification();
 
-    private async Task RefreshNotificationAsync()
+    private void RefreshNotification()
     {
         if (stopping) return;
-        try { UpdateNotification(await AgentHost.Get(this).SummaryAsync(CancellationToken.None)); }
+        try { UpdateNotification(AgentHost.Get(this).Summary()); }
         catch (Exception e) when (e is not OutOfMemoryException) { /* powiadomienie nie może zatrzymać agenta */ }
     }
 
+    /// <summary>Tylko zmieniony tekst trafia do systemu (każde <c>Notify</c> to praca usługi systemowej i odrysowanie).</summary>
     private void UpdateNotification(string text)
     {
+        lock (notificationGate)
+        {
+            if (text == shownText) return;
+            shownText = text;
+        }
         if (GetSystemService(NotificationService) is NotificationManager manager) manager.Notify(NotificationId, Notification(text));
     }
 

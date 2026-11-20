@@ -119,6 +119,29 @@ public static class AgentScreenText
 
     private static string Celsius(double value) => AgentDevice.Celsius(value);
 
+    /// <summary>Synchronizacja starsza niż tyle (przy odstępie 90 s) – powiadomienie podaje jej godzinę.</summary>
+    public static readonly TimeSpan NotificationSyncStaleAfter = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// Jedno zdanie do stałego powiadomienia telefonu – wyłącznie ze stanu w pamięci (bez bazy i bez zapytań do chmury), żeby
+    /// usługa mogła je sprawdzać często i odświeżać tylko przy zmianie. Godzina synchronizacji pojawia się tylko przy kłopocie
+    /// (wtedy tekst się zmienia); przy zwykłej pracy tekst stoi, dopóki nie zmieni się liczba czytanych czujników.
+    /// </summary>
+    public static string Notification(CloudSyncState sync, int sensorCount, DateTimeOffset now, TimeZoneInfo zone)
+    {
+        if (sync.Revoked) return "Agent odcięty – zarejestruj ponownie";
+        var view = sync.View;
+        var mine = view is null ? 0 : view.Sensors.Count(s => s.Holder is { } holder && holder == view.Agent.Name);
+        var cloud = sync.LastSuccessAt switch
+        {
+            _ when sync.ConsecutiveFailures > 0 => "brak łączności z chmurą" + (sync.LastSuccessAt is { } ok ? $" od {Clock(ok, now, zone)}" : ""),
+            null => "pierwsza synchronizacja…",
+            { } last when now - last > NotificationSyncStaleAfter => $"ostatnia synchronizacja {Clock(last, now, zone)}",
+            _ => "chmura OK"
+        };
+        return $"Czyta {mine} z {sensorCount} czujników · {cloud}";
+    }
+
     /// <summary>Godzina dzisiaj, dzień i godzina wcześniej – w strefie telefonu.</summary>
     internal static string Clock(DateTimeOffset at, DateTimeOffset now, TimeZoneInfo zone, bool seconds = false)
     {

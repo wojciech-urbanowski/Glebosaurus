@@ -324,7 +324,10 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
       `ScanStartLimiter` (Core) przepuszcza najwyżej 4 starty na 32 s, a nasłuch po błędzie skanu wraca po 8 s.
     - **Tylko zbieracz:** `CloudRuntime` bez nadawcy i `NotifierLockOptions.CollectorOnly` – telefon nie sięga po blokadę
       nadawcy nawet z rolą nadawcy nadaną w chmurze przez pomyłkę. Kopia odczytów wszystkich agentów jest włączona.
-    - **Usługa pierwszoplanowa** `connectedDevice` ze stałym powiadomieniem i blokadą uśpienia procesora; `AgentHost`
+    - **Usługa pierwszoplanowa** `connectedDevice` ze stałym powiadomieniem i blokadą uśpienia procesora (procesor nie
+      zasypia, więc o baterii telefonu decydują radia: skan BLE, połączenia, Wi-Fi). Tekst powiadomienia
+      (`AgentScreenText.Notification`) powstaje ze stanu w pamięci – bez bazy i bez zapytań do chmury – i trafia do systemu
+      tylko przy zmianie: liczba czytanych czujników, kłopot z chmurą (wtedy z godziną); `AgentHost`
       podnosi przebieg zakończony błędem po 1, 2, 5, potem co 15 min. Start po restarcie telefonu i po aktualizacji
       aplikacji (`BOOT_COMPLETED`, `MY_PACKAGE_REPLACED`) – z blokadą ekranu dopiero po pierwszym odblokowaniu (wcześniej
       dane aplikacji są zaszyfrowane; Direct Boot – niezrobione).
