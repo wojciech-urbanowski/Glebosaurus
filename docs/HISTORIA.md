@@ -236,7 +236,8 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   pilnuje `TimingDependenciesTests`). Nowe: przejęty czujnik – ostatni odczyt z chmury przed pierwszym połączeniem;
   powiadomienie telefonu bez bazy i bez `alert_list` (dotąd ok. 1440 zapytań na dobę); godzinne podsumowanie nasłuchu w
   dzienniku. Tryb skanu Balanced dla nasłuchu na telefonie – dopiero po 1–2 dniach podsumowań z obecnym trybem (punkt
-  odniesienia). Testy zielone, APK zbudowany (bez instalacji); bez wydania. Jak sprawdzić efekt – niżej, „Rzadsze
+  odniesienia). Testy zielone, APK zbudowany (bez instalacji). Na prośbę użytkownika **wydanie 0.2.7** z tagu `v0.2.7`
+  (bez migracji) – usługi na rasp3 i bestia5 pobiorą je same; APK na mi11 ○. Jak sprawdzić efekt – niżej, „Rzadsze
   odpytywanie – jak sprawdzić”.
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
