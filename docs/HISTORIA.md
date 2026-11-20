@@ -228,6 +228,16 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   i temperaturę od 0.2.3). Na prośbę użytkownika migracja `20261120120000_agent_cpu_temperature` na prawdziwym projekcie
   o 08:07 (plan: jedna czekająca; po niej bestia5, mi11 i rasp3 synchronizują się dalej) i **wydanie 0.2.6** z tagu
   `v0.2.6` – usługi na rasp3 i bestia5 pobiorą je same (przy starcie albo o 03:30). Pierwszy prawdziwy raport z sekcją ○.
+- **2026-11-20** – **rzadsze odpytywanie** (prośba użytkownika: mniej baterii czujników i telefonu, nic nie wyłączać;
+  lista odstępów z zależnościami zaakceptowana, nasłuch co 4 min zamiast proponowanych 5 – przy pętli 60 s dwa nasłuchy co
+  5 min nie mieściłyby się w świeżości słyszenia 10 min). Pętla zbieracza 60 s, nasłuch co 4 min, ponowienia 2, 5, 10 min,
+  sesja urwana – po 2 min, synchronizacja 90 s, obecność kandydata 4 min, nadawca: pętla 60 s i alerty co 5 min, zlecony
+  odczyt czeka w panelu 6 min; strażnik, dzierżawy i okresy ochronne bez zmian (ARCHITEKTURA.md, „Zależności czasów”,
+  pilnuje `TimingDependenciesTests`). Nowe: przejęty czujnik – ostatni odczyt z chmury przed pierwszym połączeniem;
+  powiadomienie telefonu bez bazy i bez `alert_list` (dotąd ok. 1440 zapytań na dobę); godzinne podsumowanie nasłuchu w
+  dzienniku. Tryb skanu Balanced dla nasłuchu na telefonie – dopiero po 1–2 dniach podsumowań z obecnym trybem (punkt
+  odniesienia). Testy zielone, APK zbudowany (bez instalacji); bez wydania. Jak sprawdzić efekt – niżej, „Rzadsze
+  odpytywanie – jak sprawdzić”.
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 
@@ -494,6 +504,54 @@ samym wynikiem (region, wersje, automatyczne RLS, zachowanie kluczy, pooler `aws
     akcji wiszący bez końca (znika po minucie).
   - **Niesprawdzone:** noc i tydzień pracy, docelowe miejsce telefonu, błąd 133 (był 62), dłuższe zachowanie HyperOS
     wobec aplikacji w tle, zadanie `android` w CI i APK w wydaniu (do pierwszego wypchnięcia).
+
+### Rzadsze odpytywanie – jak sprawdzić (2026-11-20)
+
+Po wdrożeniu (usługi bestia5 i rasp3 z wydania, APK na mi11). Punkt odniesienia jest w chmurze wstecz: odczyty mają chwilę
+przyjęcia (`received_at`) i agenta od 2026-11-17.
+
+**Połączenia, opóźnienia i przejęcia – z odczytów w chmurze** (edytor SQL Supabase, samo czytanie). Jedno udane
+połączenie to jedna paczka odczytów czujnika z tą samą chwilą przyjęcia: zaległe rekordy i stan bieżący idą w jednej
+synchronizacji (po przerwie sieci kilka połączeń może się zlać w jedno). Nieudane próby nie zostawiają odczytów – te są w
+logu administratora.
+
+```sql
+with polaczenia as (
+    select distinct sensor_id, received_at, agent_id
+      from glebosaurus.readings
+     where received_at > now() - interval '14 days'
+), z_poprzednim as (
+    select *, lag(received_at) over w as poprzednie, lag(agent_id) over w as poprzedni_agent
+      from polaczenia window w as (partition by sensor_id order by received_at)
+)
+select (received_at at time zone 'Europe/Warsaw')::date as dzien,
+       count(*) as polaczenia,
+       round(count(*)::numeric / count(distinct sensor_id), 1) as na_czujnik,
+       count(*) filter (where received_at - poprzednie < interval '115 minutes') as przed_odstepem,
+       count(*) filter (where received_at - poprzednie > interval '140 minutes') as opoznione,
+       count(*) filter (where poprzednie is not null and agent_id is distinct from poprzedni_agent) as zmiany_agenta
+  from z_poprzednim
+ group by 1 order by 1;
+```
+
+- `na_czujnik` – przy odstępie 2 h 5 min ok. 11–12 na dobę; więcej to dodatkowe połączenia.
+- `przed_odstepem` – połączenia wcześniej niż po odstępie: dosłanie po urwanej sesji, odczyt na żądanie, odczyt zaraz po
+  przejęciu. Powinno spaść (sprawdzanie ostatniego odczytu po przejęciu), a na pewno nie rosnąć.
+- `opoznione` – przerwa ponad 140 min: porażki, czujnik bez właściciela, przerwa sieci. Nie powinno rosnąć.
+- `zmiany_agenta` – kolejny odczyt czujnika zrobił inny agent (przejęcie dzierżawy). Nie powinno rosnąć.
+
+**Telefon (mi11) po kilku dniach:**
+- w logu administratora od mi11 co godzinę „Nasłuch za ostatnie … min” – ilu czujników średnio słychać i ile pakietów na
+  czujnik; 1–2 dni tych wpisów to punkt odniesienia przed trybem skanu Balanced;
+- bateria: dobowy spadek bez ładowarki (albo czas na ładowarce) i udział Glebosaurusa w ustawieniach Androida (Bateria →
+  zużycie przez aplikacje) w porównaniu z dniami przed wdrożeniem; temperatura akumulatora w raporcie (sekcja
+  „Urządzenia”);
+- powiadomienie „Czyta N z 9 czujników · chmura OK” – godzina tylko przy kłopocie z chmurą;
+- żadnych maili „agent milczy” o mi11; w dzienniku wpisy „czujnik przejęty – w chmurze jest odczyt sprzed …” to
+  zaoszczędzone połączenia.
+
+**Chmura:** w panelu Supabase (Usage) liczba zapytań API po kilku dniach – synchronizacje ok. 960 na agenta na dobę
+zamiast 1440, przeliczanie alertów u nadawcy ok. 860 zamiast 4320, telefon bez ok. 1440 zapytań `alert_list`.
 
 ## Przebieg faz 1b i 2 – stan zadań na 2026-11-19
 
