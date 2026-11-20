@@ -246,7 +246,7 @@ internal sealed class AgentHost
         var ledger = new LeaseLedger(clock);
         var sensorPolicy = new SensorLeasePolicy(clock, ledger);
         // Telefon nie wysyła maili (decyzja 2026-11-16) – nawet z rolą nadawcy nadaną w chmurze przez pomyłkę.
-        var notifierPolicy = new NotifierLockPolicy(clock, ledger, new NotifierLockOptions { CollectorOnly = true });
+        var notifierPolicy = new NotifierLockPolicy(clock, ledger, new NotifierLockOptions { CollectorOnly = true }, logger);
         var hearing = new SensorHearingTracker(clock);
         var local = new AgentConfig
         {

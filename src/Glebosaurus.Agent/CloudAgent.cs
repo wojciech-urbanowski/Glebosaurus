@@ -88,7 +88,7 @@ internal static class CloudAgent
         var clock = TimeProvider.System;
         var ledger = new LeaseLedger(clock);
         var sensorPolicy = new SensorLeasePolicy(clock, ledger);
-        var notifierPolicy = new NotifierLockPolicy(clock, ledger);
+        var notifierPolicy = new NotifierLockPolicy(clock, ledger, logger: logger);
         var hearing = new SensorHearingTracker(clock);
         var configSource = new CloudConfigSource(api, new CloudConfigCache(loaded.CloudConfigCachePath!, protector), loaded.Config, clock, logger);
         var radio = ble is null ? null : new ShinySensorRadio(ble);

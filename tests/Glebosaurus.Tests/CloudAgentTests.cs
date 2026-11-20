@@ -83,6 +83,28 @@ public sealed class CloudAgentTests : IDisposable
         Assert.Throws<InvalidDataException>(() => AgentConfigLoader.Load(path));
     }
 
+    [Theory]
+    [InlineData("sb_publishable_…", "to wciąż wzór")]
+    [InlineData("sb_publishable_", "to wciąż wzór")]
+    [InlineData("sb_publishable_AbC-12_x ", "(spacja) na pozycji 24")]
+    [InlineData("sb_publishable_AbC”", "„”” (U+201D, spoza ASCII) na pozycji 19")]
+    [InlineData("sb_publishable_AbC\\t", "(niewidoczny, U+0009) na pozycji 19")]
+    [InlineData("sb_publishable_Ab\\\"", "„\"” na pozycji 18")]
+    public void PublishableKey_WithExtraCharacters_IsRejectedWithClearMessage(string key, string expected)
+    {
+        // Rasp3 2026-11-19: klucz wklejony z nadmiarem dawał przy enroll tylko „Request headers must contain only ASCII characters”.
+        var path = Write($$"""{ "cloud": { "url": "https://abcdefghijklmnopqrst.supabase.co", "publishableKey": "{{key}}" } }""");
+
+        var message = Assert.Throws<InvalidDataException>(() => AgentConfigLoader.Load(path)).Message;
+        Assert.Contains("cloud.publishableKey", message);
+        Assert.Contains(expected, message);
+    }
+
+    [Fact]
+    public void PublishableKey_WithLettersDigitsUnderscoreAndDash_IsAccepted() =>
+        Assert.Equal("sb_publishable_ZaJ8-mh_0XzZ4", AgentConfigLoader.Load(Write(
+            """{ "cloud": { "url": "https://abcdefghijklmnopqrst.supabase.co", "publishableKey": "sb_publishable_ZaJ8-mh_0XzZ4" } }""")).Cloud!.PublishableKey);
+
     [Fact]
     public void AgentFile_WithoutCloudSection_IsRejected()
     {

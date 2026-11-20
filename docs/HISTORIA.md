@@ -206,13 +206,19 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   oddał blokadę nadawcy ważniejszemu kandydatowi ok. 21:31 (po 2 min jego obecności; bestia5 nie zapisuje oddania w
   dzienniku – widać je tylko w chmurze), a `rasp3` wziął ją o 21:33:13 (epoka 5, odnawiana co minutę) – sprawdzone
   zapytaniem tylko do odczytu w tabeli dzierżaw. **Niesprawdzone:**
-  prawdziwe Pi, start usługi z konfiguracją, samoaktualizacja z prawdziwego wydania, powrót poprzedniej wersji po
-  nieudanym starcie. **Ostrzeżenia o telefonie (0.2.5)** – decyzje użytkownika: praca telefonu na baterii jest normalna
+  samoaktualizacja Pi z prawdziwego wydania, powrót poprzedniej wersji po nieudanym starcie, przejęcie wysyłki w drugą
+  stronę (Pi wyłączone → bestia5). **Ostrzeżenia o telefonie (0.2.5)** – decyzje użytkownika: praca telefonu na baterii jest normalna
   (nie zakładamy już, że stoi stale na ładowarce), a telefon może stać na tarasie (mróz, upał). Ostrzeżenie dopiero przy
   baterii poniżej 30% bez ładowarki; obok gorącego akumulatora (od 45 °C) i przegrzewania według systemu doszedł
   zmarznięty akumulator (poniżej 0 °C). Ostrzeżenia widać na ekranie aplikacji i w panelu WWW, bez osobnego maila –
   użytkownikowi to na razie wystarcza; mail przychodzi dopiero, gdy telefon zamilknie na 30 min („agent milczy”). Testy
   zielone, APK 0.2.5 zbudowany (bez instalacji na mi11); wydanie 0.2.5 z tagu `v0.2.5`.
+- **2026-11-20** – dwie luki z wdrożenia `rasp3`: (1) odczyt pliku agenta sprawdza teraz cały klucz publikowalny (tylko
+  litery, cyfry, „_” i „-” po `sb_publishable_`) – niewypełniony wzór i wklejony nadmiar dają błąd ze wskazaniem znaku i
+  pozycji zamiast „Request headers must contain only ASCII characters” przy `enroll`; prawdziwe klucze (plik
+  administratora, próbny projekt, usługa na bestia5) sprawdzone wcześniej bez wypisywania – spełniają regułę; (2) nadawca,
+  który oddaje blokadę, zapisuje to w dzienniku z przyczyną (ważniejszy kandydat z nazwą i priorytetem, odebrana rola,
+  zatrzymanie). Testy zielone, APK zbudowany (bez instalacji); w wydaniu – przy następnym.
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 

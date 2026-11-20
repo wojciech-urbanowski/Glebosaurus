@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+
 namespace Glebosaurus.Core.Cloud;
 
 /// <summary>Co agent prosi przedłużyć lub przyznać i co oddaje w najbliższej synchronizacji.</summary>
@@ -195,9 +197,10 @@ public sealed record NotifierLockOptions
 /// <summary>
 /// Blokada nadawcy „nadaję teraz” po stronie kandydata (ARCHITEKTURA.md, zasada 2): bez blokady żadnego maila; przy wolnej
 /// blokadzie czeka według priorytetu; trzymaną przedłuża, a oddaje ważniejszemu kandydatowi, który wrócił i jest obecny
-/// dłuższą chwilę – tylko w bezpiecznym momencie (nic w trakcie wysyłki).
+/// dłuższą chwilę – tylko w bezpiecznym momencie (nic w trakcie wysyłki). Każde oddanie trafia do dziennika z przyczyną
+/// (przejęcie widać inaczej tylko w chmurze – wpis „mam blokadę” zapisuje dopiero nowy nadawca).
 /// </summary>
-public sealed class NotifierLockPolicy(TimeProvider clock, LeaseLedger ledger, NotifierLockOptions? options = null)
+public sealed class NotifierLockPolicy(TimeProvider clock, LeaseLedger ledger, NotifierLockOptions? options = null, ILogger? logger = null)
 {
     private readonly NotifierLockOptions settings = options ?? new();
     private readonly Lock gate = new();
@@ -250,13 +253,20 @@ public sealed class NotifierLockPolicy(TimeProvider clock, LeaseLedger ledger, N
 
         if (!me.CanSendMail || settings.CollectorOnly)
         {
-            if (held) Give(now);
+            if (held)
+                Give(now, reason: settings.CollectorOnly
+                    ? "to urządzenie nie wysyła maili (tylko zbieracz), choć w chmurze ma rolę nadawcy"
+                    : "rola nadawcy odebrana w chmurze");
             return Pending();
         }
 
         var myPriority = me.SenderPriority ?? int.MaxValue;
-        var betterAlive = agents.Any(a => a.CanSendMail && a.Name != me.Name && (a.SenderPriority ?? int.MaxValue) < myPriority
-                                          && a.LastSeenSecondsAgo is { } ago && ago <= settings.AliveWithin.TotalSeconds);
+        var better = agents
+            .Where(a => a.CanSendMail && a.Name != me.Name && (a.SenderPriority ?? int.MaxValue) < myPriority
+                        && a.LastSeenSecondsAgo is { } ago && ago <= settings.AliveWithin.TotalSeconds)
+            .OrderBy(a => a.SenderPriority ?? int.MaxValue)
+            .FirstOrDefault();
+        var betterAlive = better is not null;
         if (held)
         {
             if (betterAlive)
@@ -264,7 +274,8 @@ public sealed class NotifierLockPolicy(TimeProvider clock, LeaseLedger ledger, N
                 betterAliveSince ??= now;
                 if (safePoint && now - betterAliveSince >= settings.HandoverAfter)
                 {
-                    Give(now);
+                    Give(now, reason: $"ważniejszy kandydat „{better!.Name}” (priorytet {better.SenderPriority}, mój {me.SenderPriority}) jest obecny " +
+                        $"od {(now - betterAliveSince.Value).TotalMinutes:0} min – dalej wysyła on, ten agent zostaje zapasowym");
                     return Pending();
                 }
             }
@@ -288,15 +299,19 @@ public sealed class NotifierLockPolicy(TimeProvider clock, LeaseLedger ledger, N
     {
         lock (gate)
         {
-            if (ledger.Epoch(CloudProtocol.NotifierResource) is not null) Give(clock.GetUtcNow(), cooldown: false);
+            if (ledger.Epoch(CloudProtocol.NotifierResource) is not null) Give(clock.GetUtcNow(), cooldown: false, reason: "zatrzymanie agenta");
             return Pending();
         }
     }
 
-    private void Give(DateTimeOffset now, bool cooldown = true)
+    private void Give(DateTimeOffset now, string reason, bool cooldown = true)
     {
         var resource = CloudProtocol.NotifierResource;
-        if (ledger.Epoch(resource) is { } epoch) pendingRelease = new(resource, epoch);
+        if (ledger.Epoch(resource) is { } epoch)
+        {
+            pendingRelease = new(resource, epoch);
+            logger?.LogInformation("Nadawca: oddaję blokadę (epoka {Epoch}) – {Reason}.", epoch, reason);
+        }
         ledger.Forget(resource);
         betterAliveSince = null;
         freeSince = null;

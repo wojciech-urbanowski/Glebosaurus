@@ -1,3 +1,5 @@
+using System.Buffers;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
@@ -72,8 +74,9 @@ public static partial class AgentConfigLoader
         if (!Uri.TryCreate(cloud.Url.Trim().TrimEnd('/'), UriKind.Absolute, out var url) || url.Scheme != Uri.UriSchemeHttps
             || !SupabaseHost().IsMatch(url.Host) || url.AbsolutePath != "/")
             throw new InvalidDataException("cloud.url: podaj adres projektu Supabase, np. https://abcdefghijklmnopqrst.supabase.co.");
-        if (!cloud.PublishableKey.StartsWith("sb_publishable_", StringComparison.Ordinal))
+        if (!cloud.PublishableKey.StartsWith(PublishableKeyPrefix, StringComparison.Ordinal))
             throw new InvalidDataException("cloud.publishableKey: podaj klucz publikowalny projektu (sb_publishable_…), nie klucz tajny.");
+        ValidatePublishableKeyCharacters(cloud.PublishableKey);
         if (string.IsNullOrWhiteSpace(cloud.TokenFile) || string.IsNullOrWhiteSpace(cloud.ConfigCacheFile))
             throw new InvalidDataException("cloud.tokenFile i cloud.configCacheFile nie mogą być puste.");
         if (cloud.Backup is { } backup)
@@ -86,6 +89,39 @@ public static partial class AgentConfigLoader
                 throw new InvalidDataException("cloud.backup.keep: od 1 do 365 kopii.");
         }
     }
+
+    private const string PublishableKeyPrefix = "sb_publishable_";
+
+    private static readonly SearchValues<char> PublishableKeyCharacters =
+        SearchValues.Create("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-");
+
+    /// <summary>
+    /// Klucz publikowalny jedzie w nagłówku HTTP <c>apikey</c>, a ma tylko litery, cyfry, „_” i „-”. Klucz wklejony z
+    /// nadmiarem (wielokropek ze wzoru, spacja, cudzysłów z edytora) dawał dopiero przy <c>enroll</c> niezrozumiały błąd
+    /// „Request headers must contain only ASCII characters” (Raspberry Pi, 2026-11-19) – stąd sprawdzenie już przy odczycie.
+    /// </summary>
+    private static void ValidatePublishableKeyCharacters(string key)
+    {
+        var rest = key.AsSpan(PublishableKeyPrefix.Length);
+        if (rest.IsEmpty || rest.Contains('…'))
+            throw new InvalidDataException(
+                "cloud.publishableKey: to wciąż wzór (sb_publishable_…) – wpisz klucz publikowalny swojego projektu (Supabase: Project Settings → API Keys).");
+        var bad = rest.IndexOfAnyExcept(PublishableKeyCharacters);
+        if (bad >= 0)
+            throw new InvalidDataException(
+                $"cloud.publishableKey: niedozwolony znak {Describe(rest[bad])} na pozycji {PublishableKeyPrefix.Length + bad + 1} – klucz " +
+                "ma tylko litery, cyfry, „_” i „-” (przy kopiowaniu wkleiło się coś więcej?).");
+    }
+
+    private static string Describe(char c) => c switch
+    {
+        ' ' => "(spacja)",
+        _ when char.IsWhiteSpace(c) || char.IsControl(c) => $"(niewidoczny, U+{Hex(c)})",
+        _ when c > '\u007f' => $"„{c}” (U+{Hex(c)}, spoza ASCII)",
+        _ => $"„{c}”"
+    };
+
+    private static string Hex(char c) => ((int)c).ToString("X4", CultureInfo.InvariantCulture);
 
     public static string ResolveRelative(string configPath, string file) =>
         Path.GetFullPath(Path.IsPathRooted(file) ? file : Path.Combine(Path.GetDirectoryName(Path.GetFullPath(configPath))!, file));

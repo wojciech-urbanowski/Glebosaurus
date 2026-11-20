@@ -1,4 +1,5 @@
 using Glebosaurus.Core.Cloud;
+using Microsoft.Extensions.Logging;
 
 namespace Glebosaurus.Tests;
 
@@ -254,6 +255,40 @@ public sealed class CloudLeaseTests
         Assert.True(policy.CanSendMail);
         clock.Advance(Second);
         Assert.False(policy.CanSendMail);
+    }
+
+    [Fact]
+    public void Notifier_GivingTheLockAway_IsLoggedWithReason()
+    {
+        // Rasp3 2026-11-19: bestia5 oddał blokadę po cichu – przejęcie było widać tylko w chmurze.
+        var clock = new ManualTimeProvider(Fixtures.T0);
+        var ledger = new LeaseLedger(clock);
+        var log = new CapturingLogger();
+        var policy = new NotifierLockPolicy(clock, ledger, logger: log);
+        ledger.Apply(ledger.Now(), [Granted("notifier", 4, 300)]);
+        policy.Observe(Response(canSendMail: true, priority: 2, notifier: new("bestia5", 4, 290),
+            agents: [new("rasp3", true, 1, 20), new("bestia5", true, 2, 0)]));
+
+        policy.Plan();
+        Assert.Empty(log.Entries);   // jeszcze nie: ważniejszy musi być obecny 2 min
+        clock.Advance(2 * Minute);
+        policy.Plan();
+
+        var (level, message) = Assert.Single(log.Entries);
+        Assert.Equal(LogLevel.Information, level);
+        Assert.Contains("oddaję blokadę (epoka 4)", message);
+        Assert.Contains("„rasp3” (priorytet 1, mój 2) jest obecny od 2 min", message);
+
+        // Zatrzymanie i odebrana rola – też z przyczyną; bez blokady nic do oddania, więc bez wpisu.
+        ledger.Apply(ledger.Now(), [Granted("notifier", 5, 300)]);
+        policy.ReleaseForShutdown();
+        Assert.Contains("zatrzymanie agenta", log.Entries[^1].Message);
+        policy.ReleaseForShutdown();
+        Assert.Equal(2, log.Entries.Count);
+        ledger.Apply(ledger.Now(), [Granted("notifier", 6, 300)]);
+        policy.Observe(Response(canSendMail: false));
+        policy.Plan();
+        Assert.Contains("rola nadawcy odebrana w chmurze", log.Entries[^1].Message);
     }
 
     [Fact]

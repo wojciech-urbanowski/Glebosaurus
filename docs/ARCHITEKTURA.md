@@ -92,7 +92,8 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
      administratora). Kandydaci mają w tabeli agentów `can_send_mail` i `sender_priority`; przy wolnej blokadzie kandydat
      z priorytetem N czeka N × 1 min. Gdy wraca ważniejszy kandydat, obecny nadawca oddaje blokadę w bezpiecznej chwili
      (nic w trakcie wysyłki). Po nagłym zniknięciu nadawcy przejęcie po ok. 7 min. Bez blokady agent nie wysyła żadnego
-     maila – także przy niedostępnym Supabase.
+     maila – także przy niedostępnym Supabase. Oddający zapisuje w dzienniku przyczynę (ważniejszy kandydat z nazwą i
+     priorytetem, odebrana rola, zatrzymanie), a nowy nadawca – „mam blokadę”.
    - **Kolejka maili bez duplikatów** – trzy niezależne zabezpieczenia: (1) blokada z epoką – dwóch nadawców nie pracuje
      naraz; (2) `mail_claim(klucz, agent, epoka)` udaje się tylko, gdy według zegara bazy agent wciąż trzyma blokadę z tą
      epoką – uśpiony nadawca po przebudzeniu niczego nie wyśle; (3) unikalny klucz maila („tak” tylko raz w historii):
@@ -418,7 +419,10 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
       nic nie robi). To ustawienie urządzenia, nie rola w chmurze: zależy od tego, gdzie stoi i co potrafi sprzęt
       (decyzja 2026-11-19 – bez migracji i zmian protokołu).
       Ustawienia wspólne dla agentów (`sensors`, `mail`, `reports`, `alerts`, `readIntervalMinutes`, `scanWindowSeconds`)
-      są odrzucane z wyjaśnieniem – byłyby po cichu pomijane. Adres musi być projektem Supabase, a klucz publikowalnym.
+      są odrzucane z wyjaśnieniem – byłyby po cichu pomijane. Adres musi być projektem Supabase, a klucz publikowalnym:
+      `sb_publishable_` i dalej tylko litery, cyfry, „_” i „-” (jedzie w nagłówku HTTP) – niewypełniony wzór
+      (`sb_publishable_…`) albo wklejony nadmiar (spacja, cudzysłów, znak spoza ASCII) daje błąd ze wskazaniem znaku i
+      pozycji już przy odczycie pliku, także w kodzie QR telefonu.
     - **Rejestracja** (`enroll [--code KOD]`, bez `--code` pyta bez pokazywania): kod → token w
       `glebosaurus-cloud.token` obok konfiguracji (`AgentTokenStore`, `ProtectedFile`: nagłówek, DPAPI / prawa 600, zapis
       atomowy). Ponowna rejestracja zastępuje token.
