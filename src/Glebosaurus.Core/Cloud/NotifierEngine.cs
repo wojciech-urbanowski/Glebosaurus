@@ -357,10 +357,12 @@ public sealed class NotifierEngine(
             return;
         }
         var snapshots = await SnapshotsAsync(current, cancellationToken);
+        var devices = Devices();
         foreach (var report in due)
         {
             var outcome = await SendAsync(["report|" + report.Key],
-                _ => MailTemplates.Report(snapshots, recipients, settings.MonitorName, now, current.TimeZone, report.ScheduledAt), epoch, cancellationToken);
+                _ => MailTemplates.Report(snapshots, recipients, settings.MonitorName, now, current.TimeZone, report.ScheduledAt, devices),
+                epoch, cancellationToken);
             if (outcome is MailOutcome.Failed or MailOutcome.Postponed) return;
         }
     }
@@ -376,6 +378,7 @@ public sealed class NotifierEngine(
         if (ids.Count == 0) return;
         var recipients = ReportRecipients(current);
         var snapshots = recipients.Count > 0 ? await SnapshotsAsync(current, cancellationToken) : [];
+        var devices = Devices();
         var now = clock.GetUtcNow();
         foreach (var id in ids)
         {
@@ -385,7 +388,7 @@ public sealed class NotifierEngine(
                 continue;
             }
             var outcome = await SendAsync([string.Create(CultureInfo.InvariantCulture, $"report-request|{id}")],
-                _ => MailTemplates.Report(snapshots, recipients, settings.MonitorName, now, current.TimeZone), epoch, cancellationToken);
+                _ => MailTemplates.Report(snapshots, recipients, settings.MonitorName, now, current.TimeZone, devices: devices), epoch, cancellationToken);
             if (outcome is MailOutcome.Failed or MailOutcome.Postponed)
             {
                 lock (gate) reportRequests.Add(id);   // spróbuje po przerwie (polecenie w chmurze czeka do 10 min)
@@ -415,6 +418,10 @@ public sealed class NotifierEngine(
                 [.. open.Where(a => a.Sensor == sensor.Id).Select(a => a.Kind)]) { History = own };
         })];
     }
+
+    /// <summary>Telefony i Raspberry Pi do sekcji „Urządzenia” – z listy agentów ostatniej synchronizacji (jej brak – bez sekcji).</summary>
+    private IReadOnlyList<DeviceSnapshot> Devices() =>
+        lockPolicy.AgentsSnapshot is { } snapshot ? AgentDevice.ForReport(snapshot.Agents, snapshot.ServerTime, settings.AgentSilentAfter) : [];
 
     // ---- Log administratora i cisza agentów ---------------------------------------------------------------------------
 

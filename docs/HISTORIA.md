@@ -219,6 +219,13 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   administratora, próbny projekt, usługa na bestia5) sprawdzone wcześniej bez wypisywania – spełniają regułę; (2) nadawca,
   który oddaje blokadę, zapisuje to w dzienniku z przyczyną (ważniejszy kandydat z nazwą i priorytetem, odebrana rola,
   zatrzymanie). Testy zielone, APK zbudowany (bez instalacji); w wydaniu – przy następnym.
+- **2026-11-20** – **stan urządzeń w raporcie** (prośba użytkownika po porannym raporcie z rasp3; projekt zaakceptowany):
+  pod czujnikami sekcja „Urządzenia” – telefon (bateria, ładowarka, temperatura akumulatora) i Raspberry Pi (temperatura
+  procesora, nowe pole sygnału życia `cpuTemperatureCelsius`, migracja `20261120120000_agent_cpu_temperature`), ostrzeżenia
+  jak w panelu, gorący procesor od 75 °C; urządzenie z ostrzeżeniem albo milczące liczy się do „Uwag”. Bez wykrywania zbyt
+  niskiego napięcia zasilacza Pi (decyzja: odczyt raz na minutę gubiłby krótkie spadki). Testy zielone (także SQL na
+  próbnym projekcie), wygląd sprawdzony w `mail-preview` przy 375 px. Na żywo ○: migracja na prawdziwym projekcie, wydanie,
+  pierwszy raport z sekcją.
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 

@@ -11,6 +11,9 @@ namespace Glebosaurus.Core.Mail;
 /// </summary>
 internal sealed record Tone(string Soft, string Mid, string Ink);
 
+/// <summary>Jedna liczba na karcie urządzenia; <paramref name="Warn"/> – wartość poza normą (żółty kolor).</summary>
+internal sealed record DeviceMetric(string Label, string Value, bool Warn);
+
 /// <summary>
 /// Klocki HTML maili projektowane pod wąski ekran telefonu: jedna kolumna o szerokości do <see cref="MaxWidth"/> px,
 /// karta na czujnik zamiast tabeli z wieloma kolumnami, duże liczby i odstępy, kwadratowe elementy (bez zaokrągleń) w
@@ -115,9 +118,7 @@ internal static class MailLayout
         html.Append($"<div style=\"background:#fff;border:1px solid {BorderColor};border-left:5px solid {accent.Mid};padding:12px 14px\">");
         html.Append($"<div style=\"font-size:18px;font-weight:700;line-height:1.25\">{Enc(sensor.Name)}</div>");
 
-        var badgeHtml = string.Concat(badges.Select(b =>
-            $"<span style=\"display:inline-block;background:{b.Tone.Soft};border:1px solid {b.Tone.Mid};color:{b.Tone.Ink};font-size:13px;font-weight:600;padding:2px 9px;margin:0 6px 4px 0\">{Enc(b.Text)}</span>"));
-        if (badgeHtml.Length > 0) html.Append($"<div style=\"padding-top:6px\">{badgeHtml}</div>");
+        html.Append(Badges(badges));
         if (detail is not null) html.Append($"<div style=\"font-size:15px;padding-top:2px\">{Enc(detail)}</div>");
 
         if (reading is not null)
@@ -138,9 +139,45 @@ internal static class MailLayout
         return html.ToString();
     }
 
+    /// <summary>
+    /// Karta urządzenia agenta (telefon, Raspberry Pi) w raporcie – w stylu karty czujnika: nazwa, plakietka stanu, liczby
+    /// (do trzech, w kolumnach jak u czujników), pod nimi zdania o tym, co wymaga uwagi, i szary wiersz z rodzajem, wersją
+    /// i kontaktem.
+    /// </summary>
+    public static string DeviceCard(string name, (string Text, Tone Tone) badge, IReadOnlyList<DeviceMetric> metrics,
+        IReadOnlyList<string> notes, string footer)
+    {
+        var html = new StringBuilder();
+        html.Append("<tr><td style=\"padding:0 0 10px\">");
+        html.Append($"<div style=\"background:#fff;border:1px solid {BorderColor};border-left:5px solid {badge.Tone.Mid};padding:12px 14px\">");
+        html.Append($"<div style=\"font-size:18px;font-weight:700;line-height:1.25\">{Enc(name)}</div>");
+        html.Append(Badges([badge]));
+        if (metrics.Count > 0)
+        {
+            string[] widths = ["34%", "33%", "33%"];
+            html.Append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin-top:10px\"><tr>");
+            for (var i = 0; i < widths.Length; i++)
+                html.Append(i < metrics.Count
+                    ? Metric(widths[i], metrics[i].Label, metrics[i].Value, metrics[i].Warn ? Amber.Ink : TextColor)
+                    : $"<td width=\"{widths[i]}\"></td>");   // puste kolumny trzymają szerokość liczb jak u czujników
+            html.Append("</tr></table>");
+        }
+        foreach (var note in notes) html.Append($"<div style=\"font-size:15px;padding-top:6px\">{Enc(note)}</div>");
+        html.Append($"<div style=\"font-size:13px;color:{MutedColor};padding-top:8px\">{Enc(footer)}</div>");
+        html.Append("</div></td></tr>");
+        return html.ToString();
+    }
+
     /// <summary>Wilgotność względem progów czujnika: poniżej progu podlania czerwień, w strefie histerezy żółć, wyżej zieleń.</summary>
     public static Tone MoistureTone(SensorConfig sensor, int moisture) =>
         moisture < sensor.WateringBelowPercent ? Red : moisture < sensor.WateringClearAbovePercent ? Amber : Green;
+
+    private static string Badges(IEnumerable<(string Text, Tone Tone)> badges)
+    {
+        var html = string.Concat(badges.Select(b =>
+            $"<span style=\"display:inline-block;background:{b.Tone.Soft};border:1px solid {b.Tone.Mid};color:{b.Tone.Ink};font-size:13px;font-weight:600;padding:2px 9px;margin:0 6px 4px 0\">{Enc(b.Text)}</span>"));
+        return html.Length > 0 ? $"<div style=\"padding-top:6px\">{html}</div>" : "";
+    }
 
     private static string Metric(string width, string label, string value, string color) =>
         $"<td width=\"{width}\" valign=\"top\" style=\"padding-right:6px\">" +

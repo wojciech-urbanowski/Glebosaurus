@@ -1,4 +1,5 @@
 using System.Globalization;
+using Glebosaurus.Core.Mail;
 using Glebosaurus.Core.Monitoring;
 
 namespace Glebosaurus.Core.Cloud;
@@ -10,7 +11,7 @@ public sealed record DeviceDetail(string Label, string Value);
 /// <param name="Program">Np. „Glebosaurus 0.2.2 · Android”.</param>
 /// <param name="Details">Bateria, temperatura, sieć, Bluetooth – tylko to, co agent zgłosił.</param>
 /// <param name="Warnings">Co wymaga uwagi: gorący albo zmarznięty akumulator, przegrzanie, słaba bateria bez ładowarki, brak
-/// Wi-Fi.</param>
+/// Wi-Fi, gorący procesor.</param>
 public sealed record AgentDeviceStatus(string Program, IReadOnlyList<DeviceDetail> Details, IReadOnlyList<string> Warnings);
 
 /// <summary>
@@ -30,6 +31,10 @@ public static class AgentDevice
 
     /// <summary>Poniżej tego poziomu baterii telefonu bez ładowarki – ostrzeżenie.</summary>
     public const int LowBatteryPercent = 30;
+
+    /// <summary>Od tej temperatury procesora (Raspberry Pi) – ostrzeżenie: przy ok. 80 °C Pi obniża taktowanie.
+    /// Zimno Pi nie szkodzi (nie ma akumulatora), więc ostrzeżenia o mrozie nie ma.</summary>
+    public const double HotCpuCelsius = 75;
 
     /// <summary>Wartości <see cref="AgentStatus.Network"/> (te same przepuszcza baza – <c>glebosaurus.agent_status_view</c>).</summary>
     public static readonly IReadOnlyList<string> Networks = ["wifi", "cellular", "ethernet", "other"];
@@ -63,6 +68,7 @@ public static class AgentDevice
 
         var temperature = new List<string>();
         if (status.BatteryTemperatureCelsius is { } celsius) temperature.Add($"{Celsius(celsius)} (akumulator)");
+        if (status.CpuTemperatureCelsius is { } cpu) temperature.Add($"{Celsius(cpu)} (procesor)");
         if (ThermalText(status.ThermalStatus) is { } thermal) temperature.Add($"system: {thermal}");
         if (temperature.Count > 0) details.Add(new("Temperatura", string.Join(" · ", temperature)));
 
@@ -80,12 +86,36 @@ public static class AgentDevice
             warnings.Add($"Akumulator zmarznięty ({Celsius(cold)}) – w mrozie się nie ładuje, telefon może się wyłączyć.");
         if (ThermalLevel(status.ThermalStatus) is >= HotThermalLevel and var level)
             warnings.Add($"Telefon się przegrzewa (system: {ThermalTexts[level]}).");
+        if (status.CpuTemperatureCelsius is { } cpu and >= HotCpuCelsius)
+            warnings.Add($"Procesor gorący ({Celsius(cpu)}) – przy ok. 80 °C zwalnia; zapewnij mu chłodzenie.");
         // Na ładowarce słaba bateria się ładuje; bez informacji o ładowarce (null) ostrzegamy jak bez niej.
         if (status.BatteryPercent is { } percent and < LowBatteryPercent && status.Charging != true)
             warnings.Add(string.Create(CultureInfo.InvariantCulture, $"Słaba bateria ({percent} %) – podłącz telefon do ładowarki."));
         if (status.Network == "cellular") warnings.Add("Bez Wi-Fi – telefon wysyła dane przez sieć komórkową.");
         return warnings;
     }
+
+    /// <summary>
+    /// Urządzenia do raportu (sekcja „Urządzenia”): telefony i Raspberry Pi z listy agentów ostatniej synchronizacji – tylko
+    /// one zgłaszają baterię albo temperaturę. Agent bez sygnału życia albo bez żadnej synchronizacji jest pomijany.
+    /// </summary>
+    /// <param name="serverTime">Czas bazy, do którego liczy się <see cref="AgentView.LastSeenSecondsAgo"/>.</param>
+    /// <param name="silentAfter">Bez synchronizacji od tylu – „milczy” (ten sam próg co mail „agent milczy”).</param>
+    public static IReadOnlyList<DeviceSnapshot> ForReport(IReadOnlyList<AgentView> agents, DateTimeOffset serverTime, TimeSpan silentAfter) =>
+    [
+        .. agents
+            .Where(a => a.Status?.Platform is "android" or "linux" && a.LastSeenSecondsAgo is not null)
+            .Select(a => (Agent: a, Ago: TimeSpan.FromSeconds(Math.Max(0, a.LastSeenSecondsAgo!.Value))))
+            .Select(x => new DeviceSnapshot(x.Agent.Name, x.Agent.Status!, serverTime - x.Ago, x.Ago >= silentAfter))
+    ];
+
+    /// <summary>Rodzaj urządzenia w raporcie: telefon (Android) albo Raspberry Pi (agent linuksowy).</summary>
+    public static string Kind(string platform) => platform switch
+    {
+        "android" => "telefon",
+        "linux" => "Raspberry Pi",
+        _ => PlatformText(platform)
+    };
 
     /// <summary>Ocena siły Wi-Fi: od −60 dBm dobry, od −70 dBm średni, słabszy – słaby.</summary>
     public static string WifiQuality(int dbm) => dbm >= -60 ? "dobry" : dbm >= -70 ? "średni" : "słaby";

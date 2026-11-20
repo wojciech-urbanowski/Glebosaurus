@@ -72,7 +72,8 @@ bash deploy/test-install-linux.sh STARA NOWA [--systemd]   # próba install-linu
   użytkownik `glebosaurus`, `/opt/glebosaurus/{app,app.old,data,updates}`, `install.conf`, jednostki `glebosaurus.service`
   i `glebosaurus-update.timer` (samoaktualizacja ze skryptem z nowego wydania), polecenie `/usr/local/bin/glebosaurus`;
   paczka zależna od frameworka (`package-linux.ps1`; runtime instaluje właściciel); próba – `test-install-linux.sh`, w CI
-  na `ubuntu-24.04-arm`. Czytanie czujników na Pi – faza 2.3b (niesprawdzone).
+  na `ubuntu-24.04-arm`. Temperatura procesora w sygnale życia – `LinuxThermal` (raport: sekcja „Urządzenia”). Czytanie
+  czujników na Pi – faza 2.3b (niesprawdzone).
 - `src/Glebosaurus.Web` – lokalny panel diagnostyczny w procesie `run` (Kestrel, HTTPS z certyfikatem z podpisem własnym,
   tylko sieć lokalna, hasło; **pulpit** `/` z wykresem ostatnich 3 dób przy każdym czujniku, **strona czujnika**
   `/sensor?id=` z przeglądalnym wykresem całej historii – SVG w `wwwroot/charts.js`, bez bibliotek, dane z

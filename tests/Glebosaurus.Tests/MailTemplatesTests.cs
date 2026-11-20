@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Glebosaurus.Core.Cloud;
 using Glebosaurus.Core.Config;
 using Glebosaurus.Core.Domain;
 using Glebosaurus.Core.Mail;
@@ -27,6 +28,18 @@ public class MailTemplatesTests
 
     private static MailMessage Report(params SensorSnapshot[] snapshots) =>
         MailTemplates.Report(snapshots, To, "Salon", Now, TimeZoneInfo.Utc);
+
+    private static MailMessage Report(SensorSnapshot[] snapshots, params DeviceSnapshot[] devices) =>
+        MailTemplates.Report(snapshots, To, "Salon", Now, TimeZoneInfo.Utc, devices: devices);
+
+    private static DeviceSnapshot Phone(string name, int? battery = 64, double? temperature = 18.5, bool? charging = false, bool silent = false) =>
+        new(name, new AgentStatus("0.2.5", "android", "ok") { BatteryPercent = battery, BatteryTemperatureCelsius = temperature, Charging = charging, Network = "wifi" },
+            silent ? Now.AddHours(-3) : Now.AddMinutes(-1), silent);
+
+    private static DeviceSnapshot Pi(string name, double? cpu = 47.2) =>
+        new(name, new AgentStatus("0.2.6", "linux", "wyłączony") { CpuTemperatureCelsius = cpu }, Now.AddSeconds(-20), false);
+
+    private static string Lf(string text) => text.Replace("\r\n", "\n", StringComparison.Ordinal);
 
     // ---- raport ---------------------------------------------------------------------------------------------------
 
@@ -119,6 +132,91 @@ public class MailTemplatesTests
         var alert = new AlertRecord(1, hostile.Sensor.Id, AlertKind.NeedsWater, "<script>x</script>", Now, null, null);
         var html = MailTemplates.Alert([new(hostile.Sensor, alert, hostile.Latest, false)], To, "Salon", Now, TimeZoneInfo.Utc).HtmlBody;
         Assert.DoesNotContain("<script>", html);
+    }
+
+    // ---- urządzenia (telefon, Raspberry Pi) ------------------------------------------------------------------------
+
+    [Fact]
+    public void Report_DevicesFollowSensors_WithBatteryAndTemperature()
+    {
+        var message = Report([Snapshot("Monstera", 50)], Pi("rasp3"), Phone("mi11"));
+        var text = Lf(message.TextBody);
+
+        Assert.Equal("Poranny raport – wszystko w porządku", message.Subject);
+        Assert.Contains("Monstera – OK", text);
+        Assert.True(text.IndexOf("Monstera – OK", StringComparison.Ordinal) < text.IndexOf("\nUrządzenia\n", StringComparison.Ordinal));
+        Assert.Contains("mi11 (telefon) – OK\n  bateria 64%, bez ładowarki\n  temp. akumulatora 18,5 °C\n  kontakt 1 min temu\n", text);
+        Assert.Contains("rasp3 (Raspberry Pi) – OK\n  temp. procesora 47,2 °C\n  bez baterii (zasilacz)\n  kontakt przed chwilą\n", text);
+        Assert.True(text.IndexOf("mi11 (", StringComparison.Ordinal) < text.IndexOf("rasp3 (", StringComparison.Ordinal));   // alfabetycznie
+
+        var html = message.HtmlBody;
+        Assert.True(html.IndexOf("Monstera", StringComparison.Ordinal) < html.IndexOf(">Urządzenia<", StringComparison.Ordinal));
+        foreach (var part in new[] { ">Bateria<", ">64%<", ">Temperatura<", ">18,5 °C<", ">Ładowarka<", ">nie<", ">Temp. procesora<", ">47,2 °C<",
+                     ">zasilacz<", "Telefon · Glebosaurus 0.2.5 · kontakt 1 min temu", "Raspberry Pi · Glebosaurus 0.2.6 · kontakt przed chwilą" })
+            Assert.Contains(part, html);
+        Assert.Equal(1 + 2, Regex.Count(html, "background:#fff;border:1px solid"));   // karta czujnika i dwie karty urządzeń
+    }
+
+    [Fact]
+    public void Report_DeviceProblemsCountAsRemarks_SilentFirst()
+    {
+        var message = Report([Snapshot("Monstera", 50)], Pi("rasp3"), Phone("mi11", battery: 22, temperature: -2), Phone("stary", silent: true));
+        var text = Lf(message.TextBody);
+
+        Assert.Equal("Poranny raport – uwagi: 2", message.Subject);
+        Assert.Contains("Uwagi: 2\nstary, mi11\n", text);
+        Assert.True(text.IndexOf("stary (", StringComparison.Ordinal) < text.IndexOf("mi11 (", StringComparison.Ordinal));
+        Assert.True(text.IndexOf("mi11 (", StringComparison.Ordinal) < text.IndexOf("rasp3 (", StringComparison.Ordinal));
+        Assert.Contains("stary (telefon) – milczy\n", text);
+        Assert.Contains("  ostatni kontakt 3 h temu\n  (wartości z ostatniego kontaktu)\n", text);
+        Assert.Contains("mi11 (telefon) – uwaga\n", text);
+        Assert.Contains("  Akumulator zmarznięty (-2,0 °C) – w\n", text);
+        Assert.Contains("  Słaba bateria (22 %) – podłącz telefon\n", text);
+
+        var html = message.HtmlBody;
+        Assert.Contains(">Nie łączy się z chmurą – wartości z ostatniego kontaktu.<", html);
+        Assert.Contains("color:#74500a\">22%<", html);       // słaba bateria bez ładowarki – żółty
+        Assert.Contains("color:#74500a\">-2,0 °C<", html);   // mróz – żółty
+        Assert.Contains("border-left:5px solid #bcbcb5", html); // milczy – szary akcent
+        Assert.Contains("border-left:5px solid #efc66f", html); // uwaga – żółty akcent
+    }
+
+    [Fact]
+    public void Report_ThirstyPlantsStillLeadTheSubject_WhenADeviceHasAProblem()
+    {
+        var message = Report([Snapshot("Monstera", 18, AlertKind.NeedsWater)], Phone("mi11", temperature: 47));
+
+        Assert.Equal("Poranny raport – do podlania: Monstera", message.Subject);
+        Assert.Contains("Akumulator gorący (47,0 °C)", message.HtmlBody);
+    }
+
+    [Fact]
+    public void Report_PiWithoutTemperature_ShowsNoData_AndIsNoRemark()
+    {
+        var message = Report([Snapshot("Monstera", 50)], Pi("rasp3", cpu: null));
+
+        Assert.EndsWith("wszystko w porządku", message.Subject);
+        Assert.Contains("rasp3 (Raspberry Pi) – brak danych\n  temp. procesora –\n", Lf(message.TextBody));
+    }
+
+    [Fact]
+    public void Report_WithoutPhonesOrPis_HasNoDevicesSection()
+    {
+        var message = Report([Snapshot("Monstera", 50)]);
+
+        Assert.DoesNotContain("Urządzenia", message.TextBody);
+        Assert.DoesNotContain("Urządzenia", message.HtmlBody);
+    }
+
+    [Fact]
+    public void Report_DeviceNamesAreEscaped_AndTextLinesStayShort()
+    {
+        var message = Report([Snapshot("Monstera", 50)], Phone("<b>tel</b>", battery: 5, temperature: 50), Pi("pi", cpu: 81.5));
+
+        Assert.DoesNotContain("<b>tel", message.HtmlBody);
+        Assert.Contains("&lt;b&gt;tel&lt;/b&gt;", message.HtmlBody);
+        foreach (var line in message.TextBody.Split('\n'))
+            Assert.True(line.TrimEnd('\r').Length <= 40, $"Za długi wiersz ({line.Length} znaków): {line}");
     }
 
     // ---- wygląd na telefonie --------------------------------------------------------------------------------------
@@ -325,7 +423,7 @@ public class MailTemplatesTests
         Assert.All(samples, m => Assert.StartsWith(MailSamples.SubjectPrefix, m.Subject));
         Assert.All(samples, m => Assert.Contains("Salon (przykład)", m.TextBody));
         var report = samples[2].HtmlBody;
-        foreach (var label in new[] { "podlej", "słaba bateria", "brak odczytów", ">OK<" })
+        foreach (var label in new[] { "podlej", "słaba bateria", "brak odczytów", ">OK<", ">Urządzenia<", ">milczy<", ">uwaga<", ">Temp. procesora<" })
             Assert.Contains(label, report);
     }
 }

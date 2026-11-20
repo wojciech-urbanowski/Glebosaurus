@@ -113,7 +113,8 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
 3. **Synchronizacja agent ↔ Supabase.** Tylko ruch wychodzący: HTTPS do funkcji SQL (`/rest/v1/rpc/…`) zwykłym
    `HttpClient` z kluczem publikowalnym projektu (`sb_publishable_…` w nagłówku `apikey`, rola `anon`) i tokenem agenta –
    bez SDK i bez hasła bazy na urządzeniach. Główne wywołanie `agent_sync` co ok. 60 s: sygnał życia (wersja, stan BLE;
-   telefon także bateria, ładowarka, temperatura akumulatora, stan cieplny, sieć i siła Wi-Fi), słyszenia, paczka odczytów
+   telefon także bateria, ładowarka, temperatura akumulatora, stan cieplny, sieć i siła Wi-Fi; agent na Linuksie –
+   temperatura procesora ze stref cieplnych jądra, `LinuxThermal`), słyszenia, paczka odczytów
    z lokalnego bufora, odnowienie dzierżaw → w odpowiedzi przydziały z epoką i czasem ważności, wersja konfiguracji,
    polecenia i lista agentów z ich ostatnim sygnałem życia. Odczyty są idempotentne po `(sensor_id, at)` – ten sam klucz
    co lokalnie – a lokalny SQLite jest buforem i pełną kopią odczytów agenta, więc przerwa sieci kończy się dosłaniem bez
@@ -232,7 +233,12 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
    kwadratowe (żadnych zaokrągleń), pastelowe kolory, ciemny tekst (kontrast ≥ 5:1), nigdy biały tekst na nasyconym tle;
    paleta to `Tone` w `MailLayout.cs`, a testy pilnują braku `border-radius` i `color:#fff`; wersja tekstowa ma wiersze
    ≤ 40 znaków. Tytuł zaczyna się od tego, co ważne („Monstera – czas podlać”, „Poranny raport – do podlania: Monstera,
-   Fikus +1”); pora dnia w tytule raportu wynika z zaplanowanej godziny. Ukryty tekst podglądu pokazuje wilgotność każdej
+   Fikus +1”); pora dnia w tytule raportu wynika z zaplanowanej godziny. **Sekcja „Urządzenia”** pod czujnikami: karta
+   każdego agenta-telefonu (`android`: bateria, temperatura akumulatora, ładowarka) i agenta-Raspberry Pi (`linux`:
+   temperatura procesora) z listy agentów ostatniej synchronizacji (`AgentDevice.ForReport`), w stylu karty czujnika;
+   ostrzeżenia te same co w panelu (`AgentDevice.Warnings`), a „milczy” – ten sam próg 30 min co mail „agent milczy”
+   (wartości z ostatniego kontaktu). Urządzenie z ostrzeżeniem albo milczące liczy się do „Uwag” w pasku i tytule;
+   „do podlania” zostaje na pierwszym miejscu. Komputer z Windows nie zgłasza baterii ani temperatury – nie ma karty. Ukryty tekst podglądu pokazuje wilgotność każdej
    rośliny. `glebosaurus mail-preview` zapisuje przykładowe maile do obejrzenia, a `mail-test --samples` wysyła je.
    **Wykres w raporcie** z samego HTML (`MailChart`) – Gmail nie pokazuje SVG, a `data:` nie działa: tabela z kolumnami
    po 2 godz. (czas lokalny), w kolumnie niebieska kreska na wysokości średniej wilgotności (skala 0–100%) i pod nią blady
@@ -335,8 +341,9 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
       jego ostatniej synchronizacji. Opis i ostrzeżenia wspólne dla ekranu i panelu (`AgentDevice`; telefon może stać na
       zewnątrz): akumulator od 45 °C albo poniżej 0 °C (w mrozie się nie ładuje, telefon potrafi się wyłączyć), system
       ograniczający wydajność z powodu temperatury (od `moderate`), bateria poniżej 30% bez ładowarki (sama praca na baterii
-      nie jest ostrzeżeniem; na ładowarce słaba bateria się ładuje), sieć komórkowa zamiast Wi-Fi. Alertu mailowego o
-      temperaturze telefonu jeszcze nie ma.
+      nie jest ostrzeżeniem; na ładowarce słaba bateria się ładuje), sieć komórkowa zamiast Wi-Fi. Osobnego alertu
+      mailowego o temperaturze telefonu nie ma – stan telefonu z ostrzeżeniami jest w każdym raporcie (sekcja
+      „Urządzenia”, zasada 9).
     - **Wydania:** APK podpisany jednym kluczem wydań (jego utrata = aktualizacja tylko przez odinstalowanie i nową
       rejestrację); w wydaniu z tagu, gdy repozytorium ma sekrety `ANDROID_KEYSTORE_BASE64` i `ANDROID_KEYSTORE_PASSWORD`.
       Kod wersji z `Directory.Build.props` (0.2.1 → 201).
@@ -410,7 +417,8 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
       Każdy mail przez kolejkę: `mail_claim` → SMTP → `mail_sent`; pewna porażka SMTP (`MailTransportException.MaybeDelivered
       = false`) oddaje rezerwację i jest ponawiana po 5 min, niepewna zostawia rezerwację – mail może przepaść, ale nie
       pójdzie drugi raz. Alerty z odczytów wszystkich agentów (`readings_range`), raporty o stałych porach i na żądanie
-      (75 h odczytów na wykres), log administratora osobno od każdego agenta, „agent milczy”, strażnik healthchecks.io.
+      (75 h odczytów na wykres; telefony i Raspberry Pi z listy agentów ostatniej synchronizacji – sekcja „Urządzenia”),
+      log administratora osobno od każdego agenta, „agent milczy”, strażnik healthchecks.io.
 15. **Agent i narzędzia właściciela** (`src/Glebosaurus.Agent`).
     - **Plik agenta** (`AgentConfigLoader`): sekcja `cloud` (`url`, `publishableKey`, opcjonalnie `tokenFile`,
       `configCacheFile`, `backup`) i ustawienia urządzenia (`database`, `retentionDays`, `logs`, `web`, `monitorName`,

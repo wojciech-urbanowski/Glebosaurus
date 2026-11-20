@@ -272,7 +272,11 @@ odczytów). Tytuł zaczyna się od tego, co ważne („Monstera – czas podlać
 +1”), a w podglądzie na liście wiadomości widać wilgotność wszystkich roślin. Każdy raport ma przy czujniku wykres ostatnich
 3 dób z samego HTML (kolumny po 2 godz.: niebieska kreska – średnia wilgotność, blady pasek – temperatura od najniższej do
 najwyższej, różowe tło – poniżej progu podlania; przy wielu czujnikach kolumny są szersze, żeby Gmail nie przyciął maila),
-a wersja tekstowa linijkę `▁…█`. W stopce każdego maila jest wersja Glebosaurusa. Odbiorcy: `mail.alertRecipients` (alerty
+a wersja tekstowa linijkę `▁…█`. Pod czujnikami raport ma sekcję **„Urządzenia”**: kartę każdego telefonu (bateria,
+ładowarka, temperatura akumulatora) i Raspberry Pi (temperatura procesora) z ich ostatniej synchronizacji, z tymi samymi
+ostrzeżeniami co panel WWW (mróz, upał, słaba bateria bez ładowarki, gorący procesor od 75 °C); urządzenie z ostrzeżeniem
+albo milczące od 30 min liczy się do „Uwag” w tytule. Komputera z Windows tam nie ma – nie zgłasza baterii ani temperatury.
+W stopce każdego maila jest wersja Glebosaurusa. Odbiorcy: `mail.alertRecipients` (alerty
 i wiadomość próbna), `mail.reportRecipients` (raporty; puste = ci sami co alertów), `mail.adminRecipients` (log, „agent
 milczy”). Wygląd obejrzysz bez wysyłania: `glebosaurus mail-preview` (w przeglądarce użyj widoku telefonu).
 

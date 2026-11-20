@@ -69,7 +69,8 @@ public sealed class CloudApiClientTests(CloudDatabase db) : IDisposable
         var reading = new StoredReading(sensor, now.AddMinutes(-1), 41, 21.5m, 80, 2);
         var heartbeat = new AgentStatus("0.2.0-test", "android", "ok")
         {
-            BatteryPercent = 80, BatteryTemperatureCelsius = 31.5, Charging = true, Network = "wifi", WifiDbm = -58, ThermalStatus = "none"
+            BatteryPercent = 80, BatteryTemperatureCelsius = 31.5, Charging = true, Network = "wifi", WifiDbm = -58, ThermalStatus = "none",
+            CpuTemperatureCelsius = 41.5
         };
         var sync = await api.SyncAsync(new SyncRequest(heartbeat)
         {

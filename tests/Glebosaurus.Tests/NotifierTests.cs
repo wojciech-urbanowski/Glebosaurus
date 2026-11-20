@@ -209,6 +209,32 @@ public sealed class NotifierTests
     }
 
     [Fact]
+    public async Task Report_ShowsPhonesAndPis_FromTheLastSync()
+    {
+        Lock();
+        lockPolicy.Observe(new SyncResponse(1, Morning, 1, new("pi", true, 1))
+        {
+            Agents =
+            [
+                new("bestia5", true, 2, 30) { Status = new("0.2.6", "windows", "Shiny (WinRT)") },
+                new("mi11", false, null, 40) { Status = new("0.2.5", "android", "ok") { BatteryPercent = 22, Charging = false, BatteryTemperatureCelsius = 12.5 } },
+                new("pi", true, 1, 0) { Status = new("0.2.6", "linux", "wyłączony") { CpuTemperatureCelsius = 47.2 } }
+            ]
+        });
+        var engine = Engine();
+
+        Assert.True(await engine.HandleCommandAsync(new(9, "report_now", null, null, Morning, 600), Ct));
+        await engine.CycleAsync(Ct);
+
+        var report = Assert.Single(mail.Sent);
+        Assert.EndsWith("uwagi: 1", report.Subject);                 // słaba bateria telefonu bez ładowarki
+        Assert.Contains("mi11 (telefon) – uwaga", report.TextBody);
+        Assert.Contains("pi (Raspberry Pi) – OK", report.TextBody);
+        Assert.Contains("temp. procesora 47,2 °C", report.TextBody);
+        Assert.DoesNotContain("bestia5", report.TextBody);           // komputer nie zgłasza baterii ani temperatury
+    }
+
+    [Fact]
     public async Task AdminLogs_OneMailPerAgent_AfterOneOClock()
     {
         clock.Advance(TimeSpan.FromHours(-5.5));      // 00:30

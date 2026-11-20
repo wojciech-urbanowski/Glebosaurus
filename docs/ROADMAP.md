@@ -15,7 +15,8 @@ zbieracz, 9 czujników):
   zaległe pomiary z pamięci czujnika, nasłuch na przemian z odczytem;
 - chmura Supabase na darmowym planie: konfiguracja i sekrety w chmurze, wielu agentów z dzierżawami czujników, blokada
   nadawcy i kolejka maili bez duplikatów, strażnik healthchecks.io, codzienna kopia zapasowa;
-- maile pod telefon: alerty, raporty z wykresem 3 dób, log administratora, „agent milczy”;
+- maile pod telefon: alerty, raporty z wykresem 3 dób i stanem telefonów i Raspberry Pi (bateria, temperatura), log
+  administratora, „agent milczy”;
 - agent na Windows jako usługa bez okna z samoaktualizacją z wydań GitHuba; lokalny panel WWW (HTTPS, hasło) z wykresami,
   odczytem i raportem na żądanie;
 - agent na Androida (tylko zbieranie) z rejestracją kodem QR i podglądem zasięgu; stan telefonu (bateria, temperatura,
@@ -100,7 +101,7 @@ Tylko zbieranie, telefon na Wi-Fi (zasada 12; użycie – README, „Android”)
 | # | Zadanie | Stan | Wielkość |
 |---|---|---|---|
 | 1 | **Próba na telefonie:** instalacja, rejestracja QR, uprawnienia i ustawienia MIUI, skan i odczyty, zgaszony ekran, restart telefonu. | ◐ wszystko poza pracą przez całą noc | S–M |
-| 2 | **Agent:** usługa w tle, start po restarcie, rejestracja QR, synchronizacja, ekran stanu i zasięgu, stan telefonu w sygnale życia i w panelu WWW komputera (bateria, temperatura, stan cieplny, sieć). | ✔ ○ alert mailowy o temperaturze telefonu – upał, mróz (nadawca ma już stan agentów z `agent_sync`); start bez odblokowania (Direct Boot) | L |
+| 2 | **Agent:** usługa w tle, start po restarcie, rejestracja QR, synchronizacja, ekran stanu i zasięgu, stan telefonu w sygnale życia i w panelu WWW komputera (bateria, temperatura, stan cieplny, sieć). | ✔ stan telefonu i Raspberry Pi w każdym raporcie (sekcja „Urządzenia”, 2026-11-20; na żywo ○ – migracja `20261120120000` i wydanie); ○ osobny alert mailowy o temperaturze telefonu (na razie wystarcza raport); start bez odblokowania (Direct Boot) | L |
 | 3 | **Wydania:** APK z Actions podpisany kluczem wydań z sekretów repozytorium; powiadomienie o nowej wersji albo Obtainium. | ◐ workflowy gotowe, czekają na sekrety klucza | S |
 | 4 | **Praca obok komputera na tych samych czujnikach:** przejęcie czujników po wyłączeniu komputera, oddanie przy lepszym sygnale, żadnych równoczesnych połączeń. | ◐ pierwszy dzień bez kolizji | S + czas |
 

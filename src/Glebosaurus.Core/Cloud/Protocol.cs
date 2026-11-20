@@ -45,6 +45,10 @@ public sealed record AgentStatus(string Version, string Platform, string? Ble = 
 
     /// <summary>Stan cieplny systemu (Android <c>PowerManager.getCurrentThermalStatus</c>) – <see cref="AgentDevice.ThermalStatuses"/>.</summary>
     public string? ThermalStatus { get; init; }
+
+    /// <summary>Temperatura procesora (agent na Linuksie, np. Raspberry Pi – <see cref="LinuxThermal"/>; od migracji
+    /// 20261120120000).</summary>
+    public double? CpuTemperatureCelsius { get; init; }
 }
 
 /// <summary>Słyszenie czujnika przez agenta. Czasy względne („tyle sekund temu”), bo zegar agenta może się rozjechać z bazą.</summary>

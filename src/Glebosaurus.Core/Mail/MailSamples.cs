@@ -1,3 +1,4 @@
+using Glebosaurus.Core.Cloud;
 using Glebosaurus.Core.Config;
 using Glebosaurus.Core.Domain;
 
@@ -47,9 +48,24 @@ public static class MailSamples
         [
             Mark(MailTemplates.Test(to, name, now, zone)),
             Mark(MailTemplates.Alert(notices, to, name, now, zone)),
-            Mark(MailTemplates.Report(snapshots, to, name, now, zone))
+            Mark(MailTemplates.Report(snapshots, to, name, now, zone, devices: Devices(now)))
         ];
     }
+
+    /// <summary>Zmyślone urządzenia do sekcji „Urządzenia”: telefon w mrozie ze słabą baterią, Raspberry Pi w normie i
+    /// milczący drugi telefon.</summary>
+    private static IReadOnlyList<DeviceSnapshot> Devices(DateTimeOffset now) =>
+    [
+        new("telefon-ogród", new AgentStatus(AppInfo.Version, "android", "ok")
+        {
+            BatteryPercent = 22, Charging = false, BatteryTemperatureCelsius = -2, ThermalStatus = "none", Network = "wifi", WifiDbm = -64
+        }, now.AddMinutes(-1), Silent: false),
+        new("pi-strych", new AgentStatus(AppInfo.Version, "linux", "bez Bluetooth") { CpuTemperatureCelsius = 47.2 }, now.AddSeconds(-20), Silent: false),
+        new("telefon-salon", new AgentStatus(AppInfo.Version, "android", "ok")
+        {
+            BatteryPercent = 64, Charging = true, BatteryTemperatureCelsius = 24.5, ThermalStatus = "none", Network = "wifi", WifiDbm = -52
+        }, now.AddHours(-3), Silent: true)
+    ];
 
     /// <summary>Przykładowy mail z dziennikiem dla administratora (zmyślony dziennik z wczorajszego dnia, z ostrzeżeniami i błędem).</summary>
     public static MailMessage AdminLog(IReadOnlyList<string> to, string monitorName, DateTimeOffset now, TimeZoneInfo zone)

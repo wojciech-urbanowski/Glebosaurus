@@ -144,6 +144,7 @@ public sealed class SyncTests(CloudDatabase db)
         var phone = await s.AgentAsync("telefon");
         var pc = await s.AgentAsync("pc");
         var odd = await s.AgentAsync("dziwny");
+        var pi = await s.AgentAsync("malina");
         await s.SyncAsync(phone, s.T0, new()
         {
             ["status"] = new JsonObject
@@ -158,8 +159,13 @@ public sealed class SyncTests(CloudDatabase db)
             ["status"] = new JsonObject
             {
                 ["version"] = "0.2.3", ["platform"] = "windows", ["ble"] = 1, ["batteryPercent"] = "80", ["batteryTemperatureCelsius"] = 400,
-                ["charging"] = "tak", ["network"] = "5g", ["wifiDbm"] = 12.5, ["thermalStatus"] = 3
+                ["charging"] = "tak", ["network"] = "5g", ["wifiDbm"] = 12.5, ["thermalStatus"] = 3, ["cpuTemperatureCelsius"] = 400
             }
+        });
+        // Raspberry Pi: temperatura procesora (migracja 20261120120000).
+        await s.SyncAsync(pi, s.T0, new()
+        {
+            ["status"] = new JsonObject { ["version"] = "0.2.6", ["platform"] = "linux", ["ble"] = "wyłączony", ["cpuTemperatureCelsius"] = 47.26 }
         });
         await s.SyncAsync(odd, s.T0, new() { ["status"] = new JsonObject { ["ble"] = "ok", ["batteryPercent"] = 50 } });   // bez wersji
 
@@ -176,6 +182,10 @@ public sealed class SyncTests(CloudDatabase db)
         Assert.Equal(["platform", "version"],
             agents.Single("name", pc.Name).GetProperty("status").EnumerateObject().Select(p => p.Name).Order(StringComparer.Ordinal).ToArray());
         Assert.Equal(JsonValueKind.Null, agents.Single("name", odd.Name).GetProperty("status").ValueKind);
+        var piStatus = agents.Single("name", pi.Name).GetProperty("status");
+        Assert.Equal(["ble", "cpuTemperatureCelsius", "platform", "version"],
+            piStatus.EnumerateObject().Select(p => p.Name).Order(StringComparer.Ordinal).ToArray());
+        Assert.Equal(47.3, piStatus.GetProperty("cpuTemperatureCelsius").GetDouble());
     }
 
     [Fact]

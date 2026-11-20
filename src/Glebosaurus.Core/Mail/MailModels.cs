@@ -1,3 +1,4 @@
+using Glebosaurus.Core.Cloud;
 using Glebosaurus.Core.Config;
 using Glebosaurus.Core.Domain;
 
@@ -48,3 +49,13 @@ public sealed record SensorSnapshot(SensorConfig Sensor, StoredReading? Latest, 
     /// </summary>
     public IReadOnlyList<StoredReading> History { get; init; } = [];
 }
+
+/// <summary>
+/// Stan urządzenia agenta (telefon, Raspberry Pi) do sekcji „Urządzenia” raportu – z jego ostatniego sygnału życia
+/// (<see cref="AgentDevice.ForReport"/>).
+/// </summary>
+/// <param name="Name">Nazwa agenta w chmurze.</param>
+/// <param name="Status">Ostatni sygnał życia (platforma <c>android</c> albo <c>linux</c>).</param>
+/// <param name="LastSeenAt">Ostatnia synchronizacja agenta z chmurą.</param>
+/// <param name="Silent">Agent nie łączy się z chmurą dłużej niż próg „agent milczy” – wartości są z ostatniego kontaktu.</param>
+public sealed record DeviceSnapshot(string Name, AgentStatus Status, DateTimeOffset LastSeenAt, bool Silent);

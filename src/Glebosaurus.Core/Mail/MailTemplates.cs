@@ -51,6 +51,8 @@ public static partial class MailTemplates
     }
 
     /// <param name="scheduledAt">Zaplanowana pora raportu; od niej zależy „poranny/wieczorny” (raport nadrabiany po godzinach jest wciąż tym samym raportem).</param>
+    /// <param name="devices">Telefony i Raspberry Pi do sekcji „Urządzenia” pod czujnikami (<see cref="Cloud.AgentDevice.ForReport"/>);
+    /// urządzenie, które milczy albo ma ostrzeżenie, liczy się do „Uwag” w pasku i tytule.</param>
     /// <remarks>
     /// Czujniki z historią (<see cref="SensorSnapshot.History"/>) dostają wykres ostatnich 3 dób. Kolumny wykresu są tak
     /// wąskie, jak pozwala budżet wielkości maila (<see cref="MailChart.HtmlBudgetBytes"/>): przy wielu czujnikach przedziały
@@ -58,26 +60,29 @@ public static partial class MailTemplates
     /// </remarks>
     public static MailMessage Report(
         IReadOnlyList<SensorSnapshot> snapshots, IReadOnlyList<string> to, string monitorName, DateTimeOffset now, TimeZoneInfo zone,
-        DateTimeOffset? scheduledAt = null)
+        DateTimeOffset? scheduledAt = null, IReadOnlyList<DeviceSnapshot>? devices = null)
     {
+        devices ??= [];
         if (snapshots.Any(s => s.History.Count > 0))
         {
             foreach (var bucket in MailChart.BucketLadder)
             {
-                var message = Report(snapshots, to, monitorName, now, zone, scheduledAt, bucket);
+                var message = BuildReport(snapshots, devices, to, monitorName, now, zone, scheduledAt, bucket);
                 if (Encoding.UTF8.GetByteCount(message.HtmlBody) <= MailChart.HtmlBudgetBytes) return message;
             }
         }
-        return Report(snapshots, to, monitorName, now, zone, scheduledAt, null);
+        return BuildReport(snapshots, devices, to, monitorName, now, zone, scheduledAt, null);
     }
 
-    private static MailMessage Report(
-        IReadOnlyList<SensorSnapshot> snapshots, IReadOnlyList<string> to, string monitorName, DateTimeOffset now, TimeZoneInfo zone,
-        DateTimeOffset? scheduledAt, int? chartBucketMinutes)
+    private static MailMessage BuildReport(
+        IReadOnlyList<SensorSnapshot> snapshots, IReadOnlyList<DeviceSnapshot> devices, IReadOnlyList<string> to, string monitorName,
+        DateTimeOffset now, TimeZoneInfo zone, DateTimeOffset? scheduledAt, int? chartBucketMinutes)
     {
         var ordered = snapshots.OrderBy(Priority).ThenBy(s => s.Sensor.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+        var orderedDevices = devices.OrderBy(DevicePriority).ThenBy(d => d.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
         var thirsty = ordered.Where(s => s.OpenAlerts.Contains(AlertKind.NeedsWater)).Select(s => s.Sensor.Name).ToList();
-        var problems = ordered.Where(s => s.OpenAlerts.Count > 0).Select(s => s.Sensor.Name).ToList();
+        var problems = ordered.Where(s => s.OpenAlerts.Count > 0).Select(s => s.Sensor.Name)
+            .Concat(orderedDevices.Where(HasProblem).Select(d => d.Name)).ToList();
         var title = $"{DayPart(scheduledAt ?? now, zone)} raport";
         var when = Local(now, zone);
 
@@ -107,6 +112,7 @@ public static partial class MailTemplates
             rows.Append(SensorCard(snapshot.Sensor, snapshot.Latest, AgeLine(snapshot.Latest, now), accent, labels, null,
                 charts.GetValueOrDefault(snapshot)));
         }
+        AppendDevices(text, rows, orderedDevices, now);
         rows.Append(Footer());
 
         var preheader = string.Join(" · ", ordered.Select(s => s.Latest?.MoisturePercent is { } m ? $"{s.Sensor.Name} {m}%" : $"{s.Sensor.Name} –"));

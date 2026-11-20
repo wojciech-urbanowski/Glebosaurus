@@ -25,6 +25,9 @@ public sealed class CloudProtocolTests
         Assert.True((bool)json["status"]!["charging"]!);
         Assert.Equal(("wifi", -60, "none"), ((string?)json["status"]!["network"], (int)json["status"]!["wifiDbm"]!, (string?)json["status"]!["thermalStatus"]));
         Assert.False(json["status"]!.AsObject().ContainsKey("batteryPercent"));
+        var pi = JsonSerializer.SerializeToNode(new SyncRequest(new AgentStatus("0.2.6", "linux") { CpuTemperatureCelsius = 47.2 }),
+            CloudJsonContext.Default.SyncRequest)!;
+        Assert.Equal(47.2, (double)pi["status"]!["cpuTemperatureCelsius"]!);
         Assert.Equal(12.5, (double)json["sightings"]![0]!["heardSecondsAgo"]!);
         Assert.False(json["sightings"]![0]!.AsObject().ContainsKey("lastSuccessSecondsAgo"));
         var reading = json["readings"]![0]!;
@@ -52,7 +55,9 @@ public sealed class CloudProtocolTests
              "agents": [{"name": "mi11", "canSendMail": false, "senderPriority": null, "lastSeenSecondsAgo": 30,
                          "status": {"version": "0.2.3", "platform": "android", "ble": "ok", "batteryPercent": 80, "batteryTemperatureCelsius": 31.5,
                                     "charging": true, "network": "wifi", "wifiDbm": -58, "thermalStatus": "light"}},
-                        {"name": "pi", "canSendMail": true, "senderPriority": 1, "lastSeenSecondsAgo": null, "status": null}]}
+                        {"name": "pi", "canSendMail": true, "senderPriority": 1, "lastSeenSecondsAgo": null, "status": null},
+                        {"name": "rasp3", "canSendMail": true, "senderPriority": 1, "lastSeenSecondsAgo": 5,
+                         "status": {"version": "0.2.6", "platform": "linux", "ble": "wyłączony", "cpuTemperatureCelsius": 47.2}}]}
             """;
 
         var response = JsonSerializer.Deserialize(json, CloudJsonContext.Default.SyncResponse)!;
@@ -72,6 +77,7 @@ public sealed class CloudProtocolTests
             BatteryPercent = 80, BatteryTemperatureCelsius = 31.5, Charging = true, Network = "wifi", WifiDbm = -58, ThermalStatus = "light"
         }, response.Agents[0].Status);
         Assert.Null(response.Agents[1].Status);
+        Assert.Equal(new AgentStatus("0.2.6", "linux", "wyłączony") { CpuTemperatureCelsius = 47.2 }, response.Agents[2].Status);
     }
 
     [Fact]

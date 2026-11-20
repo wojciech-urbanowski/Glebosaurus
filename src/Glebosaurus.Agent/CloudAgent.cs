@@ -96,7 +96,11 @@ internal static class CloudAgent
         // Agent bez radia nie przekazuje czujników do przydziału – nie ubiega się o żaden (i tak by ich nie słyszał).
         var sync = new CloudSync(api, store, hearing, ledger, sensorPolicy, notifierPolicy,
             () => radio is null ? [] : configSource.Current?.Config.Sensors.Select(s => s.Id).ToList() ?? [],
-            () => new AgentStatus(AppInfo.Version, OperatingSystem.IsWindows() ? "windows" : "linux", bluetooth),
+            // Na Linuksie (Raspberry Pi) także temperatura procesora – nadawca pokazuje ją w raporcie (sekcja „Urządzenia”).
+            () => new AgentStatus(AppInfo.Version, OperatingSystem.IsWindows() ? "windows" : "linux", bluetooth)
+            {
+                CpuTemperatureCelsius = OperatingSystem.IsLinux() ? LinuxThermal.CpuTemperatureCelsius() : null
+            },
             clock, logger);
         var collector = new CollectorEngine(() => configSource.Current, store,
             radio is null ? null : new ListenThenReadSensorReader<SeenSensor>(radio, clock, logger),
