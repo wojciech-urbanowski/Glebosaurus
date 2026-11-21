@@ -1,7 +1,7 @@
 // Edytor konfiguracji w chmurze (faza 3c): ustawienia, poczta i odbiorcy, czujniki (dodanie z plikiem klucza z „pair”,
 // progi, archiwum), agenci (nowy z kodem i QR, rola, wyłączenie, odcięcie), strażnik. Sekrety tylko do ustawienia. Każdy
 // zapis niesie config_version: gdy ktoś zmienił konfigurację w międzyczasie, strona mówi to zamiast nadpisać.
-// Reguły pól sprawdza baza (te same co CloudSetupLoader) – tu tylko liczby z przecinkiem i czytelne komunikaty.
+// Reguły pól sprawdza baza (jedyne źródło prawdy, ConfigContractTests) – tu tylko liczby z przecinkiem i czytelne komunikaty.
 
 import { h, when, ago, plural, badge, kv, syncClock, num1 } from './format.js';
 import { start, banner } from './shell.js';
@@ -365,7 +365,7 @@ function addSensorForm(flash) {
     }
   });
   details.append(h('summary', null, 'Dodaj czujnik z pliku klucza'),
-    h('p', 'muted small', 'Plik ID.credentials.json powstaje przy parowaniu: glebosaurus pair --id ID --confirm-bind (parowanie z przeglądarki – w kolejnym etapie). Klucz trafia od razu do Vault.'),
+    h('p', 'muted small', 'Plik ID.credentials.json powstaje przy parowaniu lokalnym: glebosaurus pair --id ID --confirm-bind (prościej – „Sparuj czujnik zdalnie” wyżej). Czujnik ze Smart Life: plik z kluczem z chmury Tuya (README). Klucz trafia od razu do Vault.'),
     form([field('Plik klucza', file), preview, field('Id (stałe, w adresach i kluczach maili)', id, 'Małe litery, cyfry, „_” i „-”, do 40 znaków.'),
       field('Nazwa', name, 'Puste – jak id.'), ...options.fields], submitButton('Dodaj czujnik'), async () => {
       const { data } = await readKeyFile(file);

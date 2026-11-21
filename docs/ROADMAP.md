@@ -44,7 +44,7 @@ zbieracz, 9 czujników):
 1. **Tydzień próby chmury** (kryterium fazy 2.1) i **tydzień telefonu obok komputera** (2.2.4).
 2. **2.3a – Raspberry Pi 24/7 jako nadawca maili** (bez Bluetooth; komputer z Windows zostaje zapasowym): w kodzie, z próbą
    skryptu w CI na arm64; od 2026-11-19 nadawcą jest Pi – zostało przejęcie w drugą stronę i tydzień pracy.
-3. **Faza 3** – interfejs WWW w chmurze, przede wszystkim edytor konfiguracji (dziś plik konfiguracji chmury i `cloud config`);
+3. **Faza 3** – interfejs WWW w chmurze, przede wszystkim edytor konfiguracji (jedyna droga zmiany konfiguracji od 2026-11-21);
    w toku od 2026-11-21, etapy niżej.
 4. **Odtwarzanie z kopii zapasowej** (faza 4) – kopia jest, odtwarzania i jego próby jeszcze nie ma.
 5. **2.3b – czujniki na Raspberry Pi**, gdy Pi stanie w ich zasięgu (albo drugie, 32-bitowe Pi jako zbieracz).
@@ -158,7 +158,7 @@ Kolejność etapów (3e – widok mobilny, motyw jasny/ciemny, polski interfejs 
 | Etap | Zakres | Wielkość | Stan |
 |---|---|---|---|
 | 1 | **Szkielet:** tabela właścicieli i `require_owner()` (konto z listy + `aal2`), `owner_info` (wersja bazy, brakujące migracje), `cloud owner`, `cloud web-link [--qr]`; strona: połączenie z linku, logowanie z TOTP (dodanie TOTP przy pierwszym logowaniu), odświeżanie sesji, wylogowanie, lista czujników; publikacja `pages.yml` (tag `v*` i ręcznie). | M | ◐ w kodzie 2026-11-21 (testy SQL, podgląd na atrapie); logowanie z TOTP na żywo na próbnym i prawdziwym projekcie przez GitHub Pages ✔ 2026-11-21 |
-| 2 | **3c – konfiguracja:** ustawienia, poczta i odbiorcy, czujniki (dodanie z pliku klucza z `pair`, progi, archiwum zamiast usuwania), agenci (nowy z kodem i QR, rola nadawcy, wyłączenie, unieważnienie), strażnik; sekrety tylko do ustawienia; zapis z `config_version`; reguły walidacji jak `CloudSetupLoader` (test kontraktowy); próbny mail (`mail_test`) przez obecnego nadawcę. Po próbie na żywo – usunięcie pliku konfiguracji chmury i `cloud config`. | M–L | ◐ w kodzie 2026-11-21 (testy SQL z kontraktem, podgląd na atrapie); na żywo i usunięcie pliku ○ |
+| 2 | **3c – konfiguracja:** ustawienia, poczta i odbiorcy, czujniki (dodanie z pliku klucza z `pair`, progi, archiwum zamiast usuwania), agenci (nowy z kodem i QR, rola nadawcy, wyłączenie, unieważnienie), strażnik; sekrety tylko do ustawienia; zapis z `config_version`; reguły walidacji w bazie (test kontraktowy); próbny mail (`mail_test`) przez obecnego nadawcę; usunięcie pliku konfiguracji chmury i `cloud config`. | M–L | ◐ w kodzie 2026-11-21; na żywo – wyciszenie czujnika ✔, reszta edytora ○; plik konfiguracji chmury, `cloud config` i `mail-test` usunięte 2026-11-21 ✔ |
 | 3 | **3a – pulpit i historia:** czujniki z ostatnim odczytem, kto czyta, stan agentów i urządzeń, wykresy (uśrednianie w SQL jak `ReadingSeriesBuilder`), odczyt i raport na żądanie ze stanem polecenia. | M | ◐ w kodzie 2026-11-21 (kontrakt serii z C#, podgląd na atrapie); na żywo ○ |
 | 4 | **3b – alerty i raporty:** lista alertów, potwierdzenie (koniec przypomnień), wyciszenie czujnika do daty, wyciszenie wszystkiego (urlop), ręczne zamknięcie; historia maili (raporty i alerty 90 dni, `mail_archive`) z podglądem w izolowanej ramce. | M | ◐ w kodzie 2026-11-21 (testy, podgląd na atrapie; wygląd raportu z wyciszeniem zaakceptowany); na żywo ○ |
 | 5 | **3d – parowanie zdalne:** polecenie `pair` w zbieraczu (najpierw Windows, Linux po 2.3b, Android później): skan rusza pierwszy, postęp przez `command_progress`, strona mówi „włóż baterie teraz” dopiero po potwierdzeniu skanu, klucz w Vault przed wysłaniem do czujnika (przerwane parowanie wznawia się tym samym kluczem). | M | ◐ w kodzie 2026-11-21 (testy, podgląd na atrapie); na sprzęcie ○ |
@@ -222,7 +222,8 @@ Supabase Auth, logowanie z TOTP, `cloud owner`) i GitHub Pages.
   projekcie, bez Dockera; log administratora – osobny mail od każdego agenta.
 - Alert „brak odczytów”: cisza od ostatniego odczytu, ale 30 min okresu ochronnego po starcie i uśpieniu.
 - Odstęp odczytów: 2 h 5 min.
-- Tryb samodzielny usunięty; konfiguracja chmury z pliku właściciela (`cloud config`) do czasu edytora w fazie 3c.
+- Tryb samodzielny usunięty; konfiguracja chmury tylko na stronie w chmurze (plik właściciela i `cloud config` usunięte
+  2026-11-21).
 - Raspberry Pi (2026-11-19): najpierw sam nadawca bez Bluetooth (2.3a), czujniki w 2.3b; przełącznik `"bluetooth": false`
   w pliku agenta (ustawienie urządzenia – nie rola w chmurze, bez migracji); `install-linux.sh` z samoaktualizacją jak na
   Windows; paczka zależna od frameworka (ASP.NET Core Runtime 10 instaluje i aktualizuje właściciel); 32-bit (`linux-arm`)
@@ -231,7 +232,7 @@ Supabase Auth, logowanie z TOTP, `cloud owner`) i GitHub Pages.
   bez npm, Auth i RPC zwykłym `fetch`; dane tylko przez `public.owner_*` dla `authenticated` z kontrolą właściciela i
   `aal2`; logowanie hasłem i TOTP, sesja zapamiętana w przeglądarce do wylogowania; GitHub Pages, adres projektu z linku
   (`cloud web-link`), publikacja z wydaniem i ręcznie; plik konfiguracji chmury i `cloud config --file` znikają po
-  sprawdzeniu edytora na żywo (`cloud settings` zostaje); alerty – potwierdzenie, wyciszenie czujnika, wyciszenie
+  sprawdzeniu edytora (usunięte 2026-11-21 razem z `mail-test`; `cloud settings` zostaje); alerty – potwierdzenie, wyciszenie czujnika, wyciszenie
   wszystkiego, ręczne zamknięcie; historia raportów i alertów 90 dni; pełne zarządzanie agentami w panelu; parowanie
   zdalne w tej fazie (najpierw Windows).
 

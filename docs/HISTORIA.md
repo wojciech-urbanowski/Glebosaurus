@@ -103,10 +103,10 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   przeklikać edytor i alerty na danych pokazowych. `seed` i testy SQL czyszczą próbny projekt razem z listą właścicieli
   – konto w Auth zostaje, wystarczy znów `cloud owner`. Dalej prawdziwy projekt (migracje tylko na prośbę): w jego
   panelu Supabase wyłączyć zakładanie kont, Add user, Site URL https://wojciech-urbanowski.github.io/Glebosaurus/;
-  logowanie z TOTP, `cloud owner` (README, „Strona w chmurze”). Potem: zdecydować o wydaniu (nadawca z `mail_test`, wyciszeniami i archiwum maili,
-  parowanie zdalne na Windows – wersja do podbicia), sprawdzić `pair` na sprzęcie po przeniesieniu kroków BLE do
-  `ShinySensorPairer` i parowanie zdalne przy czujniku; po sprawdzeniu edytora na żywo – zgoda na usunięcie pliku
-  konfiguracji chmury i `cloud config --file`.
+  logowanie z TOTP, `cloud owner` (README, „Strona w chmurze”) – zrobione 2026-11-21, wydanie 0.2.8 też. Zostało:
+  przeklikać edytor na prawdziwych danych (zapisy ustawień, odbiorców, progów, „Wyślij próbny mail” po aktualizacji
+  rasp3 do 0.2.8), sprawdzić `pair` na sprzęcie po przeniesieniu kroków BLE do `ShinySensorPairer` i parowanie zdalne
+  przy czujniku.
 
 - Obejrzeć na telefonie: pierwszy prawdziwy raport z wykresem (2026-11-16, 19:00), log administratora, nowy mail „agent
   milczy” (w `mail-preview`).
@@ -358,6 +358,14 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   to deploy to github-pages due to environment protection rules”); treść strony i tak aktualna z ręcznego uruchomienia.
   Na prośbę użytkownika reguła tagu `v*` w środowisku `github-pages` (obok `main`) – ponowione wdrożenie z `v0.2.8`
   przeszło; opis dla własnej kopii repozytorium w README, „Strona w chmurze”.
+  **Plik konfiguracji chmury i `cloud config` usunięte** (na prośbę użytkownika; konfiguracja zmienia się już tylko na
+  stronie w chmurze): `CloudSetup`/`CloudSetupLoader`, `CloudSetupWriter`, `cloud config`, wzór
+  `examples/cloud-config.json`, pole `tuyaFile`, sekcja `healthchecks` pliku administratora (strażnika ustawia strona) i
+  `mail-test` (próbny mail z pliku – zastępuje go „Wyślij próbny mail” na stronie; wygląd maili – `mail-preview` i podgląd
+  w historii maili). `pair` zapisuje klucz w bieżącym katalogu (albo `--credentials`) i odsyła do „Dodaj czujnik z pliku
+  klucza”; identyfikator czujnika sprawdza `SensorIds`. `ConfigContractTests` – te same przypadki już tylko na funkcjach
+  SQL. Funkcje `admin_*` w bazie zostają (testy, `cloud settings`, `tools/web-preview.cs`); komentarze w zastosowanych
+  migracjach wspominają `CloudSetupLoader` – zostają (suma kontrolna). Testy zielone (632, SQL 138).
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 

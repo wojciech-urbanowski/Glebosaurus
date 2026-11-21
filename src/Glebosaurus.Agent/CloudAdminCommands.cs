@@ -8,8 +8,7 @@ using Npgsql;
 namespace Glebosaurus.Agent;
 
 /// <summary>
-/// Narzędzia właściciela chmury (ARCHITEKTURA.md, zasada 15): migracje schematu, zapis pliku konfiguracji chmury,
-/// wspólne ustawienia (odstęp odczytów), agenci z kodami rejestracji, właściciele strony w chmurze, odnośnik do niej i
+/// Narzędzia właściciela chmury (ARCHITEKTURA.md, zasada 15): migracje schematu, wspólne ustawienia (odstęp odczytów), agenci z kodami rejestracji, właściciele strony w chmurze, odnośnik do niej i
 /// kopia zapasowa. Łączą się z bazą hasłem bazy z pliku administratora (pooler sesji,
 /// VerifyFull). Bez --confirm każde polecenie zmieniające chmurę tylko pokazuje, co zrobi (kopia tylko czyta).
 /// </summary>
@@ -18,13 +17,12 @@ internal static class CloudAdminCommands
     public static async Task<int> RunAsync(CliOptions options, CancellationToken cancellationToken) => options.Subcommand switch
     {
         "migrate" => await MigrateAsync(options, cancellationToken),
-        "config" => await ConfigAsync(options, cancellationToken),
         "settings" => await SettingsAsync(options, cancellationToken),
         "agent" => await AgentAsync(options, cancellationToken),
         "backup" => await BackupAsync(options, cancellationToken),
         "owner" => await OwnerAsync(options, cancellationToken),
         "web-link" => WebLink(options),
-        _ => throw new ArgumentException("Podaj polecenie: glebosaurus cloud migrate|config|settings|agent|owner|web-link|backup --admin PLIK (zob. --help).")
+        _ => throw new ArgumentException("Podaj polecenie: glebosaurus cloud migrate|settings|agent|owner|web-link|backup --admin PLIK (zob. --help).")
     };
 
     private static (CloudAdminSettings Settings, NpgsqlDataSource Data) Open(CliOptions options)
@@ -59,45 +57,6 @@ internal static class CloudAdminCommands
         }
         var applied = await MigrationRunner.ApplyAsync(data, migrations, line => Console.WriteLine("  " + line), cancellationToken);
         Console.WriteLine($"Zastosowano migracji: {applied.Count}.");
-        return ExitCodes.Success;
-    }
-
-    private static async Task<int> ConfigAsync(CliOptions options, CancellationToken cancellationToken)
-    {
-        var setup = Cli.LoadSetup(options);
-        var (settings, data) = Open(options);
-        await using var _ = data;
-        if (!await SchemaReadyAsync(data, cancellationToken)) return ExitCodes.Error;
-
-        var plan = CloudSetupWriter.Plan(setup, settings.HealthchecksPingUrl);
-        var existing = (await CloudSetupWriter.CloudSensorIdsAsync(data, cancellationToken)).ToHashSet(StringComparer.Ordinal);
-        var settingsText = plan.Settings;
-        Console.WriteLine($"Konfiguracja z {options.SetupPath}:");
-        Console.WriteLine($"  ustawienia: strefa {settingsText["timeZone"]}, odczyt co {settingsText["readIntervalMinutes"]} min, raporty {settingsText["reportTimes"]?.ToJsonString()}, " +
-                          $"przypomnienia co {settingsText["alertReminderHours"]} h, logi {settingsText["logRetentionDays"]} dni");
-        if (settingsText["gmailAddress"] is { } sender)
-            Console.WriteLine($"  poczta: nadawca {sender}, odbiorcy alertów {settingsText["alertRecipients"]!.AsArray().Count}, raportów " +
-                              $"{settingsText["reportRecipients"]!.AsArray().Count}, administratora {settingsText["adminRecipients"]!.AsArray().Count}");
-        foreach (var sensor in plan.Sensors)
-            Console.WriteLine($"  czujnik {sensor.Id} „{sensor.Name}” ({sensor.Mac}) – {(existing.Contains(sensor.Id) ? "nadpiszę" : "nowy")}, z kluczem Tuya");
-        foreach (var id in existing.Where(id => plan.Sensors.All(s => s.Id != id)))
-            Console.WriteLine($"  czujnik {id} – jest tylko w chmurze, zostaje bez zmian");
-        Console.WriteLine($"  hasło aplikacji Gmail: {(plan.SetsGmailPassword ? "ustawię (wartość nie jest wypisywana)" : "bez zmian")}");
-        Console.WriteLine($"  adres sygnału healthchecks.io: {(plan.SetsHealthchecksPingUrl ? "ustawię (wartość nie jest wypisywana)" : "bez zmian")}");
-        foreach (var note in plan.Notes) Console.WriteLine($"  uwaga: {note}");
-        foreach (var problem in plan.Problems) Console.Error.WriteLine($"  PROBLEM: {problem}");
-        if (plan.Problems.Count > 0)
-        {
-            Console.Error.WriteLine("Popraw problemy – nic nie zapisano.");
-            return ExitCodes.Error;
-        }
-        if (!options.Confirm)
-        {
-            Console.WriteLine("Bez --confirm niczego nie zapisuję.");
-            return ExitCodes.Success;
-        }
-        await CloudSetupWriter.ApplyAsync(data, plan, cancellationToken);
-        Console.WriteLine($"Zapisano jedną transakcją: ustawienia i czujniki (liczba: {plan.Sensors.Count}). Agenci zobaczą nową konfigurację przy najbliższej synchronizacji.");
         return ExitCodes.Success;
     }
 

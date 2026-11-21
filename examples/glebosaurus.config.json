@@ -1,7 +1,7 @@
 // Wzór pliku konfiguracji agenta Glebosaurus (komentarze i końcowe przecinki są dozwolone). Skopiuj jako
 // glebosaurus.config.json obok bazy agenta i uzupełnij sekcję "cloud". Czujniki, progi, harmonogram raportów, odbiorcy
-// maili, klucze Tuya i hasło Gmaila są w chmurze (Supabase) – trafiają tam z pliku konfiguracji chmury właściciela
-// (wzór: cloud-config.json, polecenie glebosaurus cloud config). Tu tylko dostęp do chmury i ustawienia tego urządzenia.
+// maili, klucze Tuya i hasło Gmaila są w chmurze (Supabase) – ustawia je właściciel na stronie w chmurze (Konfiguracja).
+// Tu tylko dostęp do chmury i ustawienia tego urządzenia.
 // Rejestracja agenta: glebosaurus enroll --config <ten plik> (jednorazowy kod od właściciela), potem glebosaurus run.
 {
   "cloud": {

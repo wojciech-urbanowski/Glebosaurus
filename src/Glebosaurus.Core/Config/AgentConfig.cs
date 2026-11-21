@@ -158,12 +158,6 @@ public sealed class SensorConfig
     /// <summary>Dane lokalnego przypisania Tuya wpisane wprost: mac, uuid, deviceId, localKeyHex, productId.</summary>
     public TuyaCredentials Tuya { get; set; } = new();
 
-    /// <summary>
-    /// Plik konfiguracji chmury: plik z danymi przypisania (tworzony przez polecenie pair); ścieżka względna liczy się od
-    /// katalogu tego pliku. Zamiast <see cref="Tuya"/> – klucze nie muszą wtedy leżeć w głównym pliku.
-    /// </summary>
-    public string? TuyaFile { get; set; }
-
     /// <summary>Własny odstęp odczytów; null = domyślny z <see cref="AgentConfig.ReadIntervalMinutes"/>.</summary>
     public double? ReadIntervalMinutes { get; set; }
 
@@ -189,7 +183,7 @@ public sealed class SensorConfig
     public bool AlertsMuted(DateTimeOffset now) => AlertsMutedUntil > now;
 }
 
-/// <summary>Poczta w pliku konfiguracji chmury (<see cref="CloudSetup"/>); hasło trafia do Vault, reszta do ustawień w chmurze.</summary>
+/// <summary>Poczta nadawcy z konfiguracji w chmurze; hasło aplikacji przychodzi osobno z Vault (<c>mail_credentials</c>).</summary>
 public sealed class MailConfig
 {
     /// <summary>Konto Gmail nadawcy.</summary>

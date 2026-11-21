@@ -30,7 +30,6 @@ using System.Text;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Glebosaurus.Cloud.Admin;
-using Glebosaurus.Core.Config;
 using Glebosaurus.Core.Mail;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.FileProviders;
@@ -108,42 +107,30 @@ static class Seed
         await ResetAsync(data);
         Console.WriteLine("Próbny projekt wyczyszczony, migracje zastosowane.");
 
-        // Konfiguracja tą samą drogą co „cloud config --file” (zmyślony plik z danymi Tuya wprost).
-        var file = new JsonObject
+        // Konfiguracja funkcjami administracyjnymi (jak w testach SQL; zmyślone dane Tuya i hasło).
+        await ExecAsync(data, "select glebosaurus.admin_settings_update(@p::jsonb)", ("p", new JsonObject
         {
             ["timeZone"] = "Europe/Warsaw", ["readIntervalMinutes"] = 125, ["scanWindowSeconds"] = 60,
-            ["sensors"] = new JsonArray([.. Plants.Select((p, i) => (JsonNode)new JsonObject
-            {
-                ["id"] = p.Id, ["name"] = p.Name, ["wateringBelowPercent"] = p.WateringBelow,
-                ["tuya"] = new JsonObject
-                {
-                    ["mac"] = $"AA:00:00:00:00:0{i + 1}", ["uuid"] = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8)),
-                    ["deviceId"] = "demo" + Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(9)), ["localKeyHex"] = "a1b2c3d4e5f6",
-                    ["productId"] = "gvygg3m8"
-                }
-            })]),
-            ["mail"] = new JsonObject
-            {
-                ["gmailAddress"] = "glebosaurus.demo@gmail.com", ["appPassword"] = "zmyslonehaslo00",
-                ["alertRecipients"] = new JsonArray([.. Recipients.Select(r => (JsonNode)JsonValue.Create(r))]),
-                ["reportRecipients"] = new JsonArray(), ["adminRecipients"] = new JsonArray("admin@example.com")
-            },
-            ["reports"] = new JsonObject { ["times"] = new JsonArray("07:00", "19:00"), ["catchUpHours"] = 3 },
-            ["alerts"] = new JsonObject { ["reminderHours"] = 24 },
-            ["logs"] = new JsonObject { ["retentionDays"] = 7 }
-        };
-        var path = Path.Combine(Path.GetTempPath(), $"glebosaurus-demo-{Guid.NewGuid():N}.json");
-        try
+            ["reportTimes"] = new JsonArray("07:00", "19:00"), ["reportCatchUpHours"] = 3, ["alertReminderHours"] = 24,
+            ["logRetentionDays"] = 7, ["gmailAddress"] = "glebosaurus.demo@gmail.com",
+            ["alertRecipients"] = new JsonArray([.. Recipients.Select(r => (JsonNode)JsonValue.Create(r))]),
+            ["reportRecipients"] = new JsonArray(), ["adminRecipients"] = new JsonArray("admin@example.com")
+        }.ToJsonString()));
+        await ExecAsync(data, "select glebosaurus.admin_mail_secret('gmail-app-password', @v)", ("v", "zmyslonehaslo00"));
+        for (var i = 0; i < Plants.Length; i++)
         {
-            await File.WriteAllTextAsync(path, file.ToJsonString());
-            var plan = CloudSetupWriter.Plan(CloudSetupLoader.Load(path), null);
-            await CloudSetupWriter.ApplyAsync(data, plan, CancellationToken.None);
-            Console.WriteLine($"Konfiguracja: {plan}");
+            var plant = Plants[i];
+            var mac = $"AA:00:00:00:00:0{i + 1}";
+            await ExecAsync(data, "select glebosaurus.admin_sensor_upsert(@id, @name, @mac, @o::jsonb)", ("id", plant.Id), ("name", plant.Name),
+                ("mac", mac), ("o", new JsonObject { ["enabled"] = true, ["wateringBelowPercent"] = plant.WateringBelow }.ToJsonString()));
+            await ExecAsync(data, "select glebosaurus.admin_sensor_credentials(@id, @c::jsonb)", ("id", plant.Id), ("c", new JsonObject
+            {
+                ["mac"] = mac, ["uuid"] = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8)),
+                ["deviceId"] = "demo" + Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(9)), ["localKeyHex"] = "a1b2c3d4e5f6",
+                ["productId"] = "gvygg3m8"
+            }.ToJsonString()));
         }
-        finally
-        {
-            File.Delete(path);
-        }
+        Console.WriteLine($"Konfiguracja: czujników {Plants.Length}, poczta z hasłem (zmyślonym).");
 
         await ExecAsync(data, "insert into glebosaurus.owners (user_id, email) values (@u, @e)", ("u", Demo.OwnerId), ("e", Demo.OwnerEmail));
 

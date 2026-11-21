@@ -32,8 +32,9 @@ serwera).
 
 Agentów może być dowolnie wielu; każdy zbiera odczyty z czujników, które słyszy, a maile wysyła tylko ten, który trzyma
 blokadę nadawcy. Agent bez Bluetooth (`"bluetooth": false`, np. Raspberry Pi stojące daleko od czujników) jest samym
-nadawcą – czujniki czytają inni. Właściciel konfiguruje chmurę z własnego komputera: plik konfiguracji chmury (czujniki, progi, poczta) i
-polecenia `glebosaurus cloud …` z plikiem administratora (hasło bazy).
+nadawcą – czujniki czytają inni. Właściciel konfiguruje chmurę na stronie w chmurze (czujniki, progi, raporty, poczta,
+agenci – zasada 10), a z własnego komputera zakłada schemat i nadaje dostęp poleceniami `glebosaurus cloud …` z plikiem
+administratora (hasło bazy).
 
 ## Struktura repozytorium
 
@@ -54,7 +55,7 @@ supabase/migrations/        schemat i funkcje SQL chmury (zasada 13), wbudowane 
 supabase/prod-ca-2021.crt   certyfikat główny Supabase (publiczny, do 2031-04-26), wbudowany w Glebosaurus.Cloud.Admin
 tests/                      protokół i sesja na atrapie czujnika; Core na atrapach z ręcznie sterowanym czasem;
                             Glebosaurus.Cloud.Tests – funkcje SQL na próbnym projekcie Supabase (na żądanie)
-examples/                   wzory: plik agenta, plik konfiguracji chmury, plik administratora
+examples/                   wzory: plik agenta, plik administratora
 deploy/                     install-windows.ps1, package-windows.ps1 (Windows); install-linux.sh, package-linux.ps1,
                             test-install-linux.sh (Linux/Raspberry Pi, zasada 7); build-android.ps1
 .github/workflows/          ci.yml (build + testy, APK), release.yml (tag v* → testy, paczka, APK, próba instalacji, wydanie),
@@ -73,9 +74,8 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
    panel); konfiguracja z chmury ma lokalnie ostatnią dobrą kopię, więc agent startuje i bez sieci. Klucze Tuya dostaje
    każdy zarejestrowany agent (każdy może przejąć każdy czujnik) i trzyma ich kopię chronioną (DPAPI / Android Keystore /
    plik 600). Hasło Gmaila dostaje tylko obecny nadawca (`mail_credentials`, ta sama kontrola epoki co `mail_claim`) i
-   trzyma je wyłącznie w pamięci. Właściciel trzyma u siebie **plik konfiguracji chmury** (czujniki z plikami kluczy z
-   `pair`, progi, raporty, poczta – `CloudSetup`) i zapisuje go w chmurze poleceniem `cloud config`; czujniki spoza pliku
-   zostają w chmurze bez zmian. Konsekwencje: konto Supabase i hasło bazy są kluczem do wszystkiego (logowanie
+   trzyma je wyłącznie w pamięci. Konfigurację zmienia właściciel na stronie w chmurze (zasada 10, sekrety tylko do
+   ustawienia); pliku konfiguracji chmury i `cloud config` od 2026-11-21 nie ma. Konsekwencje: konto Supabase i hasło bazy są kluczem do wszystkiego (logowanie
    dwuetapowe; hasło bazy nigdy na agentach – wyjątek: jeden agent z kopią zapasową, zasada 10); hasło aplikacji Gmail
    daje pełny dostęp do skrzynki, więc nadawcą powinno być osobne konto Gmail tylko do tego.
 2. **Koordynacja wielu agentów.** Czujnik przyjmuje jedno połączenie naraz, a kilka agentów może go słyszeć; każdy mail
@@ -142,9 +142,9 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
    klucz lokalny, zapisuje go w pliku **przed** wysłaniem do czujnika (przerwane parowanie wznawia się tym samym kluczem)
    i sprawdza na nowym połączeniu. Sparowany czujnik znika z aplikacji Smart Life; reset przyciskiem go przywraca. Czujnik
    zostawiony w Smart Life też da się czytać kluczem pobranym z chmury Tuya (MAC ustala `scan` po UUID Tuya z reklamy) –
-   wtedy jednak nasze odczyty kasują jego rekordy i Smart Life traci historię. Klucze trafiają do Vault przez `cloud
-   config` (plik konfiguracji chmury wskazuje pliki z `pair` albo zawiera dane wprost) albo przez stronę w chmurze (plik
-   klucza wgrany w edytorze). **Parowanie zdalne** (faza 3d): kroki BLE w `ShinySensorPairer` (`ISensorPairer` z Core –
+   wtedy jednak nasze odczyty kasują jego rekordy i Smart Life traci historię. Klucze trafiają do Vault przez stronę w
+   chmurze (plik klucza z `pair` albo ręcznie zapisany klucz z chmury Tuya, wgrany w edytorze) albo przez parowanie
+   zdalne. **Parowanie zdalne** (faza 3d): kroki BLE w `ShinySensorPairer` (`ISensorPairer` z Core –
    skan kandydatów z oknem 1,5 s na drugiego, przypisanie w sesji Tuya, weryfikacja odczytem; to samo radio ma `pair`),
    przebieg w `PairingProcedure` (Core, testy na atrapie): skan rusza pierwszy i dopiero wtedy postęp „wkładaj baterie”,
    kilku kandydatów – odmowa z ich adresami, nowy klucz zapisany przed wysłaniem (`IPairingKeyStore`: plik albo Vault),
@@ -265,7 +265,8 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
    ostrzeżenia te same co w panelu (`AgentDevice.Warnings`), a „milczy” – ten sam próg 30 min co mail „agent milczy”
    (wartości z ostatniego kontaktu). Urządzenie z ostrzeżeniem albo milczące liczy się do „Uwag” w pasku i tytule;
    „do podlania” zostaje na pierwszym miejscu. Komputer z Windows nie zgłasza baterii ani temperatury – nie ma karty. Ukryty tekst podglądu pokazuje wilgotność każdej
-   rośliny. `glebosaurus mail-preview` zapisuje przykładowe maile do obejrzenia, a `mail-test --samples` wysyła je.
+   rośliny. `glebosaurus mail-preview` zapisuje przykładowe maile do obejrzenia; prawdziwy próbny mail wysyła nadawca na
+   polecenie ze strony (`mail_test`).
    **Wykres w raporcie** z samego HTML (`MailChart`) – Gmail nie pokazuje SVG, a `data:` nie działa: tabela z kolumnami
    po 2 godz. (czas lokalny), w kolumnie niebieska kreska na wysokości średniej wilgotności (skala 0–100%) i pod nią blady
    pasek temperatury od najniższej do najwyższej, różowe tło = średnia poniżej progu podlania, pusta kolumna = brak
@@ -473,11 +474,11 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
       notkę o wyciszeniu i szarą etykietę przy wyciszonym czujniku. **Archiwum maili** (`mail_archive`, 90 dni): nadawca po
       udanej wysyłce raportu, alertu, maila próbnego i „agent milczy” zapisuje HTML spakowany gzipem (`mail_archive_put` –
       tylko obecny nadawca i tylko mail, który sam zarezerwował i odnotował jako wysłany; błąd archiwum nie dotyczy
-      maila; strona rozpakowuje najwyżej 5 MB HTML). Walidacja jak `CloudSetupLoader` (strefa IANA z
+      maila; strona rozpakowuje najwyżej 5 MB HTML). Walidacja tylko w bazie (strefa IANA z
       `pg_timezone_names`, odstęp ≥ 0,5 min, okno skanu 5–120 s, progi 0–100 z „koniec” > „podlać”, 1–10 odczytów z rzędu,
       adresy bez imion i z kropką w domenie – ujednolicone i bez powtórzeń, plik klucza: MAC, UUID 16 znaków, deviceId,
-      klucz 6 bajtów, znany productId, MAC i UUID niepowtarzalne); pilnuje tego `ConfigContractTests` – te same przypadki
-      dla pliku i dla funkcji (w transakcji wycofywanej na końcu). **Archiwum czujnika** (`archived_at`, zawsze wyłączony):
+      klucz 6 bajtów, znany productId, MAC i UUID niepowtarzalne); pilnuje tego `ConfigContractTests` – zestaw przypadków
+      dobrych i złych na funkcjach strony (do 2026-11-21 ten sam zestaw sprawdzał też plik konfiguracji chmury). **Archiwum czujnika** (`archived_at`, zawsze wyłączony):
       `get_config` go pomija (agent traktuje to jak usunięcie), pulpit też, otwarte alerty zamykają się; odczyty i klucz
       zostają, przywrócony wraca wyłączony. Tabela `owners` bez klucza obcego do `auth.users` (schemat Supabase; kopia
       i testy od niego nie zależą) – usunięte konto i tak się nie zaloguje, a natychmiast odcina `cloud owner --remove`.
@@ -546,14 +547,8 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
     - **Narzędzia właściciela** (`glebosaurus cloud …`, połączenie z bazą hasłem z pliku administratora – `--admin PLIK`,
       zawsze jawnie; każde polecenie wypisuje id projektu, a bez `--confirm` tylko pokazuje plan):
       - `cloud migrate` – stan migracji, z `--confirm` stosuje czekające; zmieniona albo nieznana migracja – stop z kodem 1;
-      - `cloud config --file PLIK` (`CloudSetupLoader` + `CloudSetupWriter`) – plik konfiguracji chmury: ustawienia (strefa
-        raportów – z pliku albo IANA tego komputera, pory raportów, odstępy, przypomnienia, retencja logów), poczta (nadawca,
-        odbiorcy, hasło aplikacji do Vault), czujniki (MAC ujednolicony, progi, dane Tuya do Vault) plus adres sygnału
-        strażnika z pliku administratora. Plan pokazuje nowe, nadpisywane i tylko-chmurowe czujniki oraz to, że sekrety
-        zostaną ustawione, nigdy ich wartości. Plik sprawdzany jest tymi samymi regułami co w chmurze (identyfikator
-        czujnika `[a-z0-9][a-z0-9_-]{0,39}`, MAC wymagany, progi, adresy); zapis jedną transakcją, powtórzony – nadpisuje,
-        nic nie usuwa;
-      - `cloud settings [--read-interval MIN]` – wspólne ustawienia i zmiana samego odstępu odczytów, bez pełnego pliku;
+      - `cloud settings [--read-interval MIN]` – wspólne ustawienia i zmiana samego odstępu odczytów (resztę konfiguracji
+        zmienia strona w chmurze; plik konfiguracji chmury i `cloud config` usunięto 2026-11-21 – HISTORIA.md);
       - `cloud agent [--name NAZWA [--sender-priority N] --confirm [--qr PLIK]]` – lista agentów albo nowy agent
         (zbieracz albo kandydat na nadawcę 1–9) z jednorazowym kodem rejestracji (24 h); istniejącemu agentowi zmienia rolę
         bez ponownej rejestracji (agent przejmuje ją przy najbliższej synchronizacji);
@@ -565,9 +560,9 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
       - `cloud web-link [--page ADRES] [--qr PLIK]` (`OwnerWebLink`, bez połączenia z bazą) – odnośnik do strony z adresem
         projektu i kluczem publikowalnym we fragmencie i jego kod QR;
       - `cloud backup` – kopia zapasowa (zasada 10).
-    - **Pozostałe polecenia:** `pair` (zasada 5; klucz obok pliku konfiguracji chmury i gotowy wpis do niego), `mail-test`
-      (próbny mail z konta z pliku konfiguracji chmury – sprawdza hasło aplikacji przed `cloud config`), `mail-preview`,
-      `web-password`, `stop`, diagnostyka `scan`, `read`, `listen`.
+    - **Pozostałe polecenia:** `pair` (zasada 5; klucz `ID.credentials.json` w bieżącym katalogu albo `--credentials`,
+      identyfikator sprawdza `SensorIds` – ta sama reguła co w bazie; czujnik dodaje się potem na stronie z pliku klucza),
+      `mail-preview`, `web-password`, `stop`, diagnostyka `scan`, `read`, `listen`.
 
 ## Zależności czasów
 

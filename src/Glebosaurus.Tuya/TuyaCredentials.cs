@@ -6,8 +6,8 @@ using System.Text.Json.Serialization;
 namespace Glebosaurus.Tuya;
 
 /// <summary>
-/// Dane lokalnego przypisania czujnika (identyfikatory i klucz lokalny). W fazie 1 żyją w pliku JSON obok konfiguracji
-/// (`tuyaFile`); docelowo trafią do zaszyfrowanej konfiguracji w chmurze.
+/// Dane lokalnego przypisania czujnika (identyfikatory i klucz lokalny). Plik JSON tworzy <c>pair</c>
+/// (<c>ID.credentials.json</c>); w chmurze leżą w Vault (strona: „Dodaj czujnik z pliku klucza”, parowanie zdalne).
 /// </summary>
 public sealed class TuyaCredentials
 {

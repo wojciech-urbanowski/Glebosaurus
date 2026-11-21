@@ -113,7 +113,7 @@ public static class MailSamples
 
     /// <summary>
     /// Raport z 20 zmyślonymi czujnikami i pełną historią – do obejrzenia, jak wykresy zachowują się przy wielu czujnikach
-    /// (szersze przedziały, żeby mail zmieścił się w limicie Gmaila). Tylko podgląd, nie wchodzi do <c>mail-test --samples</c>.
+    /// (szersze przedziały, żeby mail zmieścił się w limicie Gmaila). Tylko podgląd (<c>mail-preview</c>).
     /// </summary>
     public static MailMessage LargeReport(IReadOnlyList<string> to, string monitorName, DateTimeOffset now, TimeZoneInfo zone)
     {

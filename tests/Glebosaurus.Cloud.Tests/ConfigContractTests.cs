@@ -1,15 +1,14 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Glebosaurus.Core.Config;
 using Npgsql;
 
 namespace Glebosaurus.Cloud.Tests;
 
 /// <summary>
-/// Kontrakt edytora konfiguracji (faza 3c): te same dane są dobre albo złe i dla pliku konfiguracji chmury
-/// (<see cref="CloudSetupLoader"/>), i dla funkcji strony (<c>owner_settings_update</c>, <c>owner_sensor_add</c>,
-/// <c>owner_secret_set</c>). Jeden zestaw przypadków na wzorze w kształcie <c>cloud-config.json</c>; strona dostaje go
-/// rozłożony na wywołania tak, jak robi to edytor. Funkcje działają w transakcji wycofywanej na końcu.
+/// Reguły edytora konfiguracji (faza 3c): funkcje strony (<c>owner_settings_update</c>, <c>owner_sensor_add</c>,
+/// <c>owner_secret_set</c>) są jedynym miejscem walidacji konfiguracji chmury (plik konfiguracji chmury i
+/// <c>cloud config</c> usunięto 2026-11-21). Jeden zestaw przypadków na wzorze całej konfiguracji, rozłożonym na wywołania
+/// tak, jak robi to edytor; strona w przeglądarce sprawdza tylko liczby i komunikaty (<c>web/config.js</c>).
 /// </summary>
 public sealed class ConfigContractTests(CloudDatabase db)
 {
@@ -98,27 +97,6 @@ public sealed class ConfigContractTests(CloudDatabase db)
 
     [Theory]
     [MemberData(nameof(Cases))]
-    public void File_AcceptsOrRejects(string name)
-    {
-        var c = Find(name);
-        var model = Model();
-        c.Patch(model);
-
-        var file = Path.Combine(Path.GetTempPath(), $"glebosaurus-contract-{Guid.NewGuid():N}.json");
-        File.WriteAllText(file, model.ToJsonString());
-        try
-        {
-            if (c.Valid) CloudSetupLoader.Load(file);
-            else Assert.Throws<InvalidDataException>(() => CloudSetupLoader.Load(file));
-        }
-        finally
-        {
-            File.Delete(file);
-        }
-    }
-
-    [Theory]
-    [MemberData(nameof(Cases))]
     public async Task OwnerFunctions_AcceptOrReject(string name)
     {
         var c = Find(name);
@@ -139,7 +117,7 @@ public sealed class ConfigContractTests(CloudDatabase db)
     }
 
     [Fact]
-    public async Task DuplicateMacOrUuid_IsRejectedByBoth()
+    public async Task DuplicateMacOrUuid_IsRejected()
     {
         db.SkipIfUnavailable();
         foreach (var field in new[] { "mac", "uuid" })
@@ -150,11 +128,6 @@ public sealed class ConfigContractTests(CloudDatabase db)
             second["tuya"] = Scenario.Credentials(Scenario.RandomMac());
             second["tuya"]![field] = Tuya(model)[field]!.DeepClone();
             model["sensors"]!.AsArray().Add(second);
-
-            var file = Path.Combine(Path.GetTempPath(), $"glebosaurus-contract-{Guid.NewGuid():N}.json");
-            File.WriteAllText(file, model.ToJsonString());
-            try { Assert.Throws<InvalidDataException>(() => CloudSetupLoader.Load(file)); }
-            finally { File.Delete(file); }
 
             var claims = await new Scenario(db, DateTimeOffset.UtcNow).OwnerAsync();
             await using var owner = await OwnerSession.StartAsync(db, claims);

@@ -19,7 +19,7 @@ dotnet run --project src/Glebosaurus.Agent -f net10.0-windows10.0.19041.0 -- --h
 # Właściciel: cloud migrate|config|settings|agent|owner|backup --admin local/cloud-admin.test.json (bez --confirm tylko plan; prawdziwy projekt – tylko na prośbę)
 # Strona w chmurze: cloud owner --email ADRES --confirm (konto musi być w Supabase Auth), cloud web-link [--qr PLIK] (odnośnik z adresem projektu)
 dotnet run tools/web-preview.cs -- seed|serve   # podgląd web/ na funkcjach SQL PRÓBNEGO projektu (seed czyści go; wlasciciel@example.com / podglad / 123456)
-# cloud config --file PLIK – plik konfiguracji chmury (wzór examples/cloud-config.json: czujniki, progi, raporty, poczta)
+# Konfiguracja chmury (czujniki, progi, raporty, poczta, agenci, strażnik) – tylko strona w chmurze (web/); pliku konfiguracji chmury i cloud config nie ma od 2026-11-21
 # cloud settings --read-interval MIN – sam odstęp odczytów w chmurze (admin_settings_update), bez pełnego pliku
 # Kopia chmury: cloud backup --admin local/cloud-admin.test.json --out <scratchpad> (tylko czyta bazę; plik ZIP z odszyfrowanymi sekretami)
 ./deploy/package-windows.ps1                               # pliki wydania Windows (zip samodzielny, install-windows.ps1, SHA256SUMS) w publish/release
@@ -33,8 +33,8 @@ bash deploy/test-install-linux.sh STARA NOWA [--systemd]   # próba install-linu
 
 - `src/Glebosaurus.Tuya` – protokół Tuya BLE 3.x (ramki, AES, DP), sesja (`TuyaSession`), lokalne parowanie, poświadczenia,
   profile czujników. **Nie zna biblioteki BLE** – rozmawia przez `IGattLink`.
-- `src/Glebosaurus.Core` – konfiguracja (`AgentConfig` + `AgentConfigLoader` – plik agenta; `CloudSetup` +
-  `CloudSetupLoader` – plik konfiguracji chmury właściciela), reguły alertów (`AlertEvaluator`, `SilenceGrace`),
+- `src/Glebosaurus.Core` – konfiguracja (`AgentConfig` + `AgentConfigLoader` – plik agenta; `SensorIds` – reguła
+  identyfikatora czujnika), reguły alertów (`AlertEvaluator`, `SilenceGrace`),
   harmonogram raportów, szablony maili (`MailTemplates`, `MailChart`), dane do wykresów (`Core/Charts`), interfejsy brzegowe
   (`IMonitorStore`, `ISensorReader`/`ISensorRadio`/`ISensorListener`, `IMailGateway`, `ILogArchive`; pliki dzienne w
   `DailyLogFiles`). Kolejność radia „nasłuch → odczyt znalezionego → nasłuch po resztę” to `ListenThenReadSensorReader`.
@@ -58,13 +58,13 @@ bash deploy/test-install-linux.sh STARA NOWA [--systemd]   # próba install-linu
   Androida; ochrona tokenu i kopii konfiguracji; `HealthchecksHeartbeat`).
 - `src/Glebosaurus.Agent` – CLI (Shiny.BluetoothLE): `run` (`CloudAgent.RunAsync`; z `"bluetooth": false` w pliku agenta bez
   BLE – zbieracz bez radia, np. Raspberry Pi jako sam nadawca, ROADMAP 2.3a), `enroll`, `stop`, `web-password`, `pair`
-  (klucz obok pliku konfiguracji chmury, `--file`), `mail-test --file`, `mail-preview`, `cloud …` (`CloudAdminCommands`),
+  (klucz `ID.credentials.json` w bieżącym katalogu), `mail-preview`, `cloud …` (`CloudAdminCommands`),
   diagnostyka `scan`/`read`/`listen`; radio Shiny to tylko `ISensorRadio` (`ShinySensorRadio`) i `ISensorPairer`
   (`ShinySensorPairer` – kroki BLE `pair` i parowania zdalnego z `Core/Pairing`: `PairingProcedure`, `RemotePairing`,
   `RadioGate`; zdalnie paruje na razie tylko agent na Windows).
 - `src/Glebosaurus.Cloud.Admin` – połączenie z bazą (Npgsql, pooler sesji, zawsze `VerifyFull` z wbudowanym certyfikatem
   głównym Supabase `supabase/prod-ca-2021.crt`, ważnym do 2031-04-26), `MigrationRunner` z migracjami wbudowanymi,
-  `CloudSetupWriter` (plan i zapis pliku konfiguracji chmury), `CloudAgents`, `CloudSettingsAdmin` i `CloudBackup` (zrzut
+  `CloudAgents`, `CloudSettingsAdmin` i `CloudBackup` (zrzut
   bez `pg_dump`: tabele CSV z jednej migawki + odszyfrowane sekrety z Vault, ZIP; `DailyCloudBackup` – raz dziennie w `run`
   z sekcją `cloud.backup`).
 - `src/Glebosaurus.Service` – usługa Windows bez okna (`glebosaurus-service.exe`, zadanie Harmonogramu przy zalogowaniu):
@@ -88,7 +88,7 @@ bash deploy/test-install-linux.sh STARA NOWA [--systemd]   # próba install-linu
   `shell.js`), dane tylko z funkcji `public.owner_*` (rola `authenticated`, `require_owner()`: konto z `owners` + `aal2`).
   Strony: pulpit (`dashboard.js`), czujnik (`sensor.js`; wykresy z `owner_series` – uśrednianie w SQL jak
   `ReadingSeriesBuilder`, pilnuje `SeriesContractTests`), edytor konfiguracji (`config.js`; zapisy z `config_version`,
-  walidacja jak `CloudSetupLoader` – `ConfigContractTests`; parowanie zdalne – `owner_pair_start`, postęp co 2 s), alerty (`alerts.js`: potwierdzenie, zamknięcie, wyciszenia,
+  walidacja tylko w bazie – `ConfigContractTests`; parowanie zdalne – `owner_pair_start`, postęp co 2 s), alerty (`alerts.js`: potwierdzenie, zamknięcie, wyciszenia,
   historia maili) i podgląd maila (`mail.html` – jedyna strona z `style-src 'unsafe-inline'`, treść w ramce `sandbox`).
   `charts.js` – też kopia pliku panelu. `vendor/qrcode.js` – qrcode-generator 2.0.4 bez zmian (suma w teście).
   Adres projektu z odnośnika `cloud web-link` (nie w repozytorium). `format.js`, `charts.js` i `favicon.svg` to kopie plików lokalnego
@@ -115,8 +115,7 @@ bash deploy/test-install-linux.sh STARA NOWA [--systemd]   # próba install-linu
 - `tests/` – protokół i sesja na atrapie czujnika; Core na atrapach z ręcznie sterowanym czasem; `ExamplesTests` pilnuje,
   że wzory z `examples/` się wczytują; `Glebosaurus.Cloud.Tests` – funkcje SQL na próbnym projekcie (zegar przesuwany
   `glebosaurus.test_now`, tylko w bazie ze znacznikiem próbnej).
-- `examples/` – wzory: `glebosaurus.config.json` (plik agenta), `cloud-config.json` (plik konfiguracji chmury),
-  `cloud-admin.json` (plik administratora).
+- `examples/` – wzory: `glebosaurus.config.json` (plik agenta), `cloud-admin.json` (plik administratora).
 - `local/` – **poza repozytorium** (`.gitignore`): pliki właściciela i próby (pliki administratora, konfiguracja chmury,
   klucze czujników, klucz wydań Androida, robocze bazy i dzienniki).
 
@@ -171,11 +170,11 @@ bash deploy/test-install-linux.sh STARA NOWA [--systemd]   # próba install-linu
 
 - `pair` zmienia stan czujnika (wymaga `--confirm-bind` i fizycznej obecności użytkownika przy baterii). To samo parowanie
   zdalne ze strony w chmurze (`owner_pair_start`, „Sparuj czujnik zdalnie”) – tylko na prośbę i z użytkownikiem przy czujniku.
-- `mail-test` (też z `--samples`) i prawdziwy `run` nadawcy wysyłają prawdziwe maile; w panelu WWW prawdziwy mail wysyła
+- Prawdziwy `run` nadawcy i „Wyślij próbny mail” na stronie (polecenie `mail_test`) wysyłają prawdziwe maile; w panelu WWW prawdziwy mail wysyła
   też „Wyślij raport teraz” (`POST /api/report`). Wyglądu maili sprawdzaj przez `mail-preview` (tylko pliki) – maile są
   projektowane pod wąski ekran telefonu, nie psuj tego (testy pilnują układu).
 - Nie drukuj i nie loguj sekretów i nie commituj `local/`. Sekretami są: pliki `*.credentials.json` (klucze czujników),
-  hasło aplikacji Gmail (w pliku konfiguracji chmury), `glebosaurus-web.password` (skrót hasła panelu),
+  hasło aplikacji Gmail (w Vault i w kopiach chmury), `glebosaurus-web.password` (skrót hasła panelu),
   `glebosaurus-web.pfx` (klucz certyfikatu panelu), pliki administratora (`local/cloud-admin.json`,
   `local/cloud-admin.test.json` – hasło bazy, adres sygnału healthchecks.io), kopie chmury `glebosaurus-backup-*.zip`
   (odszyfrowane klucze Tuya i hasło Gmaila), `glebosaurus-cloud.token` (token agenta) i `glebosaurus-cloud-config.bin`
@@ -186,8 +185,7 @@ bash deploy/test-install-linux.sh STARA NOWA [--systemd]   # próba install-linu
   wpisuj do repozytorium, bo jest publiczne.
 - Migracje i testy SQL tylko na próbnym projekcie (`local/cloud-admin.test.json`). Prawdziwy projekt
   (`local/cloud-admin.json`) zmienia się wyłącznie na prośbę użytkownika – także migracja „gotowa i sprawdzona”,
-  `cloud config --confirm`, `cloud settings --confirm` i `cloud agent --confirm`. Do prób `cloud config` nie używaj
-  prawdziwego pliku konfiguracji chmury (ma prawdziwe hasło Gmaila i klucze Tuya) – zmyślony plik w scratchpadzie.
+  `cloud settings --confirm`, `cloud agent --confirm` i `cloud owner --confirm`.
 - **Prawdziwą usługę na Raspberry Pi instaluje i aktualizuje użytkownik** (`sudo bash install-linux.sh`); próby –
   `--no-systemd --prefix <scratchpad>` albo CI. `test-install-linux.sh --systemd` zakłada i usuwa `/opt/glebosaurus` i
   użytkownika `glebosaurus` – tylko na maszynie do prób, nigdy na Pi z działającym agentem.

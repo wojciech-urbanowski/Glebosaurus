@@ -9,11 +9,7 @@
     // Pooler sesji Twojego regionu (Connect → Session pooler); domyślnie Central EU (Frankfurt):
     "databaseHost": "aws-1-eu-central-1.pooler.supabase.com"
     // "secretKey": "sb_secret_…"                          // niepotrzebny programowi; jeśli trzymasz go tutaj – nigdy na agentach
-  },
-
-  // Opcjonalnie: strażnik nadawcy (https://healthchecks.io, sprawdzenie np. co 5 min, zapas 25 min). `cloud config`
-  // zapisuje adres w Vault, a nadawca wysyła na niego sygnał życia – brak sygnału = mail od healthchecks.io.
-  "healthchecks": {
-    "pingUrl": "https://hc-ping.com/…"
   }
+  // Konfigurację (poczta, czujniki, progi, raporty, strażnik healthchecks.io) ustawia się na stronie w chmurze –
+  // odnośnik: glebosaurus cloud web-link --admin cloud-admin.json.
 }

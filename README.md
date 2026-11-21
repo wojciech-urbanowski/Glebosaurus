@@ -21,9 +21,9 @@ czujniki BLE ──► agenci (Windows / Android / Raspberry Pi) ──► Supab
   połączenie naraz, więc agenci dzielą się czujnikami przez dzierżawy w chmurze.
 - **Nadawca** – jeden z agentów z rolą nadawcy (np. komputer stale włączony) – liczy alerty z odczytów wszystkich agentów
   i wysyła maile, każdy najwyżej raz. Kandydatów na nadawcę może być kilku (priorytety); maili nie wysyła telefon.
-- **Właściciel** konfiguruje chmurę ze swojego komputera: plik konfiguracji chmury (czujniki, progi, raporty, poczta)
-  zapisuje w chmurze polecenie `glebosaurus cloud config`, a agentów rejestruje się jednorazowymi kodami. Agenci przejmują
-  zmiany sami, w ciągu ok. minuty.
+- **Właściciel** konfiguruje wszystko na **stronie w chmurze** (GitHub Pages, logowanie hasłem i kodem TOTP): czujniki,
+  progi, raporty, pocztę, agentów (jednorazowe kody rejestracji); z własnego komputera tylko zakłada schemat bazy i nadaje
+  sobie dostęp (`glebosaurus cloud …`). Agenci przejmują zmiany sami, w ciągu ok. minuty.
 - **Panel WWW** (opcjonalnie, na agencie w sieci domowej): stan wszystkich czujników, wykresy całej historii, odczyt i raport
   na żądanie.
 
@@ -48,16 +48,15 @@ parowanie zdalne przy czujniku, kalibracja wilgotności, dłuższa praca telefon
 
 Polecenia zakładają program `glebosaurus` (na Windows z instalacji – `%LOCALAPPDATA%\Glebosaurus\app\glebosaurus.exe`;
 z kodu źródłowego: `dotnet run --project src/Glebosaurus.Agent -f net10.0-windows10.0.19041.0 -- <polecenie> …`, na
-Linuksie `-f net10.0`). Pliki właściciela – plik administratora, plik konfiguracji chmury i klucze czujników – trzymaj w
-jednym prywatnym katalogu (w repozytorium: `local/`, wykluczony z gita).
+Linuksie `-f net10.0`). Pliki właściciela – plik administratora i klucze czujników z `pair` – trzymaj w jednym prywatnym
+katalogu (w repozytorium: `local/`, wykluczony z gita).
 
 ### 1. Projekt Supabase i plik administratora
 
 1. Załóż projekt na [supabase.com](https://supabase.com) (plan Free, region najbliżej Ciebie); zapamiętaj hasło bazy.
 2. Skopiuj [examples/cloud-admin.json](examples/cloud-admin.json) jako `cloud-admin.json` i wpisz adres projektu
    (`https://<id>.supabase.co`), klucz publikowalny (`sb_publishable_…`), hasło bazy i – gdy region jest inny niż Central EU
-   (Frankfurt) – adres poolera sesji (Connect → Session pooler). Opcjonalnie adres sygnału healthchecks.io (sprawdzenie
-   „Simple”: Period 5 min, Grace 25 min).
+   (Frankfurt) – adres poolera sesji (Connect → Session pooler).
 3. Załóż schemat bazy (każde polecenie `cloud …` bez `--confirm` tylko pokazuje plan):
 
    ```powershell
@@ -67,35 +66,18 @@ jednym prywatnym katalogu (w repozytorium: `local/`, wykluczony z gita).
 Plik administratora to sekret: hasło bazy otwiera wszystkie dane i sekrety w chmurze. Nie kopiuj go na agentów (wyjątek:
 jeden agent z kopią zapasową – niżej).
 
-### 2. Czujniki i plik konfiguracji chmury
+### 2. Strona w chmurze i konfiguracja
 
-1. Sparuj każdy czujnik (szczegóły – „Nowy czujnik” niżej); powstanie plik klucza `<id>.credentials.json` obok pliku
-   konfiguracji chmury:
-
-   ```powershell
-   glebosaurus pair --id monstera --name "Monstera w salonie" --file cloud-config.json --confirm-bind
-   # ... po komunikacie „Czekam na czujnik” włóż baterie do czujnika
-   ```
-
-2. Skopiuj [examples/cloud-config.json](examples/cloud-config.json) jako `cloud-config.json`: strefa czasowa, czujniki
-   (wpis podaje `pair`), progi, pory raportów, konto Gmail z hasłem aplikacji i odbiorcy.
-3. Sprawdź pocztę (prawdziwy mail; z `--samples` także przykładowy alert, raport i log – do obejrzenia na telefonie):
-
-   ```powershell
-   glebosaurus mail-test --file cloud-config.json --samples
-   ```
-
-4. Zapisz konfigurację w chmurze (plan, potem zapis):
-
-   ```powershell
-   glebosaurus cloud config --admin cloud-admin.json --file cloud-config.json
-   glebosaurus cloud config --admin cloud-admin.json --file cloud-config.json --confirm
-   ```
+1. Włącz stronę i nadaj sobie dostęp – niżej, „Strona w chmurze” (konto w Supabase Auth, logowanie z TOTP,
+   `cloud owner`).
+2. Na stronie → **Konfiguracja**: strefa czasowa i pory raportów, **Poczta** (konto Gmail, odbiorcy alertów i raportów,
+   hasło aplikacji – strona je tylko zapisuje), opcjonalnie **Strażnik** (adres sygnału healthchecks.io; sprawdzenie
+   „Simple”: Period 5 min, Grace 25 min).
 
 ### 3. Agent
 
-1. Utwórz agenta w chmurze i weź jednorazowy kod rejestracji (ważny 24 h). Agent, który ma wysyłać maile, dostaje
-   `--sender-priority` (1 – najważniejszy); bez niego tylko zbiera odczyty:
+1. Na stronie → Konfiguracja → Agenci → **Nowy agent**: nazwa i rola (nadawca z priorytetem – 1 najważniejszy – albo tylko
+   zbieranie); strona pokaże jednorazowy kod rejestracji (ważny 24 h) i kod QR dla telefonu. To samo z wiersza poleceń:
 
    ```powershell
    glebosaurus cloud agent --admin cloud-admin.json --name dom --sender-priority 1 --confirm
@@ -111,9 +93,13 @@ jeden agent z kopią zapasową – niżej).
 
    Na Windows zamiast `run` z konsoli zainstaluj usługę (niżej), na telefonie – aplikację (niżej, „Android”), na Raspberry
    Pi – usługę systemd (niżej, „Raspberry Pi”).
+3. Gdy działa nadawca: Konfiguracja → Poczta → **„Wyślij próbny mail”** (sprawdza hasło aplikacji i dostarczenie).
 
-Pierwsze odczyty pojawiają się, gdy agent usłyszy czujnik (nasłuch co 4 min), pierwszy raport – o najbliższej porze z
-`reports.times`.
+### 4. Czujniki
+
+Na stronie → Konfiguracja → Czujniki → **„Sparuj czujnik zdalnie”** przez agenta na Windows w zasięgu czujnika albo
+parowanie lokalne poleceniem `pair` i **„Dodaj czujnik z pliku klucza”** (niżej, „Nowy czujnik”). Pierwsze odczyty
+pojawiają się, gdy agent usłyszy czujnik (nasłuch co 4 min), pierwszy raport – o najbliższej porze raportu.
 
 ## Windows: instalacja jako usługa
 
@@ -180,41 +166,43 @@ nowym połączeniu. Po włożeniu baterii czujnik nadaje jako niesparowany tylko
 uruchom polecenie, a baterie włóż dopiero po komunikacie „Czekam na czujnik”:
 
 ```powershell
-glebosaurus pair --id monstera --name "Monstera w salonie" --file cloud-config.json --confirm-bind
+glebosaurus pair --id monstera --name "Monstera w salonie" --confirm-bind
 ```
 
-Polecenie zapisuje klucz w `monstera.credentials.json` obok pliku konfiguracji chmury (zrób jego kopię zapasową – bez niej
-czujnik trzeba resetować; po `cloud config` klucz jest też w chmurze i w jej kopii zapasowej) i podaje gotowy wpis do listy
-`sensors`: `{ "id": "monstera", "name": "Monstera w salonie", "tuyaFile": "monstera.credentials.json" }`. Potem
-`cloud config … --confirm` – agenci przejmą czujnik sami. Identyfikator: małe litery, cyfry, „_” i „-”.
+Polecenie zapisuje klucz w `monstera.credentials.json` w bieżącym katalogu (albo `--credentials PLIK`; zrób kopię
+zapasową – bez niej czujnik trzeba resetować). Potem strona w chmurze → Konfiguracja → Czujniki → **„Dodaj czujnik z
+pliku klucza”** – klucz trafia do chmury (Vault i jej kopia zapasowa), a agenci przejmą czujnik sami. Identyfikator: małe
+litery, cyfry, „_” i „-”.
 
 Przerwane parowanie wznawia się tym samym poleceniem (ten sam klucz). Gdy w zasięgu jest kilka niesparowanych czujników,
 polecenie nie zgaduje – wymaga `--mac`. Sparowany czujnik znika z aplikacji Smart Life; reset przyciskiem przywraca stan
 fabryczny. Tuż po przypisaniu czujnik reklamuje się rzadko, więc weryfikacja potrafi potrwać do ok. 30 s (limit 90 s).
 
 **Wymiana baterii nie kasuje przypisania** – wystarczy włożyć nowe baterie, agenci czytają czujnik dalej. Przypisanie
-kasuje dopiero **reset przyciskiem**: wtedy uruchom `pair --id <to samo id> --file … --confirm-bind` (skan rusza pierwszy),
-zresetuj czujnik i włóż baterie – polecenie użyje zapisanego klucza. Agent, który trafi na niesparowany czujnik, zapisuje w
+kasuje dopiero **reset przyciskiem**: wtedy „Sparuj czujnik zdalnie” z tym samym id (klucz jest w chmurze) albo
+`pair --id <to samo id> --confirm-bind` przy pliku klucza (skan rusza pierwszy), zresetuj czujnik i włóż baterie – użyty
+zostanie zapisany klucz. Agent, który trafi na niesparowany czujnik, zapisuje w
 dzienniku dokładnie to polecenie.
 
 **Czujnik zostawiony w Smart Life** też da się czytać – kluczem z chmury Tuya (`deviceId`, `localKey`, `uuid`, np. z
-narzędzi Tuya IoT), wpisanym wprost w `tuya` w pliku konfiguracji chmury. Adres MAC ustalisz poleceniem `glebosaurus scan
---verbose` (po UUID Tuya z reklamy). Uwaga: nasze odczyty kasują zapisane w czujniku rekordy, więc Smart Life traci od tej
+narzędzi Tuya IoT): zapisz go w pliku JSON jak z `pair` – `{ "mac": "…", "uuid": "…", "deviceId": "…", "localKey": "…",
+"productId": "gvygg3m8" }` – i dodaj na stronie („Dodaj czujnik z pliku klucza”). Adres MAC ustalisz poleceniem
+`glebosaurus scan --verbose` (po UUID Tuya z reklamy). Uwaga: nasze odczyty kasują zapisane w czujniku rekordy, więc Smart Life traci od tej
 pory ich historię, a telefon z otwartą aplikacją blokuje odczyt.
 
 ## Konfiguracja
 
 | Plik | Kto i gdzie | Zawiera | Sekret? |
 |---|---|---|---|
-| `cloud-admin.json` ([wzór](examples/cloud-admin.json)) | właściciel, jego komputer | adres projektu, klucz publikowalny, hasło bazy, adres healthchecks.io | **tak** – klucz do całej chmury |
-| `cloud-config.json` ([wzór](examples/cloud-config.json)) | właściciel, obok pliku administratora | strefa, odstęp odczytów, czujniki (`tuyaFile` / `tuya`), progi, raporty, poczta z hasłem aplikacji | **tak** (hasło Gmaila, klucze) |
-| `*.credentials.json` (z `pair`) | właściciel | klucz lokalny czujnika | **tak** |
+| `cloud-admin.json` ([wzór](examples/cloud-admin.json)) | właściciel, jego komputer | adres projektu, klucz publikowalny, hasło bazy | **tak** – klucz do całej chmury |
+| `*.credentials.json` (z `pair`) | właściciel | klucz lokalny czujnika (na stronę: „Dodaj czujnik z pliku klucza”) | **tak** |
 | `glebosaurus.config.json` ([wzór](examples/glebosaurus.config.json)) | każdy agent | adres projektu i klucz publikowalny, baza, retencja, dziennik, panel WWW, kopia zapasowa, `"bluetooth": false` (agent bez radia) | nie |
 | `glebosaurus-cloud.token`, `glebosaurus-cloud-config.bin` | agent, obok jego konfiguracji | token agenta, kopia konfiguracji z chmury (z kluczami Tuya) – chronione DPAPI (Windows) / prawami 600 (Linux) | **tak** – nie kopiuj na inne urządzenia |
 
-Plik agenta odrzuca ustawienia, które należą do chmury (`sensors`, `mail`, `reports`, `alerts`, `readIntervalMinutes`,
-`scanWindowSeconds`) – zamiast pomijać je po cichu. Zmiany w pliku konfiguracji chmury trafiają do agentów dopiero po
-`cloud config … --confirm` (czujnik usunięty z pliku zostaje w chmurze). Sam odstęp odczytów zmienisz bez pliku:
+Wspólna konfiguracja (strefa, odstęp odczytów, raporty, poczta, czujniki i progi, agenci, strażnik) żyje w chmurze i
+zmienia się na stronie w chmurze (Konfiguracja); agenci przejmują zmiany sami. Plik agenta odrzuca ustawienia, które
+należą do chmury (`sensors`, `mail`, `reports`, `alerts`, `readIntervalMinutes`, `scanWindowSeconds`) – zamiast pomijać
+je po cichu. Odstęp odczytów zmienisz też z wiersza poleceń:
 
 ```powershell
 glebosaurus cloud settings --admin cloud-admin.json                                       # wspólne ustawienia
@@ -241,10 +229,9 @@ glebosaurus run --config glebosaurus.config.json        # praca ciągła; dzienn
 glebosaurus enroll --config glebosaurus.config.json     # rejestracja agenta kodem od właściciela
 glebosaurus stop                                        # czysto zatrzymuje działającego agenta i usługę (Windows; Linux: sudo systemctl stop glebosaurus)
 glebosaurus web-password --config glebosaurus.config.json  # hasło i certyfikat panelu WWW (panel działa w ramach run)
-glebosaurus pair --id ID --file cloud-config.json --confirm-bind   # nowy czujnik (skan rusza pierwszy)
-glebosaurus mail-test --file cloud-config.json [--samples]          # PRAWDZIWY mail z konta z pliku konfiguracji chmury
+glebosaurus pair --id ID --confirm-bind                 # nowy czujnik lokalnie (skan rusza pierwszy); potem plik klucza na stronę
 glebosaurus mail-preview --out mail-preview             # przykładowe maile (HTML i tekst) do obejrzenia, niczego nie wysyła
-glebosaurus cloud migrate|config|settings|agent|owner|web-link|backup --admin cloud-admin.json …   # właściciel chmury
+glebosaurus cloud migrate|settings|agent|owner|web-link|backup --admin cloud-admin.json …   # właściciel chmury
 glebosaurus scan --seconds 15 --verbose                 # diagnostyka: urządzenia Tuya w zasięgu, z mocą sygnału
 glebosaurus read --credentials monstera.credentials.json             # diagnostyka: jednorazowy odczyt jednego czujnika
 glebosaurus listen --credentials monstera.credentials.json --out listen.log  # diagnostyka: wszystkie ramki czujnika
@@ -270,10 +257,10 @@ urządzenia, a telefon – podgląd na żywo. Każdy agent czyta tylko czujniki,
 agentów czyta ten, który słyszy go najlepiej.
 
 **Alerty:** „czas podlać” (wilgotność poniżej progu przez kilka odczytów z rzędu, wygasa dopiero powyżej progu wygaszenia),
-„słaba bateria”, „brak odczytów” (żadnego odczytu dłużej niż `silentAfterHours`, domyślnie 6 h – liczone też za czas, gdy
+„słaba bateria”, „brak odczytów” (żadnego odczytu dłużej niż ustawiony czas, domyślnie 6 h – liczone też za czas, gdy
 nadawca był wyłączony; po jego starcie i po uśpieniu jest jednak 30 min na odczyty, zanim taki alert powstanie). Mail o
-nowych alertach idzie od razu (kilka naraz w jednej wiadomości), przypomnienie co `reminderHours`. Raporty o porach z
-`reports.times`; spóźniony raport (np. nadawca był wyłączony) jest nadrabiany do `catchUpHours`. Wilgotność z tanich
+nowych alertach idzie od razu (kilka naraz w jednej wiadomości), przypomnienie co ustawioną liczbę godzin. Raporty o
+porach z konfiguracji; spóźniony raport (np. nadawca był wyłączony) jest nadrabiany w ustawionym oknie (domyślnie 3 h). Wilgotność z tanich
 czujników wymaga kalibracji – domyślne progi (25% / 35%) są tylko punktem wyjścia.
 
 **Maile** są pisane z myślą o telefonie: HTML to jedna wąska kolumna (do 480 px) z kartą na czujnik – nazwa, plakietka
@@ -297,7 +284,7 @@ wysyła pod `mail.adminRecipients` osobny mail z dziennika każdego agenta: stre
 błędy) i pełny dziennik jako załącznik `.log`. Dziennik nie zawiera kluczy czujników ani hasła Gmaila. Agent, który nie
 synchronizuje się z chmurą dłużej niż 30 min, daje mail „agent milczy”.
 
-## Strona w chmurze (faza 3, w budowie)
+## Strona w chmurze
 
 Strona właściciela na GitHub Pages (`https://wojciech-urbanowski.github.io/Glebosaurus/`, katalog [web/](web/)) czyta
 chmurę wprost – bez komputera z agentem i spoza sieci domowej. Dziś:
@@ -322,7 +309,7 @@ chmurę wprost – bez komputera z agentem i spoza sieci domowej. Dziś:
 - **Parowanie zdalne** nowego czujnika przez agenta na Windows w jego zasięgu – wyżej, „Nowy czujnik: parowanie zdalne ze
   strony w chmurze”.
 
-Plik konfiguracji chmury i `cloud config` działają do czasu sprawdzenia edytora na żywo, potem znikną. Funkcje agenta
+Konfiguracja chmury zmienia się tylko tutaj (plik konfiguracji chmury i `cloud config` usunięto 2026-11-21). Funkcje agenta
 (próbny mail, wyciszenia i potwierdzenia alertów w mailach, archiwum maili, parowanie zdalne) działają od wersji 0.2.8 –
 usługi na Windows i Raspberry Pi pobierają nowe wydanie same w ciągu doby; agent 0.2.7 ich nie wykonuje (strona je
 pokazuje, ale maile idą jak dawniej).

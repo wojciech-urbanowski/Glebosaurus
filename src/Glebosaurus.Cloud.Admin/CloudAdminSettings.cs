@@ -21,9 +21,6 @@ public sealed partial class CloudAdminSettings
     public required string DatabasePassword { get; init; }
     public string DatabaseHost { get; init; } = DefaultDatabaseHost;
 
-    /// <summary>Adres sygnału healthchecks.io (sekcja „healthchecks” pliku) – trafia do Vault przez <c>cloud config</c>.</summary>
-    public string? HealthchecksPingUrl { get; init; }
-
     public override string ToString() => $"projekt Supabase {ProjectRef}";
 
     public static CloudAdminSettings Load(string path)
@@ -49,10 +46,7 @@ public sealed partial class CloudAdminSettings
             PublishableKey = Text("publishableKey"),
             SecretKey = Text("secretKey"),
             DatabasePassword = Text("databasePassword") ?? throw new InvalidDataException($"{Path.GetFileName(path)}: brak supabase.databasePassword."),
-            DatabaseHost = Text("databaseHost") ?? DefaultDatabaseHost,
-            HealthchecksPingUrl = document.RootElement.TryGetProperty("healthchecks", out var healthchecks)
-                && healthchecks.ValueKind == JsonValueKind.Object && healthchecks.TryGetProperty("pingUrl", out var ping)
-                && ping.ValueKind == JsonValueKind.String && ping.GetString() is { Length: > 0 } pingUrl ? pingUrl.Trim() : null
+            DatabaseHost = Text("databaseHost") ?? DefaultDatabaseHost
         };
     }
 

@@ -69,7 +69,7 @@ public sealed class CloudAgentTests : IDisposable
 
         var message = Assert.Throws<InvalidDataException>(() => AgentConfigLoader.Load(path)).Message;
         Assert.Contains(named, message);
-        Assert.Contains("cloud config", message);
+        Assert.Contains("Konfiguracja", message);
     }
 
     [Theory]

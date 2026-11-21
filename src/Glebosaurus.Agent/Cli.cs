@@ -18,14 +18,10 @@ namespace Glebosaurus.Agent;
 
 internal sealed record CliOptions(
     string Command, int? Seconds, int Timeout, string? Credentials, string? Config, string? Output, bool Verbose, bool Quiet,
-    int? Minutes, bool ConfirmBind, string? Id, string? Name, string? Mac, int? Linger, bool Samples, string? StopEvent,
+    int? Minutes, bool ConfirmBind, string? Id, string? Name, string? Mac, int? Linger, string? StopEvent,
     string? Code = null, string? Subcommand = null, string? Admin = null, bool Confirm = false, int? SenderPriority = null,
-    int? Keep = null, bool Revoke = false, int? ReadInterval = null, string? Qr = null, string? File = null, string? Email = null,
-    bool Remove = false, string? Page = null)
-{
-    /// <summary>Plik konfiguracji chmury (<c>--file</c>, domyślnie <see cref="CloudSetupLoader.DefaultFile"/> w bieżącym katalogu).</summary>
-    public string SetupPath => Path.GetFullPath(File ?? CloudSetupLoader.DefaultFile);
-}
+    int? Keep = null, bool Revoke = false, int? ReadInterval = null, string? Qr = null, string? Email = null,
+    bool Remove = false, string? Page = null);
 
 internal static class Cli
 {
@@ -58,14 +54,11 @@ internal static class Cli
         Właściciel chmury (plik administratora z hasłem bazy, np. cloud-admin.json; bez --confirm polecenia tylko pokazują plan):
           glebosaurus cloud migrate --admin PLIK [--confirm]
               Pokazuje zastosowane i czekające migracje schematu; z --confirm stosuje czekające.
-          glebosaurus cloud config --admin PLIK [--file PLIK] [--confirm]
-              Zapisuje w chmurze plik konfiguracji chmury (domyślnie {CloudSetupLoader.DefaultFile}; wzór: examples/cloud-config.json):
-              ustawienia, odbiorców, czujniki z kluczami Tuya, hasło Gmaila i adres sygnału healthchecks.io (z pliku
-              administratora). Sekretów nie wypisuje; czujników, których nie ma w pliku, nie usuwa. Agenci przejmą zmiany sami.
           glebosaurus cloud settings --admin PLIK [--read-interval MINUTY [--confirm]]
               Bez --read-interval: wspólne ustawienia z chmury (odstęp odczytów, raporty, strefa) i czujniki z własnym
               odstępem. Z --read-interval i --confirm zmienia sam odstęp odczytów (np. 125 = 2 h 5 min); reszty
-              konfiguracji nie rusza. Agenci przejmą go przy najbliższej synchronizacji (ok. minuty).
+              konfiguracji nie rusza. Agenci przejmą go przy najbliższej synchronizacji (ok. minuty). Resztę konfiguracji
+              (poczta, czujniki, progi, raporty, strażnik) zmienia się na stronie w chmurze – odnośnik: cloud web-link.
           glebosaurus cloud agent --admin PLIK [--name NAZWA [--sender-priority N] --confirm [--qr PLIK.png]]
               Bez --name: lista agentów. Z --name i --confirm: tworzy agenta (z --sender-priority 1–9 – kandydat na
               nadawcę, 1 najważniejszy; bez – tylko zbiera) i wypisuje jednorazowy kod rejestracji (24 h) do enroll,
@@ -89,20 +82,17 @@ internal static class Cli
               jednym pliku ZIP (domyślnie katalog backups/ obok pliku administratora), zostawia N najnowszych (domyślnie 14).
               Tylko czyta bazę. Plik zawiera klucze Tuya i hasło Gmaila – trzymaj go jak cloud-admin.json. Codziennie robi
               ją sam agent z sekcją "backup" wewnątrz "cloud" (adminFile – plik z hasłem bazy) w konfiguracji.
-          glebosaurus mail-test [--file PLIK] [--samples]
-              Wysyła PRAWDZIWĄ wiadomość próbną z konta Gmail z pliku konfiguracji chmury do odbiorców alertów (sprawdza
-              hasło aplikacji, zanim trafi do chmury). Z --samples wysyła też przykładowy alert i raport ze zmyślonymi danymi
-              (oznaczone „[PRZYKŁAD]”) – do obejrzenia wyglądu maili na telefonie – oraz, gdy jest mail.adminRecipients,
-              przykładowy log administratora.
           glebosaurus mail-preview [--out KATALOG]
               Zapisuje przykładowe maile (wiadomość próbna, alert, raport, log administratora, „agent milczy”; HTML i tekst)
-              w katalogu (domyślnie mail-preview/). Niczego nie wysyła i nie wymaga konfiguracji.
+              w katalogu (domyślnie mail-preview/). Niczego nie wysyła i nie wymaga konfiguracji. Prawdziwy próbny mail
+              (hasło aplikacji, dostarczenie) wysyła strona w chmurze: Konfiguracja → Poczta → „Wyślij próbny mail”.
 
         Nowy czujnik:
-          glebosaurus pair --id ID [--name "Nazwa"] [--file PLIK] [--credentials PLIK] [--mac ADRES] [--seconds N] --confirm-bind
+          glebosaurus pair --id ID [--name "Nazwa"] [--credentials PLIK] [--mac ADRES] [--seconds N] --confirm-bind
               Paruje czujnik lokalnie, bez konta i aplikacji Tuya: skan rusza od razu, potem wkładasz baterie do czujnika
-              (po włożeniu nadaje tylko ok. 20 s). Zapisuje klucz w ID.credentials.json (obok pliku konfiguracji chmury),
-              sprawdza go na nowym połączeniu i podaje wpis do listy "sensors" tego pliku (potem: cloud config).
+              (po włożeniu nadaje tylko ok. 20 s). Zapisuje klucz w ID.credentials.json (w bieżącym katalogu albo
+              --credentials) i sprawdza go na nowym połączeniu; czujnik dodaje się potem na stronie w chmurze (Konfiguracja
+              → Czujniki → „Dodaj czujnik z pliku klucza”). Prościej: „Sparuj czujnik zdalnie” na stronie.
               Przerwane parowanie wznawia się tym samym poleceniem. Przy kilku niesparowanych czujnikach w zasięgu
               wymaga --mac (żeby nie sparować niewłaściwego).
 
@@ -118,7 +108,6 @@ internal static class Cli
               zwykłym uwierzytelnieniem i prośbą o stan; --out dopisuje wynik do pliku. Kosztuje trochę baterii.
 
         --config PLIK    plik konfiguracji agenta (domyślnie {AgentRuntime.DefaultConfigFile} w bieżącym katalogu)
-        --file PLIK      plik konfiguracji chmury (domyślnie {CloudSetupLoader.DefaultFile} w bieżącym katalogu)
         --seconds N      czas skanowania w sekundach (scan: 20, read i listen: 60, pair: 120)
         --timeout N      limit odpowiedzi czujnika w sekundach (domyślnie 12)
         --linger N       listen: ile sekund ciszy po ostatniej ramce kończy nasłuch (domyślnie 20)
@@ -139,7 +128,6 @@ internal static class Cli
             case "run": return await RunAgentAsync(options, cancellationToken);
             case "enroll": return await CloudAgent.EnrollAsync(options, cancellationToken);
             case "cloud": return await CloudAdminCommands.RunAsync(options, cancellationToken);
-            case "mail-test": return await MailTestAsync(options, cancellationToken);
             case "mail-preview": return await MailPreviewAsync(options, cancellationToken);
             case "web-password": return await WebPasswordAsync(options, cancellationToken);
             case "pair": return await PairCommand.RunAsync(options, cancellationToken);
@@ -160,14 +148,14 @@ internal static class Cli
     {
         var hasCommand = args.Length > 0 && !args[0].StartsWith('-');
         var command = hasCommand ? args[0].ToLowerInvariant() : "help";
-        // „cloud migrate|config|settings|agent|owner|web-link|backup” – polecenie z podpoleceniem.
+        // „cloud migrate|settings|agent|owner|web-link|backup” – polecenie z podpoleceniem.
         var subcommand = command == "cloud" && args.Length > 1 && !args[1].StartsWith('-') ? args[1].ToLowerInvariant() : null;
         int? seconds = null, minutes = null, linger = null;
         var timeout = 12;
         string? credentials = null, config = null, output = null, id = null, name = null, mac = null, stopEvent = null, code = null;
-        string? admin = null, qr = null, file = null, email = null, page = null;
+        string? admin = null, qr = null, email = null, page = null;
         int? senderPriority = null, keep = null, readInterval = null;
-        bool verbose = false, quiet = false, confirmBind = false, samples = false, confirm = false, revoke = false, remove = false;
+        bool verbose = false, quiet = false, confirmBind = false, confirm = false, revoke = false, remove = false;
         for (var i = (hasCommand ? 1 : 0) + (subcommand is null ? 0 : 1); i < args.Length; i++)
         {
             switch (args[i])
@@ -175,7 +163,6 @@ internal static class Cli
                 case "--verbose": verbose = true; break;
                 case "--quiet": quiet = true; break;
                 case "--confirm-bind": confirmBind = true; break;
-                case "--samples": samples = true; break;
                 case "--help" or "-h": command = "help"; break;
                 case "--version": command = "version"; break;
                 case "--seconds": seconds = Number(args, ++i, "--seconds", 300); break;
@@ -184,7 +171,6 @@ internal static class Cli
                 case "--linger": linger = Number(args, ++i, "--linger", 120); break;
                 case "--credentials": credentials = Value(args, ++i, "--credentials"); break;
                 case "--config": config = Value(args, ++i, "--config"); break;
-                case "--file": file = Value(args, ++i, "--file"); break;
                 case "--out": output = Value(args, ++i, "--out"); break;
                 case "--id": id = Value(args, ++i, "--id"); break;
                 case "--name": name = Value(args, ++i, "--name"); break;
@@ -205,8 +191,8 @@ internal static class Cli
                 default: throw new ArgumentException($"Nieznany parametr {args[i]}. Użyj --help.");
             }
         }
-        return new(command, seconds, timeout, credentials, config, output, verbose, quiet, minutes, confirmBind, id, name, mac, linger, samples, stopEvent, code,
-            subcommand, admin, confirm, senderPriority, keep, revoke, readInterval, qr, file, email, remove, page);
+        return new(command, seconds, timeout, credentials, config, output, verbose, quiet, minutes, confirmBind, id, name, mac, linger, stopEvent, code,
+            subcommand, admin, confirm, senderPriority, keep, revoke, readInterval, qr, email, remove, page);
     }
 
     private static string Value(string[] args, int index, string flag) =>
@@ -385,57 +371,6 @@ internal static class Cli
         private readonly List<IDisposable> items = [];
         public void Add(IDisposable item) => items.Add(item);
         public void Dispose() { foreach (var item in items) item.Dispose(); }
-    }
-
-    /// <summary>
-    /// Próbna wysyłka z konta Gmail z pliku konfiguracji chmury – sprawdza hasło aplikacji, zanim trafi do chmury (tam
-    /// pomyłkę widać dopiero w dzienniku nadawcy).
-    /// </summary>
-    private static async Task<int> MailTestAsync(CliOptions options, CancellationToken cancellationToken)
-    {
-        var setup = LoadSetup(options);
-        if (setup.Mail is not { } mail)
-        {
-            Console.Error.WriteLine($"W {options.SetupPath} brakuje sekcji „mail”.");
-            return 1;
-        }
-        var now = DateTimeOffset.UtcNow;
-        var sender = Environment.MachineName;
-        var messages = new List<MailMessage>();
-        if (options.Samples)
-        {
-            messages.AddRange(MailSamples.Build(mail.AlertRecipients, sender, now, TimeZoneInfo.Local));
-            if (mail.AdminRecipients.Count > 0)
-                messages.Add(MailSamples.AdminLog(mail.AdminRecipients, sender, now, TimeZoneInfo.Local));
-        }
-        else
-        {
-            messages.Add(MailTemplates.Test(mail.AlertRecipients, sender, now, TimeZoneInfo.Local));
-        }
-        var gmail = new GmailSender(mail.GmailAddress, mail.AppPassword);
-        foreach (var message in messages)
-        {
-            Console.WriteLine($"Wysyłam „{message.Subject}” z {mail.GmailAddress} do: {string.Join(", ", message.To)}...");
-            try
-            {
-                await gmail.SendAsync(message, cancellationToken);
-            }
-            catch (MailTransportException e)
-            {
-                Console.Error.WriteLine(e.Message);
-                return 1;
-            }
-            Console.WriteLine("Wysłano.");
-        }
-        return 0;
-    }
-
-    internal static CloudSetup LoadSetup(CliOptions options)
-    {
-        var path = options.SetupPath;
-        if (!System.IO.File.Exists(path))
-            throw new FileNotFoundException($"Nie znaleziono pliku konfiguracji chmury {path}. Wskaż go przez --file (wzór: examples/cloud-config.json).");
-        return CloudSetupLoader.Load(path);
     }
 
     /// <summary>Zapisuje przykładowe maile do plików, żeby obejrzeć je w przeglądarce (np. w widoku telefonu) bez wysyłki.</summary>

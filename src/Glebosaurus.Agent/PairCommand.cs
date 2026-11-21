@@ -26,14 +26,13 @@ internal static class PairCommand
         if (!options.ConfirmBind)
             throw new ArgumentException("pair zmienia przypisanie czujnika. Dodaj --confirm-bind i uruchom polecenie, gdy czujnik jest w trybie parowania (po włożeniu baterii nadaje tylko ok. 20 s).");
         var id = options.Id ?? throw new ArgumentException("Podaj identyfikator czujnika: --id monstera.");
-        if (!CloudSetupLoader.IsValidSensorId(id)) throw new ArgumentException($"--id: {CloudSetupLoader.SensorIdRule}.");
+        if (!SensorIds.IsValid(id)) throw new ArgumentException($"--id: {SensorIds.Rule}.");
         ulong? wantedMac = null;
         if (options.Mac is { } macText)
             wantedMac = BleAddress.TryParse(macText, out var parsed) ? parsed : throw new ArgumentException("--mac: nieprawidłowy adres, np. DC:23:51:CB:F7:7D.");
 
-        // Klucz leży obok pliku konfiguracji chmury – tuyaFile w tym pliku jest względny od jego katalogu.
-        var setupDirectory = Path.GetDirectoryName(options.SetupPath)!;
-        var path = Path.GetFullPath(options.Credentials ?? Path.Combine(setupDirectory, $"{id}.credentials.json"));
+        // Klucz w bieżącym katalogu (albo --credentials); na stronę w chmurze trafia z tego pliku.
+        var path = Path.GetFullPath(options.Credentials ?? $"{id}.credentials.json");
         // Istniejący plik klucza = ten sam czujnik: nigdy nie wymyślamy drugiego klucza. Dotyczy to i przerwanego parowania,
         // i czujnika, który stracił przypisanie (kasuje je reset przyciskiem, wymiana baterii nie) – wtedy przypisujemy ten sam klucz jeszcze raz.
         var credentials = File.Exists(path) ? TuyaCredentials.Load(path) : null;
@@ -100,11 +99,11 @@ internal static class PairCommand
             await Task.Delay(SettleDelay, cancellationToken);
         }
 
-        return await VerifyAsync(pairer, credentials, path, id, options, setupDirectory, cancellationToken);
+        return await VerifyAsync(pairer, credentials, path, id, options, cancellationToken);
     }
 
     private static async Task<int> VerifyAsync(
-        ShinySensorPairer pairer, TuyaCredentials credentials, string path, string id, CliOptions options, string setupDirectory, CancellationToken cancellationToken)
+        ShinySensorPairer pairer, TuyaCredentials credentials, string path, string id, CliOptions options, CancellationToken cancellationToken)
     {
         Console.WriteLine($"Weryfikuję klucz na nowym połączeniu (czekam do {VerifyScanSeconds} s – tuż po przypisaniu czujnik reklamuje się rzadko)...");
         var sensorConfig = new SensorConfig { Id = id, Name = options.Name ?? id, Tuya = credentials };
@@ -124,18 +123,14 @@ internal static class PairCommand
         credentials.Verified = true;
         credentials.Save(path);
 
-        var relative = Path.GetRelativePath(setupDirectory, path);
-        var reference = relative.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(relative) ? path : relative;
         Console.WriteLine();
         Console.WriteLine("Sparowano i zweryfikowano.");
         Console.WriteLine($"  Wilgotność gleby : {reading.MoisturePercent?.ToString() ?? "brak"} %");
         Console.WriteLine($"  Temperatura gleby: {reading.SoilTemperatureCelsius?.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) ?? "brak"} °C");
         Console.WriteLine($"  Bateria          : {reading.BatteryPercent?.ToString() ?? "brak"} %");
         Console.WriteLine();
-        Console.WriteLine($"Strona w chmurze: Konfiguracja → Czujniki → „Dodaj czujnik z pliku klucza” – wskaż plik {path} (id: {id}).");
-        Console.WriteLine($"Albo dodaj czujnik do listy \"sensors\" w pliku konfiguracji chmury ({options.SetupPath}):");
-        Console.WriteLine($"  {{ \"id\": \"{id}\", \"name\": \"{(options.Name ?? id).Replace("\"", "\\\"")}\", \"tuyaFile\": \"{reference.Replace("\\", "/")}\" }}");
-        Console.WriteLine("i wyślij go do chmury: glebosaurus cloud config --admin PLIK --file PLIK --confirm (agenci przejmą czujnik sami).");
+        Console.WriteLine($"Teraz strona w chmurze: Konfiguracja → Czujniki → „Dodaj czujnik z pliku klucza” – id {id}, plik {path}.");
+        Console.WriteLine("Agenci przejmą czujnik sami przy najbliższej synchronizacji. Plik zawiera klucz czujnika – trzymaj go jak hasło.");
         return 0;
     }
 }

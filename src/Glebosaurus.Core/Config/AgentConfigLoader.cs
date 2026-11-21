@@ -8,8 +8,7 @@ namespace Glebosaurus.Core.Config;
 
 /// <summary>
 /// Plik konfiguracji agenta (glebosaurus.config.json): dostęp do chmury i ustawienia tego urządzenia. Czujniki, progi,
-/// raporty i poczta są w chmurze – trafiają tam z pliku konfiguracji chmury (<see cref="CloudSetupLoader"/>, polecenie
-/// <c>cloud config</c>).
+/// raporty i poczta są w chmurze – ustawia je właściciel na stronie w chmurze (Konfiguracja).
 /// </summary>
 public static partial class AgentConfigLoader
 {
@@ -34,8 +33,8 @@ public static partial class AgentConfigLoader
             if (JsonNode.Parse(text, documentOptions: new() { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true }) is JsonObject root
                 && root.Select(p => p.Key).FirstOrDefault(key => CloudOnlyKeys.Contains(key, StringComparer.OrdinalIgnoreCase)) is { } shared)
                 throw new InvalidDataException(
-                    $"„{shared}” nie należy do pliku agenta – czujniki, progi, raporty i poczta są w chmurze. Wpisz je do pliku " +
-                    "konfiguracji chmury i wyślij poleceniem: glebosaurus cloud config --admin PLIK --file PLIK (wzór: examples/cloud-config.json).");
+                    $"„{shared}” nie należy do pliku agenta – czujniki, progi, raporty i poczta są w chmurze. Ustaw je na stronie " +
+                    "w chmurze (Konfiguracja; odnośnik: glebosaurus cloud web-link --admin PLIK) i usuń z tego pliku.");
             config = JsonSerializer.Deserialize<AgentConfig>(text, JsonOptions)
                 ?? throw new InvalidDataException("Pusty plik konfiguracji.");
         }
