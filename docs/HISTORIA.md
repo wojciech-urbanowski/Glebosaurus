@@ -388,6 +388,16 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   Migracja na prawdziwym projekcie na prośbę użytkownika (13:36): `require_config_version` ma tam PT409, agenci
   (bestia5, mi11, rasp3) synchronizują się dalej (sprawdzone w ciągu 2 min po migracji). Zapisu z konfliktem na
   prawdziwej stronie nie próbowano.
+  **0.2.8 na bestia5** (restart usługi przez użytkownika, 13:56): usługa pobrała wydanie przy starcie i uruchomiła 0.2.8
+  o 13:57. **Pierwsze parowanie zdalne na sprzęcie** (użytkownik przy czujniku, agent bestia5): próba 1
+  (`wiszacy_szafka`, polecenie odebrane od razu po starcie; radio wolne po pierwszym obrocie zbieracza, ok. 30 s) – przez
+  150 s skanu żaden niesparowany czujnik znanego typu; próba 2 (`wiszacy`, 14:01) – czujnik w trybie parowania
+  znaleziony, klucz zapisany w Vault, ale połączenie nieudane („Failed to connect: Unreachable”), więc klucz nie trafił do
+  czujnika. Na prośbę użytkownika anulowanie: czekających poleceń parowania już nie było, usunięty klucz
+  `glebosaurus:pairing:wiszacy` (bezpośrednio w bazie – strona nie ma anulowania). Kroki BLE są te same co w `pair` z
+  0.2.7 (połączenie z limitem 20 s, jedna próba); przy parowaniu zdalnym przed połączeniem dochodzą dwa zapisy do chmury
+  (postęp, klucz – ok. 1–3 s). Podejrzenie: odległość czujnika od bestia5 albo koniec 20-sekundowego okna; do sprawdzenia
+  kolejną próbą z czujnikiem blisko komputera.
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 
