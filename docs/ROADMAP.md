@@ -164,9 +164,10 @@ Kolejność etapów (3e – widok mobilny, motyw jasny/ciemny, polski interfejs 
 **Kryterium:** cały scenariusz z przeglądarki, bez dotykania plików: dodać czujnik (parowanie zdalne), ustawić próg,
 zobaczyć alert, zmienić odbiorców.
 
-**Kroki właściciela** (nie da się ich zrobić z repozytorium): ✔ próbny projekt i GitHub Pages (2026-11-21); na
-prawdziwym projekcie – migracje (na prośbę), w Supabase wyłączyć zakładanie kont, dodać użytkownika właściciela
-(Authentication → Add user) i ustawić Site URL na adres strony, logowanie z TOTP na stronie, `cloud owner`.
+**Kroki właściciela** (nie da się ich zrobić z repozytorium): ✔ próbny projekt i GitHub Pages, ✔ migracje na
+prawdziwym projekcie (2026-11-21); na prawdziwym projekcie zostało – w Supabase wyłączyć zakładanie kont, dodać
+użytkownika właściciela (Authentication → Add user) i ustawić Site URL na adres strony, logowanie z TOTP na stronie,
+`cloud owner`.
 
 ---
 

@@ -331,6 +331,9 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   migracje można zastosować przed nowym wydaniem; do wydania strona pokazuje próbny mail, wyciszenia, potwierdzenia,
   archiwum maili i parowanie zdalne, ale agenci 0.2.7 ich nie wykonują (przypomnienia o potwierdzonych i maile o
   wyciszonych alertach idą dalej).
+  **Migracje fazy 3 na prawdziwym projekcie** (na prośbę użytkownika, ok. 11:54): sześć migracji od `20261121120000_owner_web`
+  do `20261121220000_owner_hardening` zastosowanych, schemat aktualny. Agenci 0.2.7 (bestia5, rasp3, mi11) synchronizują
+  się dalej bez błędów (sprawdzone w ciągu kilku minut po migracji).
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 
