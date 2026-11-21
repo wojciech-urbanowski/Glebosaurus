@@ -107,6 +107,11 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   przeklikać edytor na prawdziwych danych (zapisy ustawień, odbiorców, progów, „Wyślij próbny mail” po aktualizacji
   rasp3 do 0.2.8), sprawdzić `pair` na sprzęcie po przeniesieniu kroków BLE do `ShinySensorPairer` i parowanie zdalne
   przy czujniku.
+- **Błąd: konflikt wersji konfiguracji na stronie** (znaleziony 2026-11-21 testem przez Data API, niżej w kalendarium):
+  zapis z nieaktualną wersją wisi ok. 50 s zamiast od razu pokazać „konfigurację zmieniono w międzyczasie”, bo
+  PostgREST ponawia transakcję z SQLSTATE 40001. Poprawka – nowa migracja (konflikt kodem spoza klasy 40) i zdjęcie
+  pominięcia z `DataApiOwnerTests.StaleConfigVersion_ReturnsConflictAtOnce`; na prawdziwym projekcie – na prośbę
+  użytkownika. Do tego czasu: przed zapisem w edytorze odświeżyć stronę, jeśli była otwarta dłużej albo w dwóch kartach.
 
 - Obejrzeć na telefonie: pierwszy prawdziwy raport z wykresem (2026-11-16, 19:00), log administratora, nowy mail „agent
   milczy” (w `mail-preview`).
@@ -368,6 +373,19 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   migracjach wspominają `CloudSetupLoader` – zostają (suma kontrolna). Testy zielone (632, SQL 138).
   Lista alertów: przy wyciszonym czujniku albo urlopie karta mówi „maile wstrzymane do …” (dłuższe z wyciszeń) zamiast
   „przypomnienie co 24 godz.” – sprawdzone na podglądzie z próbną bazą (czujnik 3 dni, urlop 1 dzień).
+  **Funkcje strony przez prawdziwe Supabase Auth i Data API w testach SQL** (`DataApiOwnerTests`, po błędzie
+  `pg_safeupdate`): przebieg zakłada w Auth próbnego projektu konto testowe (admin API kluczem tajnym), loguje się
+  hasłem, dodaje TOTP z kodem liczonym w teście (token `aal2`), nadaje właściciela przez `admin_owner_add` i woła każdą
+  funkcję `owner_*` przez `/rest/v1/rpc` jak strona; konto usuwa na końcu (sprawdzone: w Auth nie zostaje). Dowód, że ta
+  droga łapie błąd z rana: z definicjami ośmiu funkcji sprzed migracji `safe_update` (przywróconymi na chwilę w próbnej
+  bazie) przejście kończy się „400 21000: UPDATE requires a WHERE clause”, po przywróceniu poprawki przechodzi; stały
+  test robi to samo z wyzwalaczem `config_changed` (przez Data API 21000, wprost przechodzi). **Nowy błąd:** konflikt
+  wersji konfiguracji (`require_config_version`, SQLSTATE 40001) przez Data API nie wraca – PostgREST 14.18 ponawia
+  transakcję po 40001: ok. 1000 ponowień na sekundę przez ok. 50 s (ok. 45 tys. wycofanych transakcji na jedno żądanie,
+  także po zerwaniu połączenia przez klienta po 30 s). Dotyczy każdego zapisu konfiguracji ze strony z nieaktualną
+  wersją; przez połączenie bezpośrednie konflikt przechodzi od razu, więc dotąd nikt tego nie widział. Test
+  oczekiwanego zachowania czeka pominięty na poprawkę (wyżej, „Czeka na użytkownika”). Testy SQL zielone (143, 1
+  pominięty); potem dane pokazowe (`web-preview.cs -- seed`) i właściciel próbnego projektu (`cloud owner`) przywrócone.
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 

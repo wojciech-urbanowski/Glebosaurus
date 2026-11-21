@@ -529,7 +529,9 @@ dotnet test --solution Glebosaurus.slnx -c Release
 
 `global.json` włącza Microsoft Testing Platform (wymagane przez xunit.v3 na SDK 10+). Testy schematu i funkcji SQL działają
 na **próbnym** projekcie Supabase (plik administratora w `local/cloud-admin.test.json`) i tylko na żądanie – każdy przebieg
-czyści próbną bazę i stosuje migracje od zera; bez zmiennej są pomijane:
+czyści próbną bazę i stosuje migracje od zera; bez zmiennej są pomijane. Funkcje strony w chmurze idą też przez prawdziwe
+Supabase Auth i Data API: przebieg zakłada w Auth próbnego projektu konto testowe z TOTP i usuwa je na końcu – do tego
+plik próbnego projektu potrzebuje `publishableKey` i `secretKey` (bez nich te testy są pomijane):
 
 ```powershell
 $env:GLEBOSAURUS_CLOUD_TESTS = '1'; dotnet test --project tests/Glebosaurus.Cloud.Tests -c Release

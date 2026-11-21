@@ -111,7 +111,15 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
    dwóch agentów, uśpienie z dzierżawą, utrata sieci, restart w trakcie wysyłki. Testy na chmurze uruchamia się na
    żądanie (`GLEBOSAURUS_CLOUD_TESTS=1` i plik `local/cloud-admin.test.json`; bez nich są pomijane) i nigdy na prawdziwym
    projekcie: odmawiają, gdy id projektu jest takie jak w `local/cloud-admin.json` albo gdy baza ma tabele Glebosaurusa bez
-   znacznika bazy próbnej.
+   znacznika bazy próbnej. Funkcje SQL wołają przez połączenie bezpośrednie (rola i żądania tokenu ustawione w
+   transakcji, zegar przesuwany), a funkcje agentów także przez prawdziwe Data API (`SupabaseCloudApi`). Funkcje strony
+   właściciela idą dodatkowo drogą `web/supabase.js` (`DataApiOwnerTests`, zasada 13 – „Środowisko Data API”): konto w
+   Supabase Auth próbnego projektu zakłada admin API kluczem tajnym (`secretKey` w pliku próbnego projektu; zakładanie
+   kont jest wyłączone), logowanie hasłem, składnik TOTP z kodem liczonym w teście (RFC 6238) → token `aal2`, wpis przez
+   `admin_owner_add`; potem każda funkcja `owner_*` (zmieniające dane – każda) przez `/rest/v1/rpc` z kluczem
+   publikowalnym, kody HTTP błędów i dowód na wyzwalaczu sprzed poprawki `safe_update` (przez Data API 21000, wprost
+   przechodzi). Jedno konto na przebieg (adres `glebosaurus-data-api-…@example.com`, hasło tylko w pamięci), usuwane na
+   końcu; wspólne ustawienia wracają na miejsce, bo Data API nie da się wycofać.
 3. **Synchronizacja agent ↔ Supabase.** Tylko ruch wychodzący: HTTPS do funkcji SQL (`/rest/v1/rpc/…`) zwykłym
    `HttpClient` z kluczem publikowalnym projektu (`sb_publishable_…` w nagłówku `apikey`, rola `anon`) i tokenem agenta –
    bez SDK i bez hasła bazy na urządzeniach. Główne wywołanie `agent_sync` co ok. 90 s: sygnał życia (wersja, stan BLE;
@@ -458,7 +466,8 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
       (konto, czas bazy, lista migracji), `owner_dashboard` (czujniki spoza archiwum z ostatnim odczytem i dzierżawcą,
       agenci z sygnałem życia przez `agent_status_view`, nadawca), `owner_config` (cała konfiguracja; sekrety tylko jako
       data ustawienia z `vault.secrets`), zapisy z `config_version` (`owner_settings_update`, `owner_sensor_add|update|
-      credentials|archive|delete`; inna wersja w bazie → 40001 „conflict”), `owner_secret_set` (hasło Gmaila, adres
+      credentials|archive|delete`; inna wersja w bazie → 40001 „conflict” – przez Data API dziś nie wraca, bo PostgREST
+      ponawia transakcje z 40001; niżej „Środowisko Data API”), `owner_secret_set` (hasło Gmaila, adres
       strażnika; null – usunięcie), `owner_agent_save|code|revoke`, `owner_command` (`read_now`, `report_now`,
       `mail_test`, `send_log`) i `owner_command_status`, `owner_series` (dane wykresu: uśrednianie w bazie jak
       `ReadingSeriesBuilder` – ta sama drabinka, `date_bin` w czasie lokalnym od poniedziałku 0001-01-01, ta sama reguła
@@ -484,8 +493,17 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
       i testy od niego nie zależą) – usunięte konto i tak się nie zaloguje, a natychmiast odcina `cloud owner --remove`.
     - **Administracja** (`glebosaurus.admin_*`: agent i kod rejestracji, unieważnienie, czujnik, dane Tuya, sekrety poczty,
       ustawienia, właściciele strony) – tylko przez połączenie z bazą hasłem bazy (`Glebosaurus.Cloud.Admin`), nigdy przez Data API; klucz
-      tajny `sb_secret_…` nie jest do niczego potrzebny. Migracje stosuje `MigrationRunner` (blokada doradcza, suma
-      kontrolna).
+      tajny `sb_secret_…` nie jest programowi potrzebny (używają go tylko testy na próbnym projekcie – konto testowe w
+      Auth). Migracje stosuje `MigrationRunner` (blokada doradcza, suma kontrolna).
+    - **Środowisko Data API** różni się od połączenia bezpośredniego, którym idą migracje, administracja i większość testów
+      SQL: rola `authenticator` ładuje `pg_safeupdate` (UPDATE/DELETE bez WHERE → 21000, także w wyzwalaczach – stąd
+      `where id` przy jedynym wierszu `settings`; pilnuje `SqlSafeUpdateTests`), rola `authenticated` ma limit czasu zapytań
+      (funkcja strony dłuższa niż on zawiedzie z 57014), argumenty dopasowuje się po nazwach (zła nazwa – 404 PGRST202), a
+      PostgREST ponawia transakcję po SQLSTATE 40001 – w pętli, ok. 1000 razy na sekundę przez ok. 50 s, także po zerwaniu
+      połączenia przez klienta. Dlatego funkcje nie powinny zgłaszać kodów z klasy 40; dziś robi to tylko
+      `require_config_version` (konflikt wersji) – do poprawki nową migracją. Kody HTTP błędów: 22023 → 400, 42501 → 403
+      z tokenem użytkownika, 401 bez niego (sam klucz publikowalny), zepsuty token → 401. Te różnice łapią testy przez
+      prawdziwe Supabase Auth i Data API (`DataApiOwnerTests`, niżej).
     - **Czas:** wszystko liczy `glebosaurus.clock()` = `now()`; tylko w bazie ze znacznikiem próbnej testy przesuwają zegar
       ustawieniem `glebosaurus.test_now`.
     - **Połączenie z bazą:** serwer ma certyfikat od własnego CA Supabase, którego systemowy magazyn nie zna. Certyfikat

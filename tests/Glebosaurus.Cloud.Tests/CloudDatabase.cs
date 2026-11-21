@@ -59,10 +59,31 @@ public sealed class CloudDatabase : IAsyncLifetime
 
     public async ValueTask DisposeAsync()
     {
-        if (DataSource is not null) await DataSource.DisposeAsync();
+        try
+        {
+            if (dataApiOwner is { IsCompletedSuccessfully: true }) await dataApiOwner.Result.DisposeAsync();
+        }
+        finally
+        {
+            if (DataSource is not null) await DataSource.DisposeAsync();
+        }
     }
 
     public void SkipIfUnavailable() => Assert.SkipWhen(SkipReason is not null, SkipReason ?? "");
+
+    private readonly Lock dataApiLock = new();
+    private Task<DataApiOwner>? dataApiOwner;
+
+    /// <summary>Właściciel zalogowany w prawdziwym Supabase Auth (hasło + TOTP) do wywołań przez Data API – jedno konto na
+    /// przebieg, zakładane przy pierwszym użyciu i usuwane na końcu. Wymaga kluczy publikowalnego i tajnego w pliku próbnego
+    /// projektu.</summary>
+    public Task<DataApiOwner> DataApiOwnerAsync()
+    {
+        SkipIfUnavailable();
+        Assert.SkipWhen(Settings.PublishableKey is null || Settings.SecretKey is null,
+            $"Brak publishableKey albo secretKey w local/{TestFileName} – testy przez Supabase Auth i Data API pominięte.");
+        lock (dataApiLock) return dataApiOwner ??= DataApiOwner.SignInAsync(this);
+    }
 
     /// <summary>Nowa, nieużywana chwila w przyszłości (co dobę dalej) – każdy test ma własny odcinek czasu, więc wspólna
     /// blokada nadawcy z poprzedniego testu jest już dawno wygasła.</summary>
