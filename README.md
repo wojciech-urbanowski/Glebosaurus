@@ -347,6 +347,8 @@ Sesja zostaje w przeglądarce do wylogowania („Wyloguj” – na cudzym komput
 pamięć przeglądarki z innymi stronami GitHub Pages tego samego konta – nie publikuj tam stron z obcym kodem. Własna kopia
 repozytorium (fork) publikuje stronę pod swoim adresem: Settings → Pages → Source „GitHub Actions”, workflow „Strona w
 chmurze” (z każdym wydaniem albo ręcznie), a odnośnik – `cloud web-link --page https://<konto>.github.io/<repozytorium>/`.
+Żeby strona szła też z tagu wydania: Settings → Environments → `github-pages` → Deployment branches and tags → reguła
+typu Tag `v*` (domyślnie GitHub przyjmuje tylko `main`).
 
 ## Panel WWW (diagnostyka w przeglądarce)
 

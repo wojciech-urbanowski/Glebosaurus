@@ -356,6 +356,8 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   na bestia5 i rasp3 pobiorą je same; APK na mi11 niepotrzebny (nowości są dla nadawcy i zbieracza na Windows). Strona
   z tagu nie poszła: środowisko `github-pages` domyślnie przyjmuje wdrożenia tylko z `main` („Tag "v0.2.8" is not allowed
   to deploy to github-pages due to environment protection rules”); treść strony i tak aktualna z ręcznego uruchomienia.
+  Na prośbę użytkownika reguła tagu `v*` w środowisku `github-pages` (obok `main`) – ponowione wdrożenie z `v0.2.8`
+  przeszło; opis dla własnej kopii repozytorium w README, „Strona w chmurze”.
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 
