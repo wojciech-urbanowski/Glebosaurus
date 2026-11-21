@@ -98,12 +98,11 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
 
 ### Czeka na użytkownika
 
-- **Strona w chmurze (faza 3, etapy 1–5 w kodzie, strony przeklikane na funkcjach SQL próbnego projektu)** – najpierw
-  próbny projekt, bez GitHub Pages: w jego panelu Supabase wyłączyć zakładanie kont (dziś włączone) i dodać swoje konto
-  (Add user, Auto Confirm); strona z tego komputera (`dotnet run tools/web-preview.cs -- static`, odnośnik
-  `cloud web-link --admin local/cloud-admin.test.json --page http://127.0.0.1:8473/`), logowanie z dodaniem TOTP, potem
-  `cloud owner --email … --confirm` na próbnym (może Claude). `seed` i testy SQL czyszczą próbny projekt razem z listą
-  właścicieli – konto w Auth zostaje, wystarczy znów `cloud owner`. Potem prawdziwy projekt (migracje tylko na prośbę):
+- **Strona w chmurze (faza 3, etapy 1–5 w kodzie)** – na próbnym projekcie logowanie na żywo działa (2026-11-21: konto
+  właściciela z TOTP, strona z tego komputera – `dotnet run tools/web-preview.cs -- static`, odnośnik
+  `cloud web-link --admin local/cloud-admin.test.json --page http://127.0.0.1:8473/`); można tam przeklikać edytor i
+  alerty na danych pokazowych. `seed` i testy SQL czyszczą próbny projekt razem z listą właścicieli – konto w Auth
+  zostaje, wystarczy znów `cloud owner`. Dalej prawdziwy projekt (migracje tylko na prośbę):
   to samo w jego panelu plus Site URL; na GitHubie Pages ze źródłem „GitHub Actions” i workflow „Strona w chmurze”
   (README, „Strona w chmurze”). Potem: zdecydować o wydaniu (nadawca z `mail_test`, wyciszeniami i archiwum maili,
   parowanie zdalne na Windows – wersja do podbicia), sprawdzić `pair` na sprzęcie po przeniesieniu kroków BLE do
@@ -317,7 +316,10 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   sprawdzone zapytaniem wstępnym dla Auth i RPC). Na próbnym projekcie zakładanie kont jest jeszcze włączone.
   **Pierwsze prawdziwe logowanie** (użytkownik, próbny projekt, strona z `static`): hasło przeszło, ale kod QR do
   dodania TOTP się nie wyświetlił – obraz SVG od Supabase (`totp.qr_code`, data: URL) przeglądarka pokazuje jako pusty;
-  strona rysuje teraz kod sama z `totp.uri` (otpauth://) tą samą biblioteką co kod QR rejestracji telefonu.
+  strona rysuje teraz kod sama z `totp.uri` (otpauth://) tą samą biblioteką co kod QR rejestracji telefonu. Po
+  poprawce: dodanie TOTP z kodu QR, ekran „Brak dostępu” przed nadaniem właściciela, `cloud owner`, pulpit z danymi
+  pokazowymi przez prawdziwe Supabase Auth i Data API – **logowanie na żywo działa na próbnym projekcie** (zakładanie
+  kont wyłączone).
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 
