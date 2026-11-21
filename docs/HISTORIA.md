@@ -321,6 +321,16 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   kont wyłączone). **GitHub Pages** (repozytorium wypchnięte, CI zielone): Pages ze źródłem „GitHub Actions”, workflow
   „Strona w chmurze” uruchomiony ręcznie – strona pod https://wojciech-urbanowski.github.io/Glebosaurus/ (wszystkie pliki
   z właściwymi typami); logowanie z TOTP na próbnym projekcie i pulpit z danymi pokazowymi także stamtąd.
+  **Zgodność agentów 0.2.7 z migracjami fazy 3** (przed migracjami na prawdziwym projekcie): przegląd zmian w funkcjach,
+  które woła 0.2.7 – `get_config` i `alert_json` tylko dokładają pola (0.2.7 czyta JSON bez ścisłości, nieznane pola
+  pomija) i pomijają czujniki z archiwum, `mail_claim`, `command_create` i `commands_for` tylko przyjmują `mail_test`;
+  polecenia `mail_test` i `pair` agent 0.2.7 zostawia z jednym ostrzeżeniem w dzienniku („wygaśnie samo”), a archiwizacja
+  czujnika zamyka jego alerty w bazie. Próba: testy chmury z tagu `v0.2.7` (kod agenta 0.2.7 od końca do końca –
+  synchronizacja, nadawca, zbieracz, kopia odczytów, konfiguracja, kopia zapasowa) na próbnym projekcie z bieżącymi
+  migracjami – 69 z 70 zielonych; jedyny błąd to test dokładnej listy funkcji API (nowe funkcje – zamierzone). Wniosek:
+  migracje można zastosować przed nowym wydaniem; do wydania strona pokazuje próbny mail, wyciszenia, potwierdzenia,
+  archiwum maili i parowanie zdalne, ale agenci 0.2.7 ich nie wykonują (przypomnienia o potwierdzonych i maile o
+  wyciszonych alertach idą dalej).
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 
