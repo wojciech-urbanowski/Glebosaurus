@@ -398,6 +398,10 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   0.2.7 (połączenie z limitem 20 s, jedna próba); przy parowaniu zdalnym przed połączeniem dochodzą dwa zapisy do chmury
   (postęp, klucz – ok. 1–3 s). Podejrzenie: odległość czujnika od bestia5 albo koniec 20-sekundowego okna; do sprawdzenia
   kolejną próbą z czujnikiem blisko komputera.
+  **Próba 3 udana** (czujnik blisko bestia5, baterie po komunikacie „włóż teraz baterie”): polecenie odebrane 14:06:12,
+  o 14:07:26 „Sparowano czujnik wiszacy_szafka (DC:23:51:CB:F7:7D) – czujnik dodany w chmurze” – skan, klucz w Vault przed
+  wysłaniem, przypisanie, weryfikacja odczytem i `pair_complete` w ok. 75 s. **Parowanie zdalne działa na sprzęcie**
+  (kryterium fazy 3: dodanie czujnika z przeglądarki); te same kroki BLE ma `pair` z wiersza poleceń.
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 
