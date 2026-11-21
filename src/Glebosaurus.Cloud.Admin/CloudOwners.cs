@@ -20,13 +20,17 @@ public static class CloudOwners
             o.GetProperty("account").GetBoolean(), o.GetProperty("totp").GetBoolean()))];
     }
 
-    /// <summary>Czy w Supabase Auth jest konto o tym adresie (do planu przed <c>--confirm</c>).</summary>
-    public static async Task<bool> AccountExistsAsync(NpgsqlDataSource dataSource, string email, CancellationToken cancellationToken)
+    /// <summary>Czy w Supabase Auth jest konto o tym adresie i czy ma potwierdzony TOTP (do planu przed <c>--confirm</c>).</summary>
+    public static async Task<(bool Exists, bool Totp)> AccountAsync(NpgsqlDataSource dataSource, string email, CancellationToken cancellationToken)
     {
         await using var command = dataSource.CreateCommand(
-            "select exists (select 1 from auth.users where lower(email) = lower(trim(@e)) and deleted_at is null)");
+            "select u.id is not null, exists (select 1 from auth.mfa_factors f where f.user_id = u.id and f.factor_type::text = 'totp' " +
+            "and f.status::text = 'verified') from (select 1) one left join lateral (select id from auth.users " +
+            "where lower(email) = lower(trim(@e)) and deleted_at is null order by created_at limit 1) u on true");
         command.Parameters.AddWithValue("e", email);
-        return (bool)(await command.ExecuteScalarAsync(cancellationToken))!;
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        await reader.ReadAsync(cancellationToken);
+        return (reader.GetBoolean(0), reader.GetBoolean(1));
     }
 
     /// <exception cref="PostgresException">SQLSTATE 22023 – w Supabase Auth nie ma takiego konta.</exception>

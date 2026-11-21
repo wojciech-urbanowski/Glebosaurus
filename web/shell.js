@@ -7,7 +7,7 @@ import { Cloud, CloudError, forgetProject, loadProject, projectFromHash, savePro
 import { errorBox, field, form, input, submitButton } from './ui.js';
 
 /** Migracja, której potrzebuje ta wersja strony (najnowsza używana funkcja owner_*). */
-export const REQUIRED_MIGRATION = '20261121200000';
+export const REQUIRED_MIGRATION = '20261121220000';
 
 const PAGES = [
   ['index.html', 'Pulpit'],
@@ -19,7 +19,7 @@ const PAGES = [
 // zostaje niewidoczna (app.css), a próbuje przejść na wierzch.
 function breakOutOfFrame() {
   if (window.top === window.self) {
-    document.documentElement.classList.add('top');
+    document.documentElement.classList.add('gl-ok');
     return true;
   }
   try {
@@ -145,6 +145,30 @@ function signOutLink(cloud) {
   return button;
 }
 
+function refOf(project) {
+  const host = new URL(project.url).host;
+  return host.endsWith('.supabase.co') ? host.split('.')[0] : host;
+}
+
+/** Pyta, czy przełączyć stronę na projekt z odnośnika; true – tak (sesja obecnego projektu zostanie zakończona). */
+function confirmSwitch(stored, next) {
+  return new Promise((resolve) => {
+    const yes = h('button', null, `Przełącz na ${refOf(next)}`);
+    yes.type = 'button';
+    yes.addEventListener('click', () => resolve(true));
+    const no = h('button', 'quiet', `Zostań przy ${refOf(stored)}`);
+    no.type = 'button';
+    no.addEventListener('click', () => {
+      resolve(false);
+      window.location.reload();
+    });
+    view(h('h1', null, 'Inny projekt'),
+      h('p', null, `Odnośnik prowadzi do projektu Supabase ${refOf(next)}, a ta przeglądarka pamięta ${refOf(stored)}. ` +
+        'Przełączenie wyloguje z obecnego projektu. Przełączaj tylko, jeśli odnośnik pochodzi od Ciebie (glebosaurus cloud web-link).'),
+      h('div', 'confirm-actions', yes, no));
+  });
+}
+
 function fatalView(title, text, cloud) {
   view(h('h1', null, title), errorBox(text), cloud && cloud.hasSession ? signOutLink(cloud) : null);
 }
@@ -179,8 +203,14 @@ export async function start(render) {
   try {
     const fromLink = projectFromHash(window.location.hash);
     if (fromLink) {
-      saveProject(fromLink);
       history.replaceState(null, '', window.location.pathname + window.location.search);
+      const stored = loadProject();
+      // Odnośnik do innego projektu niż zapamiętany: przełączenie kończy sesję, więc nie bez pytania (obcy odnośnik
+      // mógłby wylogować i podsunąć logowanie do cudzego projektu).
+      if (stored && (stored.url !== fromLink.url || stored.key !== fromLink.key)) {
+        if (!(await confirmSwitch(stored, fromLink))) return;
+      }
+      saveProject(fromLink);
     }
     project = loadProject();
   } catch (error) {

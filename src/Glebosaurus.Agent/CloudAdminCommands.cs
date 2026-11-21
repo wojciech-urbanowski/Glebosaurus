@@ -239,7 +239,7 @@ internal static class CloudAdminCommands
                 Console.WriteLine("Strona w chmurze nie ma jeszcze właściciela – dodaj: glebosaurus cloud owner --admin PLIK --email ADRES --confirm.");
             foreach (var owner in owners)
                 Console.WriteLine($"  {owner.Email,-36} {(owner.Account ? "konto jest" : "KONTA NIE MA w Supabase Auth"),-28} " +
-                                  $"{(owner.Totp ? "TOTP ustawione" : "bez TOTP (doda je przy logowaniu)"),-34} " +
+                                  $"{(owner.Totp ? "TOTP ustawione" : "BEZ TOTP"),-16} " +
                                   $"od {owner.AddedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)}");
             return ExitCodes.Success;
         }
@@ -270,15 +270,23 @@ internal static class CloudAdminCommands
             Console.WriteLine($"{listed.Email} już jest właścicielem – nic do zmiany.");
             return ExitCodes.Success;
         }
-        if (!await CloudOwners.AccountExistsAsync(data, email, cancellationToken))
+        var (exists, totp) = await CloudOwners.AccountAsync(data, email, cancellationToken);
+        if (!exists)
         {
             Console.Error.WriteLine($"W Supabase Auth nie ma konta {email}. Załóż je w panelu Supabase: Authentication → Users → Add user " +
                                     "(e-mail, hasło, „Auto Confirm User”), a zakładanie kont przez stronę wyłącz (Authentication → Sign In / Providers → " +
                                     "„Allow new users to sign up”).");
             return ExitCodes.Error;
         }
-        Console.WriteLine($"Dodam właściciela {email}: po zalogowaniu na stronie hasłem i kodem TOTP zobaczy i zmieni całą konfigurację " +
-                          "(sekrety tylko ustawia, nigdy ich nie odczyta). Przy pierwszym logowaniu strona poprosi o dodanie TOTP.");
+        if (!totp)
+        {
+            // Właściciel bez TOTP: ktoś z samym hasłem dodałby własny drugi składnik przy pierwszym logowaniu.
+            Console.Error.WriteLine($"Konto {email} nie ma jeszcze TOTP. Najpierw zaloguj się nim na stronie (odnośnik: glebosaurus cloud web-link) – " +
+                                    "strona doda TOTP i powie, że konto nie jest jeszcze właścicielem – potem uruchom to polecenie ponownie.");
+            return ExitCodes.Error;
+        }
+        Console.WriteLine($"Dodam właściciela {email} (TOTP jest): po zalogowaniu na stronie hasłem i kodem TOTP zobaczy i zmieni całą " +
+                          "konfigurację (sekrety tylko ustawia, nigdy ich nie odczyta).");
         if (!options.Confirm)
         {
             Console.WriteLine("Bez --confirm niczego nie zmieniam.");

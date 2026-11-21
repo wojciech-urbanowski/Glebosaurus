@@ -417,6 +417,7 @@ function remotePairForm() {
     });
     startForm.hidden = true;
     status.hidden = false;
+    if (!created.created) note(status, 'To parowanie już trwa – pokazuję jego postęp.', 'grey');
     await followPairing(created.id, agent.value, id.value.trim(), status, (candidates) => {
       if (candidates.length > 0) mac.placeholder = candidates.join(' albo ');
       startForm.hidden = false;
@@ -451,8 +452,19 @@ async function followPairing(commandId, agentName, sensorId, status, onFinished)
             .catch(() => {});
         } else {
           const candidates = result.candidates || [];
+          // Zapisany klucz wznawia parowanie tego samego czujnika; gdy pod tym id ma być inny – trzeba go porzucić.
+          const forget = button('Zapomnij zapisany klucz (to inny czujnik)', 'quiet small', async () => {
+            forget.disabled = true;
+            try {
+              const forgotten = await cloud.rpc('owner_pair_forget', { p_sensor: sensorId });
+              forget.replaceWith(h('div', 'small', forgotten.forgotten ? 'Klucz porzucony – kolejna próba wymyśli nowy.' : 'Nie było zapisanego klucza.'));
+            } catch (error) {
+              forget.replaceWith(h('div', 'small', `Nie udało się: ${error.message}`));
+            }
+          });
           show('red', `Parowanie nie wyszło: ${result.error || 'agent zgłosił błąd'}.`,
-            candidates.length > 0 ? ` Czujniki w zasięgu: ${candidates.join(', ')} – wpisz MAC właściwego i spróbuj jeszcze raz.` : '');
+            candidates.length > 0 ? ` Czujniki w zasięgu: ${candidates.join(', ')} – wpisz MAC właściwego i spróbuj jeszcze raz.` : '',
+            h('div', 'card-actions', forget));
           onFinished(candidates);
         }
         return;

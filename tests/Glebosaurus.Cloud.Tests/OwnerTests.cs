@@ -13,7 +13,7 @@ public sealed class OwnerTests(CloudDatabase db)
     [
         "owner_agent_code", "owner_agent_revoke", "owner_agent_save", "owner_alert_acknowledge", "owner_alert_close", "owner_alerts",
         "owner_alerts_mute", "owner_command", "owner_command_status", "owner_config",
-        "owner_dashboard", "owner_info", "owner_mail_body", "owner_mail_history", "owner_pair_start", "owner_readings", "owner_secret_set", "owner_sensor", "owner_sensor_add", "owner_sensor_archive",
+        "owner_dashboard", "owner_info", "owner_mail_body", "owner_mail_history", "owner_pair_forget", "owner_pair_start", "owner_readings", "owner_secret_set", "owner_sensor", "owner_sensor_add", "owner_sensor_archive",
         "owner_sensor_credentials", "owner_sensor_delete", "owner_sensor_update", "owner_series", "owner_settings_update"
     ];
 
@@ -168,7 +168,14 @@ public sealed class OwnerTests(CloudDatabase db)
             Assert.Skip("Rola postgres nie może pisać w auth.users – dodanie właściciela sprawdzone tylko dla nieznanego adresu.");
         }
 
-        var added = JsonDocument.Parse((string)(await Run("select glebosaurus.admin_owner_add(@e)::text", ("e", email.ToUpperInvariant())))!).RootElement;
+        // Bez potwierdzonego TOTP – odmowa (ktoś z samym hasłem dodałby własny drugi składnik).
+        await transaction.SaveAsync("nototp", ct);
+        var noTotp = await Assert.ThrowsAsync<PostgresException>(() => Run("select glebosaurus.admin_owner_add(@e)", ("e", email)));
+        Assert.Equal("22023", noTotp.SqlState);
+        Assert.Contains("TOTP", noTotp.MessageText);
+        await transaction.RollbackAsync("nototp", ct);
+
+        var added = JsonDocument.Parse((string)(await Run("select glebosaurus.admin_owner_add(@e, true)::text", ("e", email.ToUpperInvariant())))!).RootElement;
         Assert.Equal(user, added.GetProperty("userId").GetGuid());
         var list = JsonDocument.Parse((string)(await Run("select glebosaurus.admin_owner_list()::text"))!).RootElement;
         var row = list.EnumerateArray().Single(o => o.GetProperty("userId").GetGuid() == user);

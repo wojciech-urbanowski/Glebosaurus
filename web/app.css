@@ -198,7 +198,7 @@ button:disabled { opacity: 0.6; cursor: default; }
 /* ---- tylko strona w chmurze ---------------------------------------------------------------------------------- */
 
 /* Wyjście z cudzej ramki (shell.js): dopóki skrypt nie potwierdzi, że strona jest na wierzchu, nic nie widać. */
-html:not(.top) body { visibility: hidden; }
+html:not(.gl-ok) body { visibility: hidden; }
 /* Atrybut hidden zawsze chowa – także elementy, którym styl nadaje display (np. form.stack). */
 [hidden] { display: none !important; }
 

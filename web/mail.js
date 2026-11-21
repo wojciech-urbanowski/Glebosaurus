@@ -7,10 +7,25 @@ import { start } from './shell.js';
 
 const key = new URLSearchParams(window.location.search).get('key');
 
+/** Raport ma do ok. 100 KB HTML – więcej znaczy zepsutą albo podrzuconą treść, której nie rozpakowujemy do końca. */
+const MAX_HTML_BYTES = 5 * 1024 * 1024;
+
 async function gunzip(base64) {
   const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
-  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
-  return new Response(stream).text();
+  const reader = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip')).getReader();
+  const chunks = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.length;
+    if (size > MAX_HTML_BYTES) {
+      await reader.cancel();
+      throw new Error('treść maila jest podejrzanie duża – nie pokazuję jej');
+    }
+    chunks.push(value);
+  }
+  return new TextDecoder().decode(await new Blob(chunks).arrayBuffer());
 }
 
 start(async (cloud, main) => {

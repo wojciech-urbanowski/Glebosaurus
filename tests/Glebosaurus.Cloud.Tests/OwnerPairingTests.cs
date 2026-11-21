@@ -84,6 +84,54 @@ public sealed class OwnerPairingTests(CloudDatabase db)
         Assert.Equal(newMac, config.GetProperty("sensors").EnumerateArray().Single(x => x.GetProperty("id").GetString() == sensor).GetProperty("mac").GetString());
     }
 
+    /// <summary>Po przeglądzie: jeden klucz parowania na czujnik – nie dwa agenty naraz, ponowna próba to nowe polecenie,
+    /// zapisany klucz da się porzucić i znika, gdy czujnik dostaje klucz inną drogą.</summary>
+    [Fact]
+    public async Task OnePendingPairingPerSensor_RetryIsANewCommand_AndStaleKeyCanBeForgotten()
+    {
+        db.SkipIfUnavailable();
+        var s = new Scenario(db, CloudDatabase.NextTime());
+        var owner = await s.OwnerAsync();
+        var pc = await s.AgentAsync("pca");
+        var other = await s.AgentAsync("pcb");
+        var sensor = Scenario.Unique("jeden");
+        Task<JsonElement> Start(TestAgent agent, string id, DateTimeOffset at) =>
+            db.OwnerAsync("owner_pair_start", owner, at, ("p_agent", agent.Name), ("p_sensor", id), ("p_name", null), ("p_mac", null));
+
+        var first = (await Start(pc, sensor, s.T0)).GetProperty("id").GetInt64();
+        await Scenario.FailsAsync("22023", () => Start(other, sensor, s.T0));                     // ten sam czujnik, inny agent
+        await Scenario.FailsAsync("22023", () => Start(pc, Scenario.Unique("drugi"), s.T0));     // ten sam agent, inny czujnik
+        await s.SyncAsync(pc, s.T0);
+        await db.AgentAsync("pair_key_put", s.T0, ("p_token", pc.Token), ("p_id", first), ("p_credentials", Scenario.Credentials(Scenario.RandomMac())));
+        await Scenario.FailsAsync("22023", () => db.OwnerAsync("owner_pair_forget", owner, s.T0, ("p_sensor", sensor)));   // w trakcie
+        await db.AgentAsync("command_done", s.T0, ("p_token", pc.Token), ("p_id", first), ("p_result", new JsonObject { ["ok"] = false, ["error"] = "nie znaleziono" }));
+
+        // Zaraz po porażce: nowa próba to nowe polecenie (nie stary wynik), a zapisany klucz wznawia parowanie…
+        var retry = await Start(pc, sensor, s.T0.AddSeconds(20));
+        Assert.True(retry.GetProperty("created").GetBoolean());
+        var retryId = retry.GetProperty("id").GetInt64();
+        Assert.NotEqual(first, retryId);
+        await s.SyncAsync(pc, s.T0.AddSeconds(20));
+        Assert.Equal(JsonValueKind.Object, (await db.AgentAsync("pair_key_get", s.T0.AddSeconds(20), ("p_token", pc.Token), ("p_id", retryId)))
+            .GetProperty("credentials").ValueKind);
+        await db.AgentAsync("command_done", s.T0.AddSeconds(20), ("p_token", pc.Token), ("p_id", retryId), ("p_result", new JsonObject { ["ok"] = false }));
+
+        // …a gdy pod tym id ma być inny czujnik – właściciel go porzuca.
+        Assert.True((await db.OwnerAsync("owner_pair_forget", owner, s.T0.AddSeconds(30), ("p_sensor", sensor))).GetProperty("forgotten").GetBoolean());
+        var fresh = (await Start(pc, sensor, s.T0.AddSeconds(40))).GetProperty("id").GetInt64();
+        await s.SyncAsync(pc, s.T0.AddSeconds(40));
+        Assert.Equal(JsonValueKind.Null, (await db.AgentAsync("pair_key_get", s.T0.AddSeconds(40), ("p_token", pc.Token), ("p_id", fresh)))
+            .GetProperty("credentials").ValueKind);
+
+        // Klucz dodany inną drogą (plik w edytorze) unieważnia zapisany klucz parowania.
+        await db.AgentAsync("pair_key_put", s.T0.AddSeconds(40), ("p_token", pc.Token), ("p_id", fresh), ("p_credentials", Scenario.Credentials(Scenario.RandomMac())));
+        await db.AgentAsync("command_done", s.T0.AddSeconds(40), ("p_token", pc.Token), ("p_id", fresh), ("p_result", new JsonObject { ["ok"] = false }));
+        await db.OwnerAsync("owner_sensor_add", owner, null, ("p_version", (await db.OwnerAsync("owner_config", owner)).GetProperty("configVersion").GetInt64()),
+            ("p_id", sensor), ("p_name", "Z pliku"), ("p_credentials", Scenario.Credentials(Scenario.RandomMac())), ("p_options", new JsonObject()));
+        var slot = await db.AdminAsync("select to_jsonb(count(*))::text from vault.secrets where name = @n", null, ("n", "glebosaurus:pairing:" + sensor));
+        Assert.Equal(0, slot.GetInt32());
+    }
+
     [Fact]
     public async Task PairStart_RefusesBadInput()
     {

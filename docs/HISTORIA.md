@@ -292,6 +292,13 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   kluczem przed wysłaniem, kilku kandydatów, wznowienie, zbieracz bez radia w trakcie); panel przeklikany na atrapie
   („włóż baterie” dopiero po starcie skanu, kilku kandydatów z adresami w polu MAC, sukces). Na sprzęcie ○ – `pair` po
   przeniesieniu kroków BLE i parowanie zdalne czekają na próbę z użytkownikiem przy czujniku.
+  **Przegląd bezpieczeństwa** (niezależny przegląd migracji fazy 3 i logowania strony): bez uwag wysokiej wagi;
+  poprawione w migracji `20261121220000_owner_hardening` i na stronie – jedno czekające parowanie na czujnik, ponowna
+  próba jako nowe polecenie, porzucanie i automatyczne kasowanie nieaktualnego klucza parowania, właściciel tylko z
+  potwierdzonym TOTP (kolejność kroków w README: najpierw logowanie z TOTP, potem `cloud owner`), archiwum tylko
+  wysłanych maili z limitami długości i limitem rozpakowania w przeglądarce, pytanie przed przełączeniem projektu z
+  odnośnika, odświeżanie sesji raz na kartę i bez wylogowania przy 429, klasa `html` nie koliduje już ze stylem `.top`.
+  Testy SQL 177 i jednostkowe zielone; zmiany strony sprawdzone na atrapie.
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 

@@ -331,12 +331,13 @@ hasło i kod TOTP z aplikacji uwierzytelniającej; dane dostaje tylko konto doda
    - Sign In / Providers → wyłącz „Allow new users to sign up” (konta zakłada tylko właściciel);
    - Users → **Add user** → Create new user: Twój e-mail i mocne hasło, zaznacz „Auto Confirm User”;
    - URL Configuration → **Site URL**: adres strony (wypisze go `cloud web-link`).
-3. Właściciel: `glebosaurus cloud owner --admin cloud-admin.json --email TWÓJ@ADRES --confirm` (lista – bez `--email`;
-   odebranie dostępu – `--remove`).
-4. Odnośnik: `glebosaurus cloud web-link --admin cloud-admin.json` – otwórz go w przeglądarce (albo zeskanuj kod QR
+3. Odnośnik: `glebosaurus cloud web-link --admin cloud-admin.json` – otwórz go w przeglądarce (albo zeskanuj kod QR
    telefonem; `--qr plik.png` zapisuje kod do pliku). Strona zapamięta projekt; odnośnik nie zawiera sekretów.
-5. Pierwsze logowanie: hasło, potem strona pokaże kod QR do aplikacji uwierzytelniającej (Aegis, Google Authenticator,
-   1Password…) i poprosi o kod z niej. Kolejne logowania – hasło i kod.
+4. Pierwsze logowanie: hasło, potem strona pokaże kod QR do aplikacji uwierzytelniającej (Aegis, Google Authenticator,
+   1Password…) i poprosi o kod z niej. Po tym powie, że konto nie jest jeszcze właścicielem – to oczekiwane.
+5. Właściciel: `glebosaurus cloud owner --admin cloud-admin.json --email TWÓJ@ADRES --confirm` (wymaga dodanego TOTP –
+   bez niego ktoś z samym hasłem mógłby dodać własny; lista – bez `--email`; odebranie dostępu – `--remove`). Odśwież stronę.
+   Kolejne logowania – hasło i kod.
 
 Sesja zostaje w przeglądarce do wylogowania („Wyloguj” – na cudzym komputerze zawsze). Strona na `github.io` dzieli
 pamięć przeglądarki z innymi stronami GitHub Pages tego samego konta – nie publikuj tam stron z obcym kodem. Własna kopia

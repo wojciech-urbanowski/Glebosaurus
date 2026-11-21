@@ -131,7 +131,9 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
    zaufane urządzenia. **Właściciel w przeglądarce** (faza 3, zasada 10): konto Supabase Auth (e-mail i hasło) z
    obowiązkowym drugim składnikiem TOTP. Konto zakłada właściciel w panelu Supabase (zakładanie kont wyłączone), a
    właścicielem Glebosaurusa czyni je dopiero wpis w tabeli `glebosaurus.owners` (`cloud owner --email`, połączenie z
-   bazą) – samo konto w Auth nie daje niczego. Strona woła wyłącznie funkcje `public.owner_*` (`security definer`, puste
+   bazą) – samo konto w Auth nie daje niczego. Właścicielem może zostać tylko konto z już potwierdzonym TOTP (dodaje go
+   strona przy pierwszym logowaniu, zanim konto jest właścicielem) – inaczej ktoś z samym hasłem dodałby własny drugi
+   składnik. Strona woła wyłącznie funkcje `public.owner_*` (`security definer`, puste
    `search_path`, `execute` tylko dla roli `authenticated`), a każda zaczyna od `glebosaurus.require_owner()`:
    `auth.uid()` musi być w `owners`, a token mieć `aal2` (zalogowanie z TOTP) – inaczej SQLSTATE 42501. Tabele zostają
    zamknięte (RLS bez zasad), więc właściciel widzi i zmienia tylko to, co dają funkcje. Sekrety (hasło Gmaila, klucze
@@ -150,7 +152,10 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
    zbieracz pomija nasłuch i odczyty, gdy radio trzyma parowanie), zgłasza postęp (`command_progress`), klucz trzyma w
    Vault (`pair_key_put` – tylko agent wskazany w czekającym poleceniu; `pair_key_get` oddaje klucz przerwanego parowania
    albo istniejącego czujnika o tym id), a po weryfikacji woła `pair_complete` – baza zakłada czujnik (albo podmienia klucz
-   i MAC istniejącego), przenosi klucz z `glebosaurus:pairing:<id>` do klucza czujnika i kończy polecenie. Na razie tylko
+   i MAC istniejącego), przenosi klucz z `glebosaurus:pairing:<id>` do klucza czujnika i kończy polecenie. Jedno
+   czekające parowanie na czujnik i na agenta (nie dwa agenty na jeden zapisany klucz); ponowna próba po wyniku to nowe
+   polecenie; zapisany klucz parowania znika, gdy czujnik o tym id powstaje, znika albo dostaje nowy MAC (wyzwalacz), a
+   właściciel może go porzucić (`owner_pair_forget` – pod tym id ma być inny czujnik). Na razie tylko
    agent na Windows; inny agent odpowiada na `pair` od razu odmową (`CollectorEngine.NoPairingError`).
 6. **Warstwa BLE: Shiny.BluetoothLE (+ `.Linux`, BlueZ)** za własnym wąskim interfejsem (`IGattLink`); protokół Tuya jest
    czysto zarządzany (`Glebosaurus.Tuya`) i nie zna biblioteki BLE. Zapasowo: SimpleSharpBLE (licencja BUSL-1.1, tylko
@@ -303,7 +308,9 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
     - **Sesja:** hasło → token `aal1` → kod TOTP (przy pierwszym logowaniu strona dodaje TOTP i pokazuje jego kod QR z
       odpowiedzi Supabase) → token `aal2`; token odświeżania w `localStorage` do wylogowania, token dostępu tylko w pamięci
       i odświeżany 5 min przed wygaśnięciem. Supabase wymienia token odświeżania przy każdym użyciu, więc karty
-      przeglądarki odświeżają pod wspólną blokadą (Web Locks) i zawsze ostatnim zapisanym tokenem. Ograniczenie: strony
+      przeglądarki odświeżają pod wspólną blokadą (Web Locks) i zawsze ostatnim zapisanym tokenem, a równoległe
+      wywołania w jednej karcie czekają na jedno odświeżenie; limit zapytań (429) nie kończy sesji. Odnośnik do innego
+      projektu niż zapamiętany strona przełącza dopiero po potwierdzeniu (przełączenie kończy sesję). Ograniczenie: strony
       `<konto>.github.io` jednego konta GitHub dzielą źródło (origin), a więc i `localStorage` – na tym koncie nie publikuje
       się stron z obcym kodem (README).
     - **Dane:** tylko `public.owner_*`; `owner_info` zwraca wersję schematu, więc strona nowsza niż baza mówi, której
@@ -465,7 +472,8 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
       czujnikach (alert żyje dalej, mail wychodzi po końcu wyciszenia), w urlopie – żadnych maili o alertach, a raport ma
       notkę o wyciszeniu i szarą etykietę przy wyciszonym czujniku. **Archiwum maili** (`mail_archive`, 90 dni): nadawca po
       udanej wysyłce raportu, alertu, maila próbnego i „agent milczy” zapisuje HTML spakowany gzipem (`mail_archive_put` –
-      tylko obecny nadawca i tylko mail, który sam zarezerwował; błąd archiwum nie dotyczy maila). Walidacja jak `CloudSetupLoader` (strefa IANA z
+      tylko obecny nadawca i tylko mail, który sam zarezerwował i odnotował jako wysłany; błąd archiwum nie dotyczy
+      maila; strona rozpakowuje najwyżej 5 MB HTML). Walidacja jak `CloudSetupLoader` (strefa IANA z
       `pg_timezone_names`, odstęp ≥ 0,5 min, okno skanu 5–120 s, progi 0–100 z „koniec” > „podlać”, 1–10 odczytów z rzędu,
       adresy bez imion i z kropką w domenie – ujednolicone i bez powtórzeń, plik klucza: MAC, UUID 16 znaków, deviceId,
       klucz 6 bajtów, znany productId, MAC i UUID niepowtarzalne); pilnuje tego `ConfigContractTests` – te same przypadki

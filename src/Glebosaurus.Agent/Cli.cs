@@ -78,7 +78,8 @@ internal static class Cli
           glebosaurus cloud owner --admin PLIK [--email ADRES [--remove] --confirm]
               Właściciele strony w chmurze. Bez --email: lista (czy konto jest w Supabase Auth, czy ma TOTP). Z --email i
               --confirm: dodaje właściciela – konto musi już być w Supabase Auth (panel Supabase: Authentication → Add
-              user); z --remove odbiera mu dostęp od razu. Strona wpuszcza tylko właściciela zalogowanego hasłem i kodem TOTP.
+              user) i mieć TOTP (dodaje go strona przy pierwszym logowaniu); z --remove odbiera dostęp od razu. Strona
+              wpuszcza tylko właściciela zalogowanego hasłem i kodem TOTP.
           glebosaurus cloud web-link --admin PLIK [--page ADRES] [--qr PLIK.png]
               Odnośnik do strony w chmurze z adresem projektu i kluczem publikowalnym (bez sekretów) i jego kod QR – w
               konsoli albo z --qr w pliku PNG. Strona zapamiętuje projekt w przeglądarce. --page: inny adres strony

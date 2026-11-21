@@ -96,6 +96,7 @@ export class Cloud {
     this.key = project.key;
     this.access = null;
     this.accessExpiresAt = 0;
+    this.refreshing = null;
   }
 
   /** Id projektu do pokazania (pierwszy człon adresu; podgląd na tym komputerze – sam adres). */
@@ -164,24 +165,39 @@ export class Cloud {
 
   /** Ważny token dostępu; odświeża go (pod blokadą kart) przed wygaśnięciem. Bez sesji – CloudError „login”. */
   async accessToken(force = false) {
-    if (!force && this.access && Date.now() < this.accessExpiresAt - REFRESH_MARGIN_MS) return this.access;
-    await withLock(async () => {
-      // Inna karta mogła już wymienić token odświeżania – zawsze bierzemy ostatni zapisany.
-      const stored = readJson(SESSION_KEY);
-      if (!stored?.refreshToken) throw new CloudError('login', 'Zaloguj się.');
-      const { response, data } = await this.request('/auth/v1/token?grant_type=refresh_token', {
-        method: 'POST', body: { refresh_token: stored.refreshToken }
-      });
-      if (!response.ok) {
-        if (response.status >= 400 && response.status < 500) {
-          this.clearSession();
-          throw new CloudError('login', 'Sesja wygasła albo została zakończona – zaloguj się ponownie.', response.status);
+    if (!force && this.fresh()) return this.access;
+    // Równoległe wywołania w tej karcie czekają na jedno odświeżenie (każde zużywa token odświeżania).
+    if (!this.refreshing) {
+      const issuedBefore = this.accessExpiresAt;
+      this.refreshing = withLock(async () => {
+        // Ktoś w tej karcie odświeżył w międzyczasie – gotowe. Inna karta mogła wymienić token odświeżania – zawsze
+        // bierzemy ostatni zapisany.
+        if (this.accessExpiresAt !== issuedBefore && this.fresh()) return;
+        const stored = readJson(SESSION_KEY);
+        if (!stored?.refreshToken) throw new CloudError('login', 'Zaloguj się.');
+        const { response, data } = await this.request('/auth/v1/token?grant_type=refresh_token', {
+          method: 'POST', body: { refresh_token: stored.refreshToken }
+        });
+        if (!response.ok) {
+          // Limit zapytań to nie koniec sesji – spróbujemy przy kolejnym odświeżeniu.
+          if (response.status === 429) throw new CloudError('network', 'Supabase Auth: za dużo zapytań – spróbuję za chwilę.', 429);
+          if (response.status >= 400 && response.status < 500) {
+            this.clearSession();
+            throw new CloudError('login', 'Sesja wygasła albo została zakończona – zaloguj się ponownie.', response.status);
+          }
+          throw new CloudError('network', authMessage(data, response.status), response.status);
         }
-        throw new CloudError('network', authMessage(data, response.status), response.status);
-      }
-      this.setSession(data, stored.email);
-    });
+        this.setSession(data, stored.email);
+      }).finally(() => {
+        this.refreshing = null;
+      });
+    }
+    await this.refreshing;
     return this.access;
+  }
+
+  fresh() {
+    return Boolean(this.access) && Date.now() < this.accessExpiresAt - REFRESH_MARGIN_MS;
   }
 
   /** Potwierdzone składniki TOTP konta. */
@@ -245,7 +261,8 @@ export class Cloud {
       }
       if (message.includes('mfa_required')) throw new CloudError('mfa', 'Potrzebny kod TOTP.', response.status);
       if (message.includes('not_owner')) {
-        throw new CloudError('notOwner', 'To konto nie jest właścicielem Glebosaurusa. Właściciela dodaje: glebosaurus cloud owner --admin PLIK --email ADRES --confirm.', response.status);
+        throw new CloudError('notOwner', 'Zalogowano z TOTP, ale to konto nie jest (jeszcze) właścicielem Glebosaurusa. Właściciela nadaje: ' +
+          'glebosaurus cloud owner --admin PLIK --email ADRES --confirm – potem odśwież stronę.', response.status);
       }
       // Błędy z funkcji Glebosaurusa niosą powód po polsku; konflikt wersji (40001) – osobny rodzaj.
       if (message.startsWith('Glebosaurus: conflict')) {

@@ -94,6 +94,9 @@ public sealed class OwnerAlertsTests(CloudDatabase db)
         var collector = await s.AgentAsync("archc");
         var key = $"report-request|{Scenario.Unique("r")}";
         await s.MailClaimAsync(sender, key, epoch, s.T0);
+        var unsent = $"report-request|{Scenario.Unique("u")}";
+        await s.MailClaimAsync(sender, unsent, epoch, s.T0);
+        await db.AgentAsync("mail_sent", s.T0, ("p_token", sender.Token), ("p_key", key), ("p_message_id", "m@glebosaurus"));
         const string html = "<html><body><p style=\"color:red\">Raport</p></body></html>";
 
         (string, object?)[] Args(TestAgent agent, string k, string body) =>
@@ -104,6 +107,7 @@ public sealed class OwnerAlertsTests(CloudDatabase db)
         await Scenario.FailsAsync("22023", () => db.AgentAsync("mail_archive_put", s.T0, Args(sender, "report-request|cudzy", Gzip(html))));
         await Scenario.FailsAsync("22023", () => db.AgentAsync("mail_archive_put", s.T0, Args(sender, key, Convert.ToBase64String(Encoding.UTF8.GetBytes(html)))));
         await Scenario.FailsAsync("22023", () => db.AgentAsync("mail_archive_put", s.T0, Args(sender, $"log|{key}", Gzip(html))));
+        await Scenario.FailsAsync("22023", () => db.AgentAsync("mail_archive_put", s.T0, Args(sender, unsent, Gzip(html))));   // niewysłany
 
         Assert.True((await db.AgentAsync("mail_archive_put", s.T0, Args(sender, key, Gzip(html)))).GetBoolean());
         Assert.False((await db.AgentAsync("mail_archive_put", s.T0, Args(sender, key, Gzip(html)))).GetBoolean());
