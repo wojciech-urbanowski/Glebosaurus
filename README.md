@@ -27,9 +27,9 @@ czujniki BLE ──► agenci (Windows / Android / Raspberry Pi) ──► Supab
 - **Panel WWW** (opcjonalnie, na agencie w sieci domowej): stan wszystkich czujników, wykresy całej historii, odczyt i raport
   na żądanie.
 
-Stan: wersja 0.2.7; agent pracuje na co dzień na Windows 11 i Androidzie; Raspberry Pi jako nadawca maili bez Bluetooth
-– zrobione, na Pi jeszcze nieuruchomione; **niesprawdzone:** Raspberry Pi na żywo (także czytanie czujników), kalibracja
-wilgotności, dłuższa praca telefonu – szczegóły w [ROADMAP](docs/ROADMAP.md).
+Stan: wersja 0.2.8; agent pracuje na co dzień na Windows 11, Androidzie i Raspberry Pi (nadawca maili bez Bluetooth),
+właściciel ma stronę w chmurze (GitHub Pages, logowanie z TOTP); **niesprawdzone:** czytanie czujników na Raspberry Pi,
+parowanie zdalne przy czujniku, kalibracja wilgotności, dłuższa praca telefonu – szczegóły w [ROADMAP](docs/ROADMAP.md).
 
 ## Czego potrzeba
 
@@ -323,8 +323,9 @@ chmurę wprost – bez komputera z agentem i spoza sieci domowej. Dziś:
   strony w chmurze”.
 
 Plik konfiguracji chmury i `cloud config` działają do czasu sprawdzenia edytora na żywo, potem znikną. Funkcje agenta
-(próbny mail, wyciszenia i potwierdzenia alertów w mailach, archiwum maili, parowanie zdalne) działają od wydania
-następnego po 0.2.7 – do tego czasu strona je pokazuje, ale agenci ich nie wykonują.
+(próbny mail, wyciszenia i potwierdzenia alertów w mailach, archiwum maili, parowanie zdalne) działają od wersji 0.2.8 –
+usługi na Windows i Raspberry Pi pobierają nowe wydanie same w ciągu doby; agent 0.2.7 ich nie wykonuje (strona je
+pokazuje, ale maile idą jak dawniej).
 
 Strona nie ma w kodzie adresu Twojego projektu (repozytorium jest publiczne) – dostaje go z odnośnika. Logowanie: e-mail,
 hasło i kod TOTP z aplikacji uwierzytelniającej; dane dostaje tylko konto dodane jako właściciel. Włączenie (raz):

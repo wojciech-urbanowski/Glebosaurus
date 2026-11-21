@@ -6,7 +6,7 @@ użycie – [README](../README.md); kiedy co zrobiono i sprawdzono na sprzęcie 
 Wielkości: **S** – dzień lub mniej, **M** – kilka dni, **L** – tydzień lub więcej (przy pracy w wolnych chwilach).
 Stan: ✔ zrobione · ◐ w toku albo częściowo · ○ do zrobienia.
 
-## Stan w skrócie (wersja 0.2.7)
+## Stan w skrócie (wersja 0.2.8)
 
 **Działa i pracuje na co dzień** (u autora: komputer z Windows 11 jako nadawca i telefon z Androidem jako drugi
 zbieracz, 9 czujników):
@@ -21,6 +21,8 @@ zbieracz, 9 czujników):
   odczytem i raportem na żądanie;
 - agent na Androida (tylko zbieranie) z rejestracją kodem QR i podglądem zasięgu; stan telefonu (bateria, temperatura,
   Wi-Fi) w panelu WWW komputera;
+- strona właściciela w chmurze (GitHub Pages, logowanie z TOTP; od 2026-11-21): pulpit z wykresami, historia czujnika,
+  alerty z potwierdzeniem i wyciszeniami, historia maili, edytor konfiguracji, parowanie zdalne;
 - CI na każdy push, wydania z tagu `v*`.
 
 **Niesprawdzone na żywo:**
@@ -31,6 +33,7 @@ zbieracz, 9 czujników):
 | Poczta | dzienny limit Gmaila, zachowanie przy błędnym haśle |
 | Usługa Windows | strażnik co godzinę; aktualizacja o 03:30; uśpienie i wybudzenie; wylogowanie w trakcie odczytu; utrata adaptera BLE; usuwanie starych dzienników |
 | Panel WWW | wejście z telefonu w sieci domowej (reguła Zapory) |
+| Strona w chmurze | z wydaniem 0.2.8: próbny mail, wyciszenia i potwierdzenia w mailach nadawcy, archiwum maili; edytor na żywo (zapisy poza wyciszeniem czujnika); parowanie zdalne i `pair` po przeniesieniu kroków BLE – przy czujniku |
 | Android | noc i tydzień pracy; przejęcie czujników po wyłączeniu komputera; błąd GATT 133; APK z CI |
 | Raspberry Pi | 2.3a (nadawca bez Bluetooth): instalacja na Pi, tydzień pracy 24/7, przejęcie blokady w obie strony, samoaktualizacja z prawdziwego wydania, powrót poprzedniej wersji przy zepsutym wydaniu; 2.3b (czujniki) – wszystko |
 | Czujnik | kalibracja wilgotności; profil `ojzlzzsw`; czy niesparowany czujnik zawsze milknie po oknie 20 s |

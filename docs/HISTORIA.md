@@ -346,6 +346,12 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   próbnym projekcie. Agenci 0.2.7 nie byli dotknięci (ich funkcje nie zmieniają czujników ani ustawień). Migracja na
   prawdziwym projekcie na prośbę użytkownika (12:29); agenci synchronizują się dalej, a wyciszenie czujnika na 3 dni ze
   strony (Firefox) przechodzi.
+  **Wydanie 0.2.8 przygotowane** (wersja podbita na prośbę użytkownika, bez tagu): w agencie od 0.2.7 – nadawca wysyła
+  próbny mail na polecenie ze strony, pomija maile i przypomnienia o potwierdzonych i wyciszonych alertach (czujnik,
+  urlop), pokazuje wyciszenia w raporcie i zapisuje wysłane maile do archiwum strony; zbieracz na Windows paruje czujnik
+  zdalnie (`pair` z wiersza poleceń na tych samych krokach BLE); `cloud owner`, `cloud web-link`. Wymaga migracji do
+  `20261121230000_safe_update` (prawdziwy projekt już ją ma). Skrypty instalacji, usługa Windows i workflow wydania bez
+  zmian od 0.2.7. Testy zielone (686, SQL 177), paczki win-x64 i linux-arm64 oraz APK zbudowane lokalnie.
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 
