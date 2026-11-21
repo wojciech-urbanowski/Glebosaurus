@@ -101,8 +101,7 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
 - **Strona w chmurze (faza 3, etapy 1–5 w kodzie)** – na próbnym projekcie, potem na prawdziwym (migracje tylko na prośbę):
   w panelu Supabase wyłączyć zakładanie kont, dodać swoje konto (Add user), Site URL; na GitHubie Pages ze źródłem „GitHub
   Actions” i uruchomienie workflow „Strona w chmurze”; `cloud owner --email … --confirm`, odnośnik z `cloud web-link`,
-  pierwsze logowanie z dodaniem TOTP (README, „Strona w chmurze”). Potem: zaakceptować wygląd raportu z wyciszeniem
-  (`mail-preview` → `raport-wyciszenie.html`), zdecydować o wydaniu (nadawca z `mail_test`, wyciszeniami i archiwum maili,
+  pierwsze logowanie z dodaniem TOTP (README, „Strona w chmurze”). Potem: zdecydować o wydaniu (nadawca z `mail_test`, wyciszeniami i archiwum maili,
   parowanie zdalne na Windows – wersja do podbicia), sprawdzić `pair` na sprzęcie po przeniesieniu kroków BLE do
   `ShinySensorPairer` i parowanie zdalne przy czujniku; po sprawdzeniu edytora na żywo – zgoda na usunięcie pliku
   konfiguracji chmury i `cloud config --file`.
@@ -283,8 +282,9 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   potwierdzonych i wyciszonych alertach, notka i etykieta wyciszenia w raporcie, archiwum maila po wysyłce; strony
   `alerts.html` i `mail.html`. Testy zielone (SQL 173; Core – potwierdzenie, wyciszenie czujnika z mailem po końcu,
   urlop z raportem, archiwum i jego błąd); strona alertów przeklikana na atrapie (potwierdzenie, urlop na 3 dni, podgląd
-  maila w ramce sandbox ze stylami). **Wygląd raportu z wyciszeniem czeka na akceptację użytkownika** (`mail-preview` →
-  `raport-wyciszenie.html`).
+  maila w ramce sandbox ze stylami). Wygląd raportu z wyciszeniem (notka o urlopie pod paskiem, szara etykieta
+  „alerty wyciszone do …” przy czujniku; `mail-preview` → `raport-wyciszenie.html`) zaakceptowany przez użytkownika
+  2026-11-21 o 06:59.
   **Etap 5 (3d) w kodzie:** migracja `20261121200000_owner_pairing` (postęp poleceń, `pair_key_get|put`,
   `pair_complete`, `owner_pair_start`), `PairingProcedure` i `RemotePairing` w Core, `ShinySensorPairer` w agencie (te same
   kroki BLE co `pair`, który teraz go używa), `RadioGate` w zbieraczu, panel „Sparuj czujnik zdalnie” na stronie. Testy

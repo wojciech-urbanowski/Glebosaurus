@@ -204,4 +204,5 @@ Co działa, co zostało i w jakiej kolejności – [docs/ROADMAP.md](docs/ROADMA
 maszyna jest prawdziwym nadawcą, telefon, czujniki, prawdziwy projekt Supabase) – [docs/HISTORIA.md](docs/HISTORIA.md),
 „Wdrożenie autora”, i pamięć Claude. Zatwierdzone przez użytkownika – nie zmieniaj bez prośby: układ i kolorystyka maili
 (kwadratowe, pastelowe, pod telefon), wykres w raporcie (`MailChart`: kolumny po 2 godz., temperatura jako blady zakres),
+wyciszenia w raporcie (notka o urlopie pod paskiem, szara etykieta „alerty wyciszone do …” przy czujniku),
 panel WWW bez edycji konfiguracji (pełny edytor – faza 3c), log administratora jako osobny mail od każdego agenta.
