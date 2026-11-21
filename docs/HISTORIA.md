@@ -98,10 +98,14 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
 
 ### Czeka na użytkownika
 
-- **Strona w chmurze (faza 3, etap 1)** – na próbnym projekcie, potem na prawdziwym (migracja tylko na prośbę): w panelu
-  Supabase wyłączyć zakładanie kont, dodać swoje konto (Add user), Site URL; na GitHubie Pages ze źródłem „GitHub
+- **Strona w chmurze (faza 3, etapy 1–5 w kodzie)** – na próbnym projekcie, potem na prawdziwym (migracje tylko na prośbę):
+  w panelu Supabase wyłączyć zakładanie kont, dodać swoje konto (Add user), Site URL; na GitHubie Pages ze źródłem „GitHub
   Actions” i uruchomienie workflow „Strona w chmurze”; `cloud owner --email … --confirm`, odnośnik z `cloud web-link`,
-  pierwsze logowanie z dodaniem TOTP (README, „Strona w chmurze”).
+  pierwsze logowanie z dodaniem TOTP (README, „Strona w chmurze”). Potem: zaakceptować wygląd raportu z wyciszeniem
+  (`mail-preview` → `raport-wyciszenie.html`), zdecydować o wydaniu (nadawca z `mail_test`, wyciszeniami i archiwum maili,
+  parowanie zdalne na Windows – wersja do podbicia), sprawdzić `pair` na sprzęcie po przeniesieniu kroków BLE do
+  `ShinySensorPairer` i parowanie zdalne przy czujniku; po sprawdzeniu edytora na żywo – zgoda na usunięcie pliku
+  konfiguracji chmury i `cloud config --file`.
 
 - Obejrzeć na telefonie: pierwszy prawdziwy raport z wykresem (2026-11-16, 19:00), log administratora, nowy mail „agent
   milczy” (w `mail-preview`).
