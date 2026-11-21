@@ -259,6 +259,15 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   loopbacku (zły i dobry e-mail/hasło, dodanie TOTP z kodem QR, zły i dobry kod, pulpit, sesja po przeładowaniu,
   wylogowanie, 375 px bez przewijania w bok, motyw ciemny; nazwa czujnika z `<b>` pokazana jako tekst). Na żywo ○ –
   czeka na kroki użytkownika (niżej, „Czeka na użytkownika”).
+  **Etap 2 (3c) w kodzie:** migracja `20261121140000_owner_config` (archiwum czujników, polecenie `mail_test` i klucz
+  `mail-test|…`, funkcje edytora z kontrolą `config_version`), próbny mail w `NotifierEngine`, strona `config.html` z
+  sekcjami odczytów i raportów, poczty, czujników, agentów i strażnika; biblioteka qrcode-generator 2.0.4 (MIT, z rejestru
+  npm, suma SHA-512 zgodna z rejestrem, przejrzana – bez sieci i bez DOM) do kodu QR rejestracji telefonu – orientacja
+  sprawdzona po informacji o formacie (poziom M, obie kopie zgodne). Testy SQL zielone (163, w tym kontrakt z
+  `CloudSetupLoader`: 38 przypadków po obu stronach, archiwum, konflikt wersji, sekrety, agenci, `mail_test` do nadawcy);
+  edytor przeklikany na atrapie (błąd i zapis ustawień, hasło, próbny mail z błędem SMTP, nowy agent z kodem i QR,
+  archiwum; 375 px bez przewijania w bok, motyw ciemny). Usunięcie pliku konfiguracji chmury i `cloud config` – po
+  sprawdzeniu edytora na żywo i zgodzie użytkownika.
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 

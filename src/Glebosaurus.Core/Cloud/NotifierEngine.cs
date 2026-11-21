@@ -97,6 +97,7 @@ public sealed class NotifierEngine(
     private readonly NotifierOptions settings = options ?? new();
     private readonly Lock gate = new();
     private readonly List<long> reportRequests = [];
+    private readonly List<long> testRequests = [];
     private readonly HashSet<string> settledKeys = new(StringComparer.Ordinal);
     private readonly Dictionary<string, List<StoredReading>> readings = new(StringComparer.Ordinal);
     private TaskCompletionSource wakeSignal = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -136,17 +137,35 @@ public sealed class NotifierEngine(
         lock (gate) wakeSignal.TrySetResult();
     }
 
-    /// <summary><c>report_now</c> – raport w najbliższym cyklu (klucz <c>report-request|&lt;id&gt;</c>); inne polecenia – nie dla nadawcy.</summary>
+    /// <summary>
+    /// <c>report_now</c> – raport w najbliższym cyklu (klucz <c>report-request|&lt;id&gt;</c>); <c>mail_test</c> – wiadomość
+    /// próbna do odbiorców alertów (klucz <c>mail-test|&lt;id&gt;</c>) ze świeżo pobranym hasłem i bez przerwy po wcześniejszym
+    /// błędzie – właściciel sprawdza nią właśnie ustawione hasło, więc błąd SMTP wraca do niego zamiast ponowienia. Inne
+    /// polecenia – nie dla nadawcy.
+    /// </summary>
     public Task<bool> HandleCommandAsync(CloudCommand command, CancellationToken cancellationToken)
     {
-        if (command.Kind != "report_now") return Task.FromResult(false);
-        lock (gate)
+        switch (command.Kind)
         {
-            reportRequests.Add(command.Id);
-            wakeSignal.TrySetResult();
+            case "report_now":
+                lock (gate)
+                {
+                    reportRequests.Add(command.Id);
+                    wakeSignal.TrySetResult();
+                }
+                logger.LogInformation("Polecenie z chmury: raport na żądanie ({Id}).", command.Id);
+                return Task.FromResult(true);
+            case "mail_test":
+                lock (gate)
+                {
+                    testRequests.Add(command.Id);
+                    wakeSignal.TrySetResult();
+                }
+                logger.LogInformation("Polecenie z chmury: wiadomość próbna ({Id}).", command.Id);
+                return Task.FromResult(true);
+            default:
+                return Task.FromResult(false);
         }
-        logger.LogInformation("Polecenie z chmury: raport na żądanie ({Id}).", command.Id);
-        return Task.FromResult(true);
     }
 
     public async Task RunAsync(CancellationToken cancellationToken)
@@ -183,7 +202,18 @@ public sealed class NotifierEngine(
         busy = true;
         try
         {
-            if (!await EnsureCredentialsAsync(epoch, cancellationToken)) return;
+            bool testing;
+            lock (gate) testing = testRequests.Count > 0;
+            if (testing)
+            {
+                credentialsAt = DateTimeOffset.MinValue;   // hasło mogło się właśnie zmienić
+                mailRetryAt = DateTimeOffset.MinValue;
+            }
+            if (!await EnsureCredentialsAsync(epoch, cancellationToken))
+            {
+                await FailTestRequestsAsync("w chmurze brak adresu albo hasła aplikacji Gmail", cancellationToken);
+                return;
+            }
             var now = clock.GetUtcNow();
             if (now - lastAlertEvaluation >= settings.AlertEvery)
             {
@@ -194,6 +224,7 @@ public sealed class NotifierEngine(
             }
             await SendScheduledReportsAsync(current, epoch, cancellationToken);
             await SendRequestedReportsAsync(current, epoch, cancellationToken);
+            await SendTestMailsAsync(current, epoch, cancellationToken);
             await SendAdminLogsAsync(current, epoch, cancellationToken);
             await NotifySilentAgentsAsync(current, epoch, cancellationToken);
             await HeartbeatAsync(cancellationToken);
@@ -409,6 +440,51 @@ public sealed class NotifierEngine(
                 ? new JsonObject { ["ok"] = false, ["error"] = "wysyłka przerwana w trakcie – mail mógł nie dojść" }
                 : new JsonObject { ["ok"] = true }, cancellationToken);
         }
+    }
+
+    private async Task SendTestMailsAsync(CloudAgentConfig current, long epoch, CancellationToken cancellationToken)
+    {
+        List<long> ids;
+        lock (gate)
+        {
+            ids = [.. testRequests];
+            testRequests.Clear();
+        }
+        var recipients = current.Mail?.AlertRecipients ?? [];
+        foreach (var id in ids)
+        {
+            if (recipients.Count == 0)
+            {
+                await DoneAsync(id, new JsonObject { ["ok"] = false, ["error"] = "brak odbiorców alertów w konfiguracji" }, cancellationToken);
+                continue;
+            }
+            var outcome = await SendAsync([string.Create(CultureInfo.InvariantCulture, $"mail-test|{id}")],
+                _ => MailTemplates.Test(recipients, settings.MonitorName, clock.GetUtcNow(), current.TimeZone), epoch, cancellationToken);
+            JsonObject result = outcome switch
+            {
+                MailOutcome.Sent or MailOutcome.AlreadyClaimed => new() { ["ok"] = true, ["recipients"] = recipients.Count },
+                MailOutcome.Failed => new() { ["ok"] = false, ["error"] = mailState.LastError ?? "serwer poczty odrzucił wiadomość" },
+                MailOutcome.Uncertain => new() { ["ok"] = false, ["error"] = "wysyłka przerwana w trakcie – mail mógł nie dojść" },
+                _ => null!
+            };
+            if (outcome == MailOutcome.Postponed)
+            {
+                lock (gate) testRequests.Add(id);   // bez blokady teraz – spróbuje w kolejnym cyklu (polecenie czeka 10 min)
+                continue;
+            }
+            await DoneAsync(id, result, cancellationToken);
+        }
+    }
+
+    private async Task FailTestRequestsAsync(string error, CancellationToken cancellationToken)
+    {
+        List<long> ids;
+        lock (gate)
+        {
+            ids = [.. testRequests];
+            testRequests.Clear();
+        }
+        foreach (var id in ids) await DoneAsync(id, new JsonObject { ["ok"] = false, ["error"] = error }, cancellationToken);
     }
 
     private static IReadOnlyList<string> ReportRecipients(CloudAgentConfig current) =>

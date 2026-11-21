@@ -305,8 +305,17 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
       `app.css` jej nie pokazuje), dane wstawiane wyłącznie jako tekst, motyw jasny i ciemny (według systemu), układ pod
       telefon, manifest PWA bez trybu offline; podgląd maili (etap 4) w izolowanej ramce `sandbox` z osobną stroną i własną
       CSP. Pliki: `shell.js` (ramka, projekt z odnośnika, logowanie, TOTP, nagłówek, odświeżanie co 60 s przy widocznej
-      karcie), `supabase.js` (Auth i RPC), strony (`index.html` + `dashboard.js`), `format.js` – ten sam plik co w
-      lokalnym panelu. Testy (`OwnerWebTests`) pilnują CSP i braku kodu inline, braku wstawiania HTML, zgodności kopii
+      karcie), `supabase.js` (Auth i RPC; błąd z funkcji – rodzaj `invalid` z polskim powodem, konflikt wersji –
+      `conflict`), `ui.js` (formularze, potwierdzenia w miejscu zamiast okien przeglądarki), strony (`index.html` +
+      `dashboard.js` – pulpit, `config.html` + `config.js` – edytor konfiguracji), `qr.js` (kod QR rejestracji telefonu
+      jako SVG z biblioteki qrcode-generator, MIT, `vendor/qrcode.js` bez zmian – test pilnuje sumy), `format.js` – ten
+      sam plik co w lokalnym panelu.
+    - **Edytor konfiguracji** (3c): sekcje odczytów i raportów, poczty (adresy, hasło aplikacji, próbny mail – polecenie
+      `mail_test` do obecnego nadawcy, który pobiera hasło na nowo i bez przerwy po wcześniejszym błędzie, a błąd SMTP
+      zwraca w wyniku polecenia; strona śledzi wynik co 5 s), czujników (dodanie z pliku klucza z `pair` czytanego w
+      przeglądarce, ustawienia, nowy klucz, archiwum i przywrócenie, usunięcie tylko bez odczytów), agentów (nowy agent z
+      kodem rejestracji i QR odnośnika `glebosaurus://enroll` jak `EnrollmentLink`, rola i priorytet, wyłączenie,
+      odcięcie) i strażnika. Po zapisie strona wczytuje konfigurację na nowo i pokazuje notkę przy zmienionym miejscu. Testy (`OwnerWebTests`) pilnują CSP i braku kodu inline, braku wstawiania HTML, zgodności kopii
       wspólnych plików z panelem i tego, że migracja wymagana przez stronę (`REQUIRED_MIGRATION`) definiuje każdą wołaną
       funkcję `owner_*`. Funkcje strony sprawdzają testy SQL (`OwnerTests`) z żądaniami tokenu ustawionymi jak przez Data
       API (`request.jwt.claims`): obce konto, brak `aal2` i rola `anon` – odmowa.
@@ -422,8 +431,18 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
     - **API strony właściciela** (faza 3, zasada 4) – funkcje `public.owner_*` `security definer` z pustym `search_path`,
       wykonywalne tylko przez `authenticated`, każda zaczyna od `glebosaurus.require_owner()` (konto z
       `glebosaurus.owners` i token z `aal2`, inaczej 42501 z powodem `mfa_required` albo `not_owner`): `owner_info`
-      (konto, czas bazy, lista migracji), `owner_dashboard` (czujniki z ostatnim odczytem i dzierżawcą, agenci z sygnałem
-      życia przez `agent_status_view`, nadawca). Tabela `owners` bez klucza obcego do `auth.users` (schemat Supabase; kopia
+      (konto, czas bazy, lista migracji), `owner_dashboard` (czujniki spoza archiwum z ostatnim odczytem i dzierżawcą,
+      agenci z sygnałem życia przez `agent_status_view`, nadawca), `owner_config` (cała konfiguracja; sekrety tylko jako
+      data ustawienia z `vault.secrets`), zapisy z `config_version` (`owner_settings_update`, `owner_sensor_add|update|
+      credentials|archive|delete`; inna wersja w bazie → 40001 „conflict”), `owner_secret_set` (hasło Gmaila, adres
+      strażnika; null – usunięcie), `owner_agent_save|code|revoke`, `owner_command` (`read_now`, `report_now`,
+      `mail_test`, `send_log`) i `owner_command_status`. Walidacja jak `CloudSetupLoader` (strefa IANA z
+      `pg_timezone_names`, odstęp ≥ 0,5 min, okno skanu 5–120 s, progi 0–100 z „koniec” > „podlać”, 1–10 odczytów z rzędu,
+      adresy bez imion i z kropką w domenie – ujednolicone i bez powtórzeń, plik klucza: MAC, UUID 16 znaków, deviceId,
+      klucz 6 bajtów, znany productId, MAC i UUID niepowtarzalne); pilnuje tego `ConfigContractTests` – te same przypadki
+      dla pliku i dla funkcji (w transakcji wycofywanej na końcu). **Archiwum czujnika** (`archived_at`, zawsze wyłączony):
+      `get_config` go pomija (agent traktuje to jak usunięcie), pulpit też, otwarte alerty zamykają się; odczyty i klucz
+      zostają, przywrócony wraca wyłączony. Tabela `owners` bez klucza obcego do `auth.users` (schemat Supabase; kopia
       i testy od niego nie zależą) – usunięte konto i tak się nie zaloguje, a natychmiast odcina `cloud owner --remove`.
     - **Administracja** (`glebosaurus.admin_*`: agent i kod rejestracji, unieważnienie, czujnik, dane Tuya, sekrety poczty,
       ustawienia, właściciele strony) – tylko przez połączenie z bazą hasłem bazy (`Glebosaurus.Cloud.Admin`), nigdy przez Data API; klucz

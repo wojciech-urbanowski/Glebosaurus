@@ -178,7 +178,8 @@ internal static class PairCommand
         Console.WriteLine($"  Temperatura gleby: {reading.SoilTemperatureCelsius?.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) ?? "brak"} °C");
         Console.WriteLine($"  Bateria          : {reading.BatteryPercent?.ToString() ?? "brak"} %");
         Console.WriteLine();
-        Console.WriteLine($"Dodaj czujnik do listy \"sensors\" w pliku konfiguracji chmury ({options.SetupPath}):");
+        Console.WriteLine($"Strona w chmurze: Konfiguracja → Czujniki → „Dodaj czujnik z pliku klucza” – wskaż plik {path} (id: {id}).");
+        Console.WriteLine($"Albo dodaj czujnik do listy \"sensors\" w pliku konfiguracji chmury ({options.SetupPath}):");
         Console.WriteLine($"  {{ \"id\": \"{id}\", \"name\": \"{(options.Name ?? id).Replace("\"", "\\\"")}\", \"tuyaFile\": \"{reference.Replace("\\", "/")}\" }}");
         Console.WriteLine("i wyślij go do chmury: glebosaurus cloud config --admin PLIK --file PLIK --confirm (agenci przejmą czujnik sami).");
         return 0;

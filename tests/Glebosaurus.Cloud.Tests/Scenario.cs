@@ -20,6 +20,15 @@ public sealed class Scenario(CloudDatabase db, DateTimeOffset start)
     public static string RandomMac() =>
         string.Join(":", RandomNumberGenerator.GetBytes(6).Select(b => b.ToString("X2", System.Globalization.CultureInfo.InvariantCulture)));
 
+    /// <summary>Nowy właściciel strony (wpis w owners, bez konta w Auth – testy podają żądania tokenu same).</summary>
+    public async Task<JsonObject> OwnerAsync()
+    {
+        var user = Guid.NewGuid();
+        await db.AdminAsync("insert into glebosaurus.owners (user_id, email) values (@u, @e) returning '{}'::text", null,
+            ("u", user), ("e", $"{user:N}@example.com"));
+        return CloudDatabase.Claims(user);
+    }
+
     public async Task<TestAgent> AgentAsync(string prefix, bool canSendMail = false, int? priority = null, DateTimeOffset? at = null)
     {
         var name = Unique(prefix);

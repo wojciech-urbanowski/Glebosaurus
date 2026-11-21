@@ -247,6 +247,11 @@ export class Cloud {
       if (message.includes('not_owner')) {
         throw new CloudError('notOwner', 'To konto nie jest właścicielem Glebosaurusa. Właściciela dodaje: glebosaurus cloud owner --admin PLIK --email ADRES --confirm.', response.status);
       }
+      // Błędy z funkcji Glebosaurusa niosą powód po polsku; konflikt wersji (40001) – osobny rodzaj.
+      if (message.startsWith('Glebosaurus: conflict')) {
+        throw new CloudError('conflict', message.replace(/^Glebosaurus: conflict: ?/, ''), response.status);
+      }
+      if (message.startsWith('Glebosaurus: ')) throw new CloudError('invalid', message.slice('Glebosaurus: '.length), response.status);
       if (response.status === 404 && data?.code === 'PGRST202') {
         throw new CloudError('migration', `Baza nie ma funkcji ${name} – brakuje migracji (glebosaurus cloud migrate --admin PLIK --confirm).`, 404);
       }

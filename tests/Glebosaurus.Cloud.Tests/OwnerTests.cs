@@ -9,7 +9,12 @@ namespace Glebosaurus.Cloud.Tests;
 /// <summary>Strona właściciela (faza 3): funkcje owner_* tylko dla zalogowanego właściciela z TOTP (aal2).</summary>
 public sealed class OwnerTests(CloudDatabase db)
 {
-    public static readonly string[] OwnerFunctions = ["owner_dashboard", "owner_info"];
+    public static readonly string[] OwnerFunctions =
+    [
+        "owner_agent_code", "owner_agent_revoke", "owner_agent_save", "owner_command", "owner_command_status", "owner_config",
+        "owner_dashboard", "owner_info", "owner_secret_set", "owner_sensor_add", "owner_sensor_archive", "owner_sensor_credentials",
+        "owner_sensor_delete", "owner_sensor_update", "owner_settings_update"
+    ];
 
     private async Task<Guid> OwnerAsync()
     {
@@ -78,8 +83,14 @@ public sealed class OwnerTests(CloudDatabase db)
     {
         db.SkipIfUnavailable();
         await OwnerAsync();
-        foreach (var function in OwnerFunctions)
+        foreach (var function in new[] { "owner_info", "owner_dashboard", "owner_config" })
             await Scenario.FailsAsync("42501", () => db.AsRoleAsync("anon", $"select public.{function}()::text"));
+        var anonCanRun = await db.AdminAsync("""
+            select coalesce(jsonb_agg(p.proname), '[]')::text from pg_proc p
+             where p.pronamespace = 'public'::regnamespace and p.proname like 'owner\_%'
+               and (has_function_privilege('anon', p.oid, 'execute') or has_function_privilege('service_role', p.oid, 'execute'))
+            """, null);
+        Assert.Equal(0, anonCanRun.GetArrayLength());
     }
 
     [Fact]

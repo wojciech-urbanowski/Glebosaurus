@@ -289,9 +289,19 @@ synchronizuje się z chmurą dłużej niż 30 min, daje mail „agent milczy”.
 ## Strona w chmurze (faza 3, w budowie)
 
 Strona właściciela na GitHub Pages (`https://wojciech-urbanowski.github.io/Glebosaurus/`, katalog [web/](web/)) czyta
-chmurę wprost – bez komputera z agentem i spoza sieci domowej. Dziś: **pulpit** (czujniki z ostatnim odczytem i agentem,
-który je czyta, agenci z ostatnim sygnałem życia, obecny nadawca). Kolejne etapy – edytor konfiguracji (zastąpi plik
-konfiguracji chmury), wykresy, alerty, historia maili i parowanie zdalne – [docs/ROADMAP.md](docs/ROADMAP.md), faza 3.
+chmurę wprost – bez komputera z agentem i spoza sieci domowej. Dziś:
+
+- **Pulpit** – czujniki z ostatnim odczytem i agentem, który je czyta, agenci z ostatnim sygnałem życia, obecny nadawca.
+- **Konfiguracja** – odczyty i raporty (strefa, odstęp, pory, przypomnienia, retencja dzienników), poczta (konto Gmail,
+  odbiorcy, hasło aplikacji i **próbny mail** przez obecnego nadawcę), czujniki (dodanie z pliku klucza z `pair`, progi,
+  nowy klucz po resecie, archiwum zamiast usuwania – historia zostaje), agenci (nowy z kodem rejestracji i kodem QR dla
+  telefonu, rola nadawcy i priorytet, wyłączenie, odcięcie) i strażnik healthchecks.io. Sekrety (hasło Gmaila, klucze
+  czujników, adres strażnika) strona tylko zapisuje – nigdy ich nie pokazuje. Każdy zapis sprawdza, czy nikt nie zmienił
+  konfiguracji w międzyczasie (np. w drugiej karcie), i wtedy prosi o odświeżenie zamiast nadpisać. Agenci przejmują
+  zmiany sami przy najbliższej synchronizacji.
+
+Kolejne etapy – wykresy, alerty, historia maili i parowanie zdalne – [docs/ROADMAP.md](docs/ROADMAP.md), faza 3. Plik
+konfiguracji chmury i `cloud config` działają do czasu sprawdzenia edytora na żywo, potem znikną.
 
 Strona nie ma w kodzie adresu Twojego projektu (repozytorium jest publiczne) – dostaje go z odnośnika. Logowanie: e-mail,
 hasło i kod TOTP z aplikacji uwierzytelniającej; dane dostaje tylko konto dodane jako właściciel. Włączenie (raz):

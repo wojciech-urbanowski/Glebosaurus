@@ -4,12 +4,14 @@
 
 import { $, h, syncClock } from './format.js';
 import { Cloud, CloudError, forgetProject, loadProject, projectFromHash, saveProject } from './supabase.js';
+import { errorBox, field, form, input, submitButton } from './ui.js';
 
 /** Migracja, której potrzebuje ta wersja strony (najnowsza używana funkcja owner_*). */
-export const REQUIRED_MIGRATION = '20261121120000';
+export const REQUIRED_MIGRATION = '20261121140000';
 
 const PAGES = [
-  ['index.html', 'Pulpit']
+  ['index.html', 'Pulpit'],
+  ['config.html', 'Konfiguracja']
 ];
 
 // Wyjście z ramki: GitHub Pages nie ustawia nagłówków, a frame-ancestors nie działa w <meta>. Strona w cudzej ramce
@@ -32,56 +34,6 @@ function view(...children) {
   main.className = 'narrow';
   main.replaceChildren(...children);
   return main;
-}
-
-function errorBox(text) {
-  const box = h('div', 'action-note tone-red', text);
-  box.setAttribute('role', 'alert');
-  box.hidden = !text;
-  return box;
-}
-
-function field(label, input) {
-  const id = `f-${Math.random().toString(36).slice(2)}`;
-  input.id = id;
-  const caption = h('label', null, label);
-  caption.htmlFor = id;
-  return h('div', 'field', caption, input);
-}
-
-function input(type, autocomplete, extra = {}) {
-  const element = h('input');
-  element.type = type;
-  element.autocomplete = autocomplete;
-  element.required = true;
-  Object.assign(element, extra);
-  return element;
-}
-
-function submitButton(text) {
-  const button = h('button', null, text);
-  button.type = 'submit';
-  return button;
-}
-
-/** Formularz z obsługą błędu i blokadą przycisku na czas akcji. */
-function form(children, button, action) {
-  const error = errorBox('');
-  const element = h('form', 'stack', error, ...children, button);
-  element.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    button.disabled = true;
-    error.hidden = true;
-    try {
-      await action();
-    } catch (failure) {
-      error.textContent = failure.message;
-      error.hidden = false;
-    } finally {
-      button.disabled = false;
-    }
-  });
-  return element;
 }
 
 function header(cloud, info) {

@@ -12,3 +12,9 @@ and `TuyaSession.cs` was written with reference to and adapted from these MIT-li
   Full notice: [licenses/ha-tuya-ble-MIT.txt](licenses/ha-tuya-ble-MIT.txt).
 
 The original projects also credit redphx for early Tuya BLE protocol work.
+
+The owner's cloud page bundles, unmodified, the ES module build of
+[kazuhikoarase/qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) 2.0.4
+(`dist/qrcode.mjs` from the npm package, as `web/vendor/qrcode.js`; enrollment QR codes for new agents),
+Copyright (c) 2009 Kazuhiko Arase, MIT license.
+Full notice: [licenses/qrcode-generator-MIT.txt](licenses/qrcode-generator-MIT.txt).

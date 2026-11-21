@@ -209,6 +209,66 @@ public sealed class NotifierTests
     }
 
     [Fact]
+    public async Task TestMail_FromOwnerPage_GoesToAlertRecipients_WithFreshPassword()
+    {
+        Lock();
+        var engine = Engine();
+        await engine.CycleAsync(Ct);
+        var callsBefore = api.CredentialCalls;
+
+        Assert.True(await engine.HandleCommandAsync(new(21, "mail_test", null, null, Morning, 600), Ct));
+        await engine.CycleAsync(Ct);
+
+        var test = Assert.Single(mail.Sent);
+        Assert.Equal("Wiadomość próbna", test.Subject);
+        Assert.Equal(["ktos@example.com"], test.To);
+        Assert.True(api.Outbox["mail-test|21"].Sent);
+        Assert.Equal(callsBefore + 1, api.CredentialCalls);          // hasło mogło się właśnie zmienić – pobrane od nowa
+        var (id, result) = Assert.Single(api.Done);
+        Assert.Equal(21, id);
+        Assert.True((bool)result!["ok"]!);
+    }
+
+    [Fact]
+    public async Task TestMail_SmtpRejection_GoesBackToOwner_WithoutWaitingForRetry()
+    {
+        Lock();
+        var flaky = new FakeMail { Failure = new MailTransportException("535 5.7.8 Username and Password not accepted", new IOException()) };
+        var engine = Engine(flaky);
+
+        Assert.True(await engine.HandleCommandAsync(new(22, "mail_test", null, null, Morning, 600), Ct));
+        await engine.CycleAsync(Ct);
+
+        var (id, result) = Assert.Single(api.Done);
+        Assert.Equal(22, id);
+        Assert.False((bool)result!["ok"]!);
+        Assert.Contains("Password not accepted", (string)result["error"]!);
+        Assert.False(api.Outbox.ContainsKey("mail-test|22"));              // rezerwacja oddana
+
+        // Po poprawie hasła kolejna próba idzie od razu, mimo przerwy po błędzie (zwykłe maile czekałyby 5 min).
+        flaky.Failure = null;
+        await engine.HandleCommandAsync(new(23, "mail_test", null, null, Morning, 600), Ct);
+        await engine.CycleAsync(Ct);
+        Assert.Single(flaky.Sent);
+        Assert.True((bool)api.Done[^1].Result!["ok"]!);
+    }
+
+    [Fact]
+    public async Task TestMail_WithoutPasswordInCloud_ReportsWhy()
+    {
+        Lock();
+        api.Credentials = api.Credentials with { AppPassword = "" };
+        var engine = Engine();
+
+        await engine.HandleCommandAsync(new(24, "mail_test", null, null, Morning, 600), Ct);
+        await engine.CycleAsync(Ct);
+
+        Assert.Empty(mail.Sent);
+        var (_, result) = Assert.Single(api.Done);
+        Assert.Contains("hasła aplikacji Gmail", (string)result!["error"]!);
+    }
+
+    [Fact]
     public async Task Report_ShowsPhonesAndPis_FromTheLastSync()
     {
         Lock();

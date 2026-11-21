@@ -83,7 +83,19 @@ public sealed partial class OwnerWebTests
         foreach (var forbidden in new[] { "innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "new Function", "setAttribute('style'" })
             Assert.DoesNotContain(forbidden, code);
         foreach (Match import in ImportFrom().Matches(code))
-            Assert.Matches("^\\./[a-z-]+\\.js$", import.Groups[1].Value);
+            Assert.Matches("^\\./(vendor/)?[a-z-]+\\.js$", import.Groups[1].Value);
+    }
+
+    /// <summary>Biblioteka QR jest wgrana bez zmian (qrcode-generator 2.0.4, dist/qrcode.mjs) – THIRD-PARTY-NOTICES.md.</summary>
+    [Fact]
+    public void VendoredQrLibrary_IsUnmodified()
+    {
+        var text = File.ReadAllText(Path.Combine(Web, "vendor", "qrcode.js")).ReplaceLineEndings("\n");
+        var hash = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text)));
+
+        Assert.Equal("ea91d7118a5395289170da848b7c6758b996163bfbccf312591ab65a4911b7c0", hash);
+        Assert.Contains("qrcode-generator", File.ReadAllText(Path.Combine(Root, "THIRD-PARTY-NOTICES.md")));
+        Assert.True(File.Exists(Path.Combine(Root, "licenses", "qrcode-generator-MIT.txt")));
     }
 
     [Theory]
