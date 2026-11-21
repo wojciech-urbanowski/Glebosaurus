@@ -268,6 +268,12 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   edytor przeklikany na atrapie (błąd i zapis ustawień, hasło, próbny mail z błędem SMTP, nowy agent z kodem i QR,
   archiwum; 375 px bez przewijania w bok, motyw ciemny). Usunięcie pliku konfiguracji chmury i `cloud config` – po
   sprawdzeniu edytora na żywo i zgodzie użytkownika.
+  **Etap 3 (3a) w kodzie:** migracja `20261121160000_owner_history` (`owner_series` z uśrednianiem w bazie,
+  `owner_sensor`, `owner_readings`, pulpit z alertami i odbiorcami raportu), `charts.js` wspólny z lokalnym panelem,
+  pulpit z wykresami 3 dób, odczytem i raportem na żądanie, strona czujnika z przeglądalnym wykresem. Testy SQL zielone
+  (170, w tym kontrakt serii z `ReadingSeriesBuilder` w 5 scenariuszach: pojedyncze odczyty, przedziały z dziurą, koniec
+  czasu letniego, dni, tygodnie od poniedziałku); pulpit i strona czujnika przeklikane na atrapie (stan odczytu na
+  żądanie, „Całość”, 375 px bez przewijania w bok po poprawce nagłówka strony czujnika, motyw ciemny).
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 

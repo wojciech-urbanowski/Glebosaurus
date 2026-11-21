@@ -7,6 +7,7 @@ import { h, when, ago, plural, badge, kv, syncClock, num1 } from './format.js';
 import { start, banner } from './shell.js';
 import { CloudError } from './supabase.js';
 import { qrSvg, enrollmentLink } from './qr.js';
+import { command, describe, follow } from './commands.js';
 import {
   button, checkbox, confirmBox, field, form, input, listValue, note, numberInput, numberValue, select, submitButton
 } from './ui.js';
@@ -185,10 +186,10 @@ function testMail() {
     startButton.hidden = true;
     const ask = confirmBox(`Wysłać PRAWDZIWĄ wiadomość próbną do: ${recipients.join(', ')}? Wyśle ją obecny nadawca ze świeżo pobranym hasłem.`,
       'Tak, wyślij', async () => {
-        const created = await cloud.rpc('owner_command', { p_kind: 'mail_test', p_sensor: null, p_agent: null });
+        const created = await command(cloud, 'mail_test');
         ask.remove();
         startButton.hidden = false;
-        await followCommand(created.id, status, 'Próbny mail');
+        await followTestMail(created.id, status);
       }, () => {
         ask.remove();
         startButton.hidden = false;
@@ -201,30 +202,19 @@ function testMail() {
   return box;
 }
 
-/** Śledzi polecenie co 5 s, aż agent zgłosi wynik albo polecenie wygaśnie. */
-async function followCommand(id, status, label) {
-  note(status, `${label}: zlecone – czeka na agenta…`, 'grey');
-  for (;;) {
-    await new Promise((resolve) => setTimeout(resolve, 5000));
-    let item;
-    try {
-      [item] = await cloud.rpc('owner_command_status', { p_ids: [id] });
-    } catch (error) {
-      note(status, `${label}: nie udało się sprawdzić stanu (${error.message}).`, 'amber');
-      return;
-    }
-    if (!item) return;
-    if (item.doneAt) {
-      const result = item.result || {};
-      if (result.ok) note(status, `${label}: wysłany przez ${item.takenBy}${result.recipients ? ` do ${result.recipients} ${plural(result.recipients, 'odbiorcy', 'odbiorców', 'odbiorców')}` : ''}. Sprawdź skrzynkę.`, 'green');
-      else note(status, `${label}: nie wyszedł – ${result.error || 'agent zgłosił błąd'}.`, 'red');
-      return;
-    }
-    if (item.expired) {
-      note(status, `${label}: żaden agent nie wykonał polecenia w 10 min (nadawca wyłączony albo ze starszą wersją programu).`, 'red');
-      return;
-    }
-    note(status, item.takenBy ? `${label}: agent ${item.takenBy} wziął polecenie – wysyła…` : `${label}: czeka na agenta…`, 'grey');
+/** Próbny mail: śledzi polecenie do wyniku; przy sukcesie mówi, do ilu odbiorców poszedł. */
+async function followTestMail(id, status) {
+  note(status, 'Próbny mail: zlecony – czeka na nadawcę…', 'grey');
+  try {
+    await follow(cloud, [id], (item) => {
+      const state = describe(item);
+      const recipients = item.result && item.result.recipients;
+      note(status, item.doneAt && item.result && item.result.ok
+        ? `Próbny mail: wysłany przez ${item.takenBy} do ${recipients} ${plural(recipients, 'odbiorcy', 'odbiorców', 'odbiorców')}. Sprawdź skrzynkę.`
+        : state.text, state.tone);
+    });
+  } catch (error) {
+    note(status, `Próbny mail: nie udało się sprawdzić stanu (${error.message}).`, 'amber');
   }
 }
 

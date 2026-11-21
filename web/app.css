@@ -263,3 +263,12 @@ svg.qr { width: 220px; max-width: 100%; height: auto; display: block; }
 @media (max-width: 420px) {
   .field-row { grid-template-columns: 1fr; gap: 12px; }
 }
+
+/* Pulpit i strona czujnika (3a). */
+.section-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.card .chart.compact { margin-top: 8px; }
+.page-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 8px 16px; }
+.page-head .page-title { min-width: 0; flex: 1 1 260px; overflow-wrap: anywhere; }
+.page-head .picker { margin: 4px 0 0; max-width: 100%; }
+.page-head .picker select { max-width: 100%; }
+a.sensor-name { color: var(--text); }

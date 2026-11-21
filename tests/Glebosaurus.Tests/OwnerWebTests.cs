@@ -100,6 +100,7 @@ public sealed partial class OwnerWebTests
 
     [Theory]
     [InlineData("format.js")]
+    [InlineData("charts.js")]
     [InlineData("favicon.svg")]
     public void SharedFile_IsIdenticalToLocalPanel(string file)
     {

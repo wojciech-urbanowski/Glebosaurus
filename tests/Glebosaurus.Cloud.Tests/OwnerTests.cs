@@ -12,8 +12,8 @@ public sealed class OwnerTests(CloudDatabase db)
     public static readonly string[] OwnerFunctions =
     [
         "owner_agent_code", "owner_agent_revoke", "owner_agent_save", "owner_command", "owner_command_status", "owner_config",
-        "owner_dashboard", "owner_info", "owner_secret_set", "owner_sensor_add", "owner_sensor_archive", "owner_sensor_credentials",
-        "owner_sensor_delete", "owner_sensor_update", "owner_settings_update"
+        "owner_dashboard", "owner_info", "owner_readings", "owner_secret_set", "owner_sensor", "owner_sensor_add", "owner_sensor_archive",
+        "owner_sensor_credentials", "owner_sensor_delete", "owner_sensor_update", "owner_series", "owner_settings_update"
     ];
 
     private async Task<Guid> OwnerAsync()

@@ -307,7 +307,10 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
       CSP. Pliki: `shell.js` (ramka, projekt z odnośnika, logowanie, TOTP, nagłówek, odświeżanie co 60 s przy widocznej
       karcie), `supabase.js` (Auth i RPC; błąd z funkcji – rodzaj `invalid` z polskim powodem, konflikt wersji –
       `conflict`), `ui.js` (formularze, potwierdzenia w miejscu zamiast okien przeglądarki), strony (`index.html` +
-      `dashboard.js` – pulpit, `config.html` + `config.js` – edytor konfiguracji), `qr.js` (kod QR rejestracji telefonu
+      `dashboard.js` – pulpit z alertami, wykresem 3 dób przy każdym czujniku i odczytem/raportem na żądanie,
+      `sensor.html` + `sensor.js` – strona czujnika z przeglądalnym wykresem całej historii, `config.html` + `config.js`
+      – edytor konfiguracji), `commands.js` (zlecenie przez `owner_command` i śledzenie wyniku co 5 s), `charts.js`
+      (ten sam plik co w lokalnym panelu), `qr.js` (kod QR rejestracji telefonu
       jako SVG z biblioteki qrcode-generator, MIT, `vendor/qrcode.js` bez zmian – test pilnuje sumy), `format.js` – ten
       sam plik co w lokalnym panelu.
     - **Edytor konfiguracji** (3c): sekcje odczytów i raportów, poczty (adresy, hasło aplikacji, próbny mail – polecenie
@@ -436,7 +439,11 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
       data ustawienia z `vault.secrets`), zapisy z `config_version` (`owner_settings_update`, `owner_sensor_add|update|
       credentials|archive|delete`; inna wersja w bazie → 40001 „conflict”), `owner_secret_set` (hasło Gmaila, adres
       strażnika; null – usunięcie), `owner_agent_save|code|revoke`, `owner_command` (`read_now`, `report_now`,
-      `mail_test`, `send_log`) i `owner_command_status`. Walidacja jak `CloudSetupLoader` (strefa IANA z
+      `mail_test`, `send_log`) i `owner_command_status`, `owner_series` (dane wykresu: uśrednianie w bazie jak
+      `ReadingSeriesBuilder` – ta sama drabinka, `date_bin` w czasie lokalnym od poniedziałku 0001-01-01, ta sama reguła
+      dziur; strefa przeglądarki, nieznana – strefa raportów; pilnuje `SeriesContractTests` na tych samych odczytach co
+      C#, także przy zmianie czasu), `owner_sensor` (strona czujnika: ustawienia, ostatni odczyt, dzierżawa, słyszenia,
+      alerty, produkt Tuya bez kluczy) i `owner_readings`. Walidacja jak `CloudSetupLoader` (strefa IANA z
       `pg_timezone_names`, odstęp ≥ 0,5 min, okno skanu 5–120 s, progi 0–100 z „koniec” > „podlać”, 1–10 odczytów z rzędu,
       adresy bez imion i z kropką w domenie – ujednolicone i bez powtórzeń, plik klucza: MAC, UUID 16 znaków, deviceId,
       klucz 6 bajtów, znany productId, MAC i UUID niepowtarzalne); pilnuje tego `ConfigContractTests` – te same przypadki

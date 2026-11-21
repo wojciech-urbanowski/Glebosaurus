@@ -291,7 +291,12 @@ synchronizuje się z chmurą dłużej niż 30 min, daje mail „agent milczy”.
 Strona właściciela na GitHub Pages (`https://wojciech-urbanowski.github.io/Glebosaurus/`, katalog [web/](web/)) czyta
 chmurę wprost – bez komputera z agentem i spoza sieci domowej. Dziś:
 
-- **Pulpit** – czujniki z ostatnim odczytem i agentem, który je czyta, agenci z ostatnim sygnałem życia, obecny nadawca.
+- **Pulpit** – otwarte alerty, czujniki z ostatnim odczytem, agentem, który je czyta, i wykresem ostatnich 3 dób,
+  odczyt na żądanie (pojedynczo i wszystkie – stan polecenia widać na karcie), raport na żądanie (prawdziwy mail – strona
+  pyta, pokazując odbiorców), agenci z ostatnim sygnałem życia (bateria i temperatura telefonu, procesor Pi), nadawca.
+- **Strona czujnika** – stan teraz, przeglądalny wykres całej historii (3 doby … całość, przeciąganie, Ctrl + kółko, dwa
+  palce, pasek przeglądu – jak w lokalnym panelu), otwarte alerty, ostatnie odczyty, kto czujnik czyta i słyszy (sygnał
+  u każdego agenta), ustawienia z odnośnikiem do konfiguracji.
 - **Konfiguracja** – odczyty i raporty (strefa, odstęp, pory, przypomnienia, retencja dzienników), poczta (konto Gmail,
   odbiorcy, hasło aplikacji i **próbny mail** przez obecnego nadawcę), czujniki (dodanie z pliku klucza z `pair`, progi,
   nowy klucz po resecie, archiwum zamiast usuwania – historia zostaje), agenci (nowy z kodem rejestracji i kodem QR dla
@@ -300,7 +305,8 @@ chmurę wprost – bez komputera z agentem i spoza sieci domowej. Dziś:
   konfiguracji w międzyczasie (np. w drugiej karcie), i wtedy prosi o odświeżenie zamiast nadpisać. Agenci przejmują
   zmiany sami przy najbliższej synchronizacji.
 
-Kolejne etapy – wykresy, alerty, historia maili i parowanie zdalne – [docs/ROADMAP.md](docs/ROADMAP.md), faza 3. Plik
+Kolejne etapy – potwierdzanie i wyciszanie alertów, historia maili i parowanie zdalne – [docs/ROADMAP.md](docs/ROADMAP.md),
+faza 3. Plik
 konfiguracji chmury i `cloud config` działają do czasu sprawdzenia edytora na żywo, potem znikną.
 
 Strona nie ma w kodzie adresu Twojego projektu (repozytorium jest publiczne) – dostaje go z odnośnika. Logowanie: e-mail,

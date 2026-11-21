@@ -60,7 +60,7 @@ zbieracz, 9 czujników):
 | **2.2** | Agent na Androida – tylko zbieranie | L | ◐ agent pracuje; tydzień obok komputera ○ |
 | **2.3a** | Raspberry Pi 24/7 – główny nadawca maili, bez Bluetooth | S–M | ◐ w kodzie (próba skryptu w CI na arm64); na Pi ○ |
 | **2.3b** | Raspberry Pi czyta czujniki (BlueZ), także 32-bitowe Pi | M | ○ |
-| **3** | Interfejs webowy w chmurze: pulpit, historia, alerty, konfiguracja, parowanie zdalne | L | ◐ decyzje i plan etapów 2026-11-21; etapy 1–2 (szkielet, 3c) w kodzie, próba na żywo ○ |
+| **3** | Interfejs webowy w chmurze: pulpit, historia, alerty, konfiguracja, parowanie zdalne | L | ◐ decyzje i plan etapów 2026-11-21; etapy 1–3 (szkielet, 3c, 3a) w kodzie, próba na żywo ○ |
 | **4** | Wdrożenie i utwardzanie: aktualizacje, monitoring, bezpieczeństwo, odtwarzanie, runbook | M | ◐ aktualizacje Windows i CI ✔ |
 | **5** | Rozszerzenia (opcjonalne): mądrzejsze podlewanie, inne kanały, inne czujniki, zasięg | – | ○ |
 
@@ -156,7 +156,7 @@ Kolejność etapów (3e – widok mobilny, motyw jasny/ciemny, polski interfejs 
 |---|---|---|---|
 | 1 | **Szkielet:** tabela właścicieli i `require_owner()` (konto z listy + `aal2`), `owner_info` (wersja bazy, brakujące migracje), `cloud owner`, `cloud web-link [--qr]`; strona: połączenie z linku, logowanie z TOTP (dodanie TOTP przy pierwszym logowaniu), odświeżanie sesji, wylogowanie, lista czujników; publikacja `pages.yml` (tag `v*` i ręcznie). | M | ◐ w kodzie 2026-11-21 (testy SQL, podgląd na atrapie); na żywo ○ – kroki właściciela niżej |
 | 2 | **3c – konfiguracja:** ustawienia, poczta i odbiorcy, czujniki (dodanie z pliku klucza z `pair`, progi, archiwum zamiast usuwania), agenci (nowy z kodem i QR, rola nadawcy, wyłączenie, unieważnienie), strażnik; sekrety tylko do ustawienia; zapis z `config_version`; reguły walidacji jak `CloudSetupLoader` (test kontraktowy); próbny mail (`mail_test`) przez obecnego nadawcę. Po próbie na żywo – usunięcie pliku konfiguracji chmury i `cloud config`. | M–L | ◐ w kodzie 2026-11-21 (testy SQL z kontraktem, podgląd na atrapie); na żywo i usunięcie pliku ○ |
-| 3 | **3a – pulpit i historia:** czujniki z ostatnim odczytem, kto czyta, stan agentów i urządzeń, wykresy (uśrednianie w SQL jak `ReadingSeriesBuilder`), odczyt i raport na żądanie ze stanem polecenia. | M | ○ |
+| 3 | **3a – pulpit i historia:** czujniki z ostatnim odczytem, kto czyta, stan agentów i urządzeń, wykresy (uśrednianie w SQL jak `ReadingSeriesBuilder`), odczyt i raport na żądanie ze stanem polecenia. | M | ◐ w kodzie 2026-11-21 (kontrakt serii z C#, podgląd na atrapie); na żywo ○ |
 | 4 | **3b – alerty i raporty:** lista alertów, potwierdzenie (koniec przypomnień), wyciszenie czujnika do daty, wyciszenie wszystkiego (urlop), ręczne zamknięcie; historia maili (raporty i alerty 90 dni, `mail_archive`) z podglądem w izolowanej ramce. | M | ○ |
 | 5 | **3d – parowanie zdalne:** polecenie `pair` w zbieraczu (najpierw Windows, Linux po 2.3b, Android później): skan rusza pierwszy, postęp przez `command_progress`, strona mówi „włóż baterie teraz” dopiero po potwierdzeniu skanu, klucz w Vault przed wysłaniem do czujnika (przerwane parowanie wznawia się tym samym kluczem). | M | ○ |
 | 6 | Kryterium fazy na żywo, wpis w HISTORIA.md. | S | ○ |
