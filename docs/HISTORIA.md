@@ -99,12 +99,11 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
 ### Czeka na użytkownika
 
 - **Strona w chmurze (faza 3, etapy 1–5 w kodzie)** – na próbnym projekcie logowanie na żywo działa (2026-11-21: konto
-  właściciela z TOTP, strona z tego komputera – `dotnet run tools/web-preview.cs -- static`, odnośnik
-  `cloud web-link --admin local/cloud-admin.test.json --page http://127.0.0.1:8473/`); można tam przeklikać edytor i
-  alerty na danych pokazowych. `seed` i testy SQL czyszczą próbny projekt razem z listą właścicieli – konto w Auth
-  zostaje, wystarczy znów `cloud owner`. Dalej prawdziwy projekt (migracje tylko na prośbę):
-  to samo w jego panelu plus Site URL; na GitHubie Pages ze źródłem „GitHub Actions” i workflow „Strona w chmurze”
-  (README, „Strona w chmurze”). Potem: zdecydować o wydaniu (nadawca z `mail_test`, wyciszeniami i archiwum maili,
+  właściciela z TOTP, strona na GitHub Pages i z tego komputera – `dotnet run tools/web-preview.cs -- static`); można tam
+  przeklikać edytor i alerty na danych pokazowych. `seed` i testy SQL czyszczą próbny projekt razem z listą właścicieli
+  – konto w Auth zostaje, wystarczy znów `cloud owner`. Dalej prawdziwy projekt (migracje tylko na prośbę): w jego
+  panelu Supabase wyłączyć zakładanie kont, Add user, Site URL https://wojciech-urbanowski.github.io/Glebosaurus/;
+  logowanie z TOTP, `cloud owner` (README, „Strona w chmurze”). Potem: zdecydować o wydaniu (nadawca z `mail_test`, wyciszeniami i archiwum maili,
   parowanie zdalne na Windows – wersja do podbicia), sprawdzić `pair` na sprzęcie po przeniesieniu kroków BLE do
   `ShinySensorPairer` i parowanie zdalne przy czujniku; po sprawdzeniu edytora na żywo – zgoda na usunięcie pliku
   konfiguracji chmury i `cloud config --file`.
@@ -319,7 +318,9 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   strona rysuje teraz kod sama z `totp.uri` (otpauth://) tą samą biblioteką co kod QR rejestracji telefonu. Po
   poprawce: dodanie TOTP z kodu QR, ekran „Brak dostępu” przed nadaniem właściciela, `cloud owner`, pulpit z danymi
   pokazowymi przez prawdziwe Supabase Auth i Data API – **logowanie na żywo działa na próbnym projekcie** (zakładanie
-  kont wyłączone).
+  kont wyłączone). **GitHub Pages** (repozytorium wypchnięte, CI zielone): Pages ze źródłem „GitHub Actions”, workflow
+  „Strona w chmurze” uruchomiony ręcznie – strona pod https://wojciech-urbanowski.github.io/Glebosaurus/ (wszystkie pliki
+  z właściwymi typami); logowanie z TOTP na próbnym projekcie i pulpit z danymi pokazowymi także stamtąd.
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 

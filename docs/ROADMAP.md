@@ -154,7 +154,7 @@ Kolejność etapów (3e – widok mobilny, motyw jasny/ciemny, polski interfejs 
 
 | Etap | Zakres | Wielkość | Stan |
 |---|---|---|---|
-| 1 | **Szkielet:** tabela właścicieli i `require_owner()` (konto z listy + `aal2`), `owner_info` (wersja bazy, brakujące migracje), `cloud owner`, `cloud web-link [--qr]`; strona: połączenie z linku, logowanie z TOTP (dodanie TOTP przy pierwszym logowaniu), odświeżanie sesji, wylogowanie, lista czujników; publikacja `pages.yml` (tag `v*` i ręcznie). | M | ◐ w kodzie 2026-11-21 (testy SQL, podgląd na atrapie); logowanie z TOTP na żywo na próbnym projekcie ✔ 2026-11-21 (strona z tego komputera); prawdziwy projekt i GitHub Pages ○ – kroki właściciela niżej |
+| 1 | **Szkielet:** tabela właścicieli i `require_owner()` (konto z listy + `aal2`), `owner_info` (wersja bazy, brakujące migracje), `cloud owner`, `cloud web-link [--qr]`; strona: połączenie z linku, logowanie z TOTP (dodanie TOTP przy pierwszym logowaniu), odświeżanie sesji, wylogowanie, lista czujników; publikacja `pages.yml` (tag `v*` i ręcznie). | M | ◐ w kodzie 2026-11-21 (testy SQL, podgląd na atrapie); logowanie z TOTP na żywo na próbnym projekcie i GitHub Pages ✔ 2026-11-21; prawdziwy projekt ○ – kroki właściciela niżej |
 | 2 | **3c – konfiguracja:** ustawienia, poczta i odbiorcy, czujniki (dodanie z pliku klucza z `pair`, progi, archiwum zamiast usuwania), agenci (nowy z kodem i QR, rola nadawcy, wyłączenie, unieważnienie), strażnik; sekrety tylko do ustawienia; zapis z `config_version`; reguły walidacji jak `CloudSetupLoader` (test kontraktowy); próbny mail (`mail_test`) przez obecnego nadawcę. Po próbie na żywo – usunięcie pliku konfiguracji chmury i `cloud config`. | M–L | ◐ w kodzie 2026-11-21 (testy SQL z kontraktem, podgląd na atrapie); na żywo i usunięcie pliku ○ |
 | 3 | **3a – pulpit i historia:** czujniki z ostatnim odczytem, kto czyta, stan agentów i urządzeń, wykresy (uśrednianie w SQL jak `ReadingSeriesBuilder`), odczyt i raport na żądanie ze stanem polecenia. | M | ◐ w kodzie 2026-11-21 (kontrakt serii z C#, podgląd na atrapie); na żywo ○ |
 | 4 | **3b – alerty i raporty:** lista alertów, potwierdzenie (koniec przypomnień), wyciszenie czujnika do daty, wyciszenie wszystkiego (urlop), ręczne zamknięcie; historia maili (raporty i alerty 90 dni, `mail_archive`) z podglądem w izolowanej ramce. | M | ◐ w kodzie 2026-11-21 (testy, podgląd na atrapie; wygląd raportu z wyciszeniem zaakceptowany); na żywo ○ |
@@ -164,11 +164,9 @@ Kolejność etapów (3e – widok mobilny, motyw jasny/ciemny, polski interfejs 
 **Kryterium:** cały scenariusz z przeglądarki, bez dotykania plików: dodać czujnik (parowanie zdalne), ustawić próg,
 zobaczyć alert, zmienić odbiorców.
 
-**Kroki właściciela** (nie da się ich zrobić z repozytorium): w Supabase (najpierw próbny, potem prawdziwy projekt) –
-wyłączyć zakładanie kont, dodać użytkownika właściciela (Authentication → Add user), na prawdziwym ustawić Site URL na
-adres strony; logowanie i TOTP na stronie – na próbnym projekcie ze strony na tym komputerze (`tools/web-preview.cs
-static`, bez GitHub Pages), na prawdziwym z GitHub Pages (źródło „GitHub Actions”); migracje i `cloud owner` na prawdziwym
-projekcie.
+**Kroki właściciela** (nie da się ich zrobić z repozytorium): ✔ próbny projekt i GitHub Pages (2026-11-21); na
+prawdziwym projekcie – migracje (na prośbę), w Supabase wyłączyć zakładanie kont, dodać użytkownika właściciela
+(Authentication → Add user) i ustawić Site URL na adres strony, logowanie z TOTP na stronie, `cloud owner`.
 
 ---
 
