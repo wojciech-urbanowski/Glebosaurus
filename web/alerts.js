@@ -114,6 +114,15 @@ function mutedSensors() {
 
 // ---- otwarte alerty ----------------------------------------------------------------------------------------------
 
+/** Co dalej z mailami o alercie: potwierdzony – nic; wyciszony czujnik albo urlop – nic do końca dłuższego wyciszenia. */
+function reminderText(alert, sensor) {
+  if (alert.acknowledgedAt) return ' · bez przypomnień';
+  const mutes = [sensor && sensor.alertsMutedUntil, data.alertsMutedUntil].filter(Boolean)
+    .sort((a, b) => new Date(a) - new Date(b));
+  if (mutes.length > 0) return ` · maile wstrzymane do ${when(mutes[mutes.length - 1])}`;
+  return ` · przypomnienie co ${data.alertReminderHours} godz.`;
+}
+
 function openAlertCard(alert) {
   const key = `alert:${alert.id}`;
   const card = h('div', `card accent-${alert.kind === 'NeedsWater' ? 'red' : 'amber'}`);
@@ -126,8 +135,7 @@ function openAlertCard(alert) {
   card.append(flashBox(key), h('div', null, h('strong', null, title)), h('div', null, alert.detail));
   if (badges.childElementCount > 0) card.append(badges);
   card.append(h('div', 'muted small', `Otwarty ${when(alert.openedAt)} (${ago(alert.openedAt)}) · ` +
-    (alert.lastNotifiedAt ? `ostatni mail ${when(alert.lastNotifiedAt)}` : 'mail jeszcze niewysłany') +
-    (alert.acknowledgedAt ? ' · bez przypomnień' : ` · przypomnienie co ${data.alertReminderHours} godz.`)));
+    (alert.lastNotifiedAt ? `ostatni mail ${when(alert.lastNotifiedAt)}` : 'mail jeszcze niewysłany') + reminderText(alert, sensor)));
 
   const extra = h('div');
   const actions = h('div', 'card-actions');

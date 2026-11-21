@@ -366,6 +366,8 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   klucza”; identyfikator czujnika sprawdza `SensorIds`. `ConfigContractTests` – te same przypadki już tylko na funkcjach
   SQL. Funkcje `admin_*` w bazie zostają (testy, `cloud settings`, `tools/web-preview.cs`); komentarze w zastosowanych
   migracjach wspominają `CloudSetupLoader` – zostają (suma kontrolna). Testy zielone (632, SQL 138).
+  Lista alertów: przy wyciszonym czujniku albo urlopie karta mówi „maile wstrzymane do …” (dłuższe z wyciszeń) zamiast
+  „przypomnienie co 24 godz.” – sprawdzone na podglądzie z próbną bazą (czujnik 3 dni, urlop 1 dzień).
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 
