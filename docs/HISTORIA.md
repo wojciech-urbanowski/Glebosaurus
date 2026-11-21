@@ -333,7 +333,8 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   wyciszonych alertach idą dalej).
   **Migracje fazy 3 na prawdziwym projekcie** (na prośbę użytkownika, ok. 11:54): sześć migracji od `20261121120000_owner_web`
   do `20261121220000_owner_hardening` zastosowanych, schemat aktualny. Agenci 0.2.7 (bestia5, rasp3, mi11) synchronizują
-  się dalej bez błędów (sprawdzone w ciągu kilku minut po migracji).
+  się dalej bez błędów (sprawdzone w ciągu kilku minut po migracji). Potem użytkownik: zakładanie kont wyłączone, konto właściciela,
+  pierwsze logowanie z dodaniem TOTP na stronie z GitHub Pages (Firefox); `cloud owner` na prawdziwym projekcie (12:06).
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 
