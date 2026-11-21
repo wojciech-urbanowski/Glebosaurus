@@ -5,6 +5,7 @@
 import { $, h, syncClock } from './format.js';
 import { Cloud, CloudError, forgetProject, loadProject, projectFromHash, saveProject } from './supabase.js';
 import { errorBox, field, form, input, submitButton } from './ui.js';
+import { qrSvg } from './qr.js';
 
 /** Migracja, której potrzebuje ta wersja strony (najnowsza używana funkcja owner_*). */
 export const REQUIRED_MIGRATION = '20261121220000';
@@ -119,9 +120,8 @@ function totpView(cloud, factor, resolve) {
 async function enrollView(cloud, resolve) {
   const enrollment = await cloud.enrollTotp();
   const code = codeInput();
-  const qr = h('img', 'qr');
-  qr.src = enrollment.qrCode;
-  qr.alt = 'Kod QR do aplikacji uwierzytelniającej';
+  const qr = qrSvg(enrollment.uri, 'Kod QR do aplikacji uwierzytelniającej');
+  qr.classList.add('totp');
   view(
     h('h1', null, 'Drugi składnik logowania'),
     h('p', null, 'Właściciel loguje się hasłem i kodem z aplikacji uwierzytelniającej (np. Aegis, Google Authenticator, ' +

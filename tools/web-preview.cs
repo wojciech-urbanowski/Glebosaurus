@@ -515,7 +515,7 @@ static class Serve
             return Results.Json(new JsonObject
             {
                 ["id"] = factor.Id, ["type"] = "totp",
-                ["totp"] = new JsonObject { ["qr_code"] = "data:image/svg+xml;utf-8," + svg, ["secret"] = "JBSWY3DPEHPK3PXP", ["uri"] = "otpauth://totp/podglad" }
+                ["totp"] = new JsonObject { ["qr_code"] = "data:image/svg+xml;utf-8," + svg, ["secret"] = "JBSWY3DPEHPK3PXP", ["uri"] = "otpauth://totp/Glebosaurus:wlasciciel%40example.com?secret=JBSWY3DPEHPK3PXP&issuer=Glebosaurus" }
             });
         });
         app.MapDelete("/auth/v1/factors/{id}", (string id) =>

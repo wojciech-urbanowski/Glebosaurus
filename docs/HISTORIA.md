@@ -315,6 +315,9 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   `cloud web-link` (konto zakłada się w panelu Supabase; Site URL tylko dla strony https). Tryb `static` serwuje samo
   `web/` na 127.0.0.1:8473 – prawdziwe logowanie na próbnym projekcie bez GitHub Pages (Supabase odpowiada na CORS `*`;
   sprawdzone zapytaniem wstępnym dla Auth i RPC). Na próbnym projekcie zakładanie kont jest jeszcze włączone.
+  **Pierwsze prawdziwe logowanie** (użytkownik, próbny projekt, strona z `static`): hasło przeszło, ale kod QR do
+  dodania TOTP się nie wyświetlił – obraz SVG od Supabase (`totp.qr_code`, data: URL) przeglądarka pokazuje jako pusty;
+  strona rysuje teraz kod sama z `totp.uri` (otpauth://) tą samą biblioteką co kod QR rejestracji telefonu.
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 

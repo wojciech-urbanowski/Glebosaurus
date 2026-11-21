@@ -218,7 +218,7 @@ form.stack { display: grid; gap: 12px; margin: 14px 0; }
 .field input { width: 100%; padding: 10px 12px; }
 form.stack button[type=submit] { padding: 10px 12px; justify-self: start; min-width: 160px; }
 input[inputmode=numeric] { font-family: var(--mono); letter-spacing: 3px; font-size: 20px; }
-img.qr { display: block; width: 200px; height: 200px; background: #fff; padding: 8px; margin: 12px 0; image-rendering: pixelated; }
+svg.qr.totp { margin: 12px 0; }
 code.secret { word-break: break-all; font-size: 15px; }
 
 /* Motyw ciemny: te same tony, przyciemnione tła i jaśniejszy tekst (kontrast co najmniej 4,5:1). */

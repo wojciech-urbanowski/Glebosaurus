@@ -1,5 +1,6 @@
 // Kod QR jako SVG (bez HTML w napisach): biblioteka qrcode-generator (MIT, web/vendor/qrcode.js – THIRD-PARTY-NOTICES.md)
-// liczy moduły, a rysunek składa się tu z jednej ścieżki. Używany do odnośnika rejestracji telefonu (glebosaurus://enroll).
+// liczy moduły, a rysunek składa się tu z jednej ścieżki. Używany do odnośnika rejestracji telefonu (glebosaurus://enroll)
+// i do dodania TOTP przy pierwszym logowaniu (otpauth://).
 
 import qrcode from './vendor/qrcode.js';
 

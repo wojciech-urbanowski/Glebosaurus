@@ -209,7 +209,8 @@ export class Cloud {
 
   /**
    * Nowy składnik TOTP: najpierw usuwa niedokończone (niepotwierdzone) – inaczej Supabase odmówi drugiego o tej samej
-   * nazwie. Zwraca id, kod QR (obraz SVG jako data: URL) i sekret do wpisania ręcznie.
+   * nazwie. Zwraca id, adres otpauth:// (z niego strona rysuje kod QR sama – obraz SVG od Supabase, qr_code, bywa w
+   * przeglądarce pusty) i sekret do wpisania ręcznie.
    */
   async enrollTotp() {
     const { response: userResponse, data: user } = await this.request('/auth/v1/user', { auth: true });
@@ -221,7 +222,11 @@ export class Cloud {
       method: 'POST', auth: true, body: { factor_type: 'totp', friendly_name: 'Glebosaurus', issuer: 'Glebosaurus' }
     });
     if (!response.ok) throw new CloudError('network', authMessage(data, response.status), response.status);
-    return { id: data.id, qrCode: data.totp.qr_code, secret: data.totp.secret };
+    const secret = data.totp.secret;
+    const uri = typeof data.totp.uri === 'string' && data.totp.uri.startsWith('otpauth://')
+      ? data.totp.uri
+      : `otpauth://totp/Glebosaurus:${encodeURIComponent(this.email || 'właściciel')}?secret=${encodeURIComponent(secret)}&issuer=Glebosaurus`;
+    return { id: data.id, uri, secret };
   }
 
   /** Kod TOTP → sesja aal2 (nowe tokeny). */
