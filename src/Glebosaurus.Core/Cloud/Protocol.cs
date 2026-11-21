@@ -179,6 +179,15 @@ public sealed record CloudAlert(long Id, string Sensor, AlertKind Kind, string D
 
 public sealed record AlertOpenResult(bool Created, CloudAlert Alert);
 
+/// <summary>Klucz do wznowienia parowania (<c>pair_key_get</c>) – sekret, więc poza <see cref="ToString"/>.</summary>
+public sealed record PairKey(TuyaCredentials? Credentials)
+{
+    public override string ToString() => $"PairKey {{ Present = {Credentials is not null} }}";
+}
+
+/// <summary>Wynik <c>pair_complete</c>: czujnik założony albo z nowym kluczem.</summary>
+public sealed record PairCompleteResult(string Sensor, bool Created, string Mac);
+
 /// <summary>
 /// Paczka z <c>readings_feed</c>: odczyty wszystkich agentów przyjęte po numerze kolejnym <c>after</c> (od najstarszego
 /// numeru); <paramref name="Last"/> – od tego numeru pytać następnym razem, <paramref name="More"/> – czeka więcej.
@@ -257,6 +266,18 @@ public interface ICloudApi
     /// </summary>
     Task<bool> MailArchivePutAsync(long epoch, IReadOnlyList<string> keys, string subject, IReadOnlyList<string> recipients,
         byte[] htmlGzip, CancellationToken cancellationToken);
+
+    /// <summary>Postęp długiego polecenia (parowanie) dla strony właściciela (<c>command_progress</c>).</summary>
+    Task<bool> CommandProgressAsync(long commandId, JsonObject progress, CancellationToken cancellationToken);
+
+    /// <summary>Klucz do wznowienia parowania tego polecenia albo istniejącego czujnika o tym id (<c>pair_key_get</c>).</summary>
+    Task<TuyaCredentials?> PairKeyGetAsync(long commandId, CancellationToken cancellationToken);
+
+    /// <summary>Klucz parowania do Vault – przed wysłaniem do czujnika (<c>pair_key_put</c>).</summary>
+    Task PairKeyPutAsync(long commandId, TuyaCredentials credentials, CancellationToken cancellationToken);
+
+    /// <summary>Udane parowanie: baza zakłada czujnik z kluczem i kończy polecenie (<c>pair_complete</c>).</summary>
+    Task<PairCompleteResult> PairCompleteAsync(long commandId, JsonObject result, CancellationToken cancellationToken);
     Task<IReadOnlyList<AgentLog>> LogGetAsync(long epoch, DateOnly day, CancellationToken cancellationToken);
 }
 
@@ -275,6 +296,8 @@ public interface ICloudApi
 [JsonSerializable(typeof(ReadingsFeed))]
 [JsonSerializable(typeof(List<CloudAlert>))]
 [JsonSerializable(typeof(AlertOpenResult))]
+[JsonSerializable(typeof(PairKey))]
+[JsonSerializable(typeof(PairCompleteResult))]
 [JsonSerializable(typeof(CommandCreateResult))]
 [JsonSerializable(typeof(LogPutResult))]
 [JsonSerializable(typeof(List<AgentLog>))]

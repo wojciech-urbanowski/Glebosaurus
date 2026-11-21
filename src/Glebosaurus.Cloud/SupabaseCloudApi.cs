@@ -8,6 +8,7 @@ using System.Text.Json.Serialization.Metadata;
 using Glebosaurus.Core;
 using Glebosaurus.Core.Cloud;
 using Glebosaurus.Core.Domain;
+using Glebosaurus.Tuya;
 
 namespace Glebosaurus.Cloud;
 
@@ -113,6 +114,22 @@ public sealed class SupabaseCloudApi : ICloudApi
             ["p_recipients"] = new JsonArray([.. recipients.Select(r => (JsonNode)JsonValue.Create(r))]),
             ["p_html_gzip"] = Convert.ToBase64String(htmlGzip)
         }, CloudJsonContext.Default.Boolean, cancellationToken);
+
+    public Task<bool> CommandProgressAsync(long commandId, JsonObject progress, CancellationToken cancellationToken) =>
+        Call("command_progress", new() { ["p_id"] = commandId, ["p_progress"] = progress.DeepClone() }, CloudJsonContext.Default.Boolean, cancellationToken);
+
+    public async Task<TuyaCredentials?> PairKeyGetAsync(long commandId, CancellationToken cancellationToken) =>
+        (await Call("pair_key_get", new() { ["p_id"] = commandId }, CloudJsonContext.Default.PairKey, cancellationToken)).Credentials;
+
+    public Task PairKeyPutAsync(long commandId, TuyaCredentials credentials, CancellationToken cancellationToken) =>
+        Call("pair_key_put", new()
+        {
+            ["p_id"] = commandId,
+            ["p_credentials"] = JsonSerializer.SerializeToNode(credentials, CloudJsonContext.Default.TuyaCredentials)
+        }, CloudJsonContext.Default.Boolean, cancellationToken);
+
+    public Task<PairCompleteResult> PairCompleteAsync(long commandId, JsonObject result, CancellationToken cancellationToken) =>
+        Call("pair_complete", new() { ["p_id"] = commandId, ["p_result"] = result.DeepClone() }, CloudJsonContext.Default.PairCompleteResult, cancellationToken);
 
     public async Task<IReadOnlyList<AgentLog>> LogGetAsync(long epoch, DateOnly day, CancellationToken cancellationToken) =>
         await Call("log_get", new() { ["p_epoch"] = epoch, ["p_day"] = Day(day) }, CloudJsonContext.Default.ListAgentLog, cancellationToken);

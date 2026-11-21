@@ -376,13 +376,127 @@ function addSensorForm(flash) {
   return details;
 }
 
+// ---- parowanie zdalne (3d) ---------------------------------------------------------------------------------------
+
+const PAIR_POLL_MS = 2000;
+const PAIR_STAGE = {
+  waiting: 'Agent odebrał polecenie – kończy trwający odczyt i za chwilę uruchomi skan. Jeszcze NIE wkładaj baterii.',
+  binding: 'Przypisuję klucz…',
+  verifying: 'Sprawdzam klucz odczytem (do 1,5 min)…'
+};
+
+/** Agenci, którzy parują zdalnie: zarejestrowani, włączeni, na Windows (Linux po fazie 2.3b, Android później). */
+function pairingAgents() {
+  return config.agents.filter((a) => a.enabled && a.enrolled && a.status && a.status.platform === 'windows');
+}
+
+function remotePairForm() {
+  const details = h('details', 'editor add');
+  const agents = pairingAgents();
+  details.append(h('summary', null, 'Sparuj czujnik zdalnie (agent w zasięgu)'),
+    h('p', 'muted small', 'Bez pliku klucza: agent na komputerze z Windows w zasięgu czujnika paruje go sam, a klucz trafia od razu do chmury. ' +
+      'Id istniejącego czujnika = nowy klucz po resecie przyciskiem (ten sam klucz, jeśli był).'));
+  if (agents.length === 0) {
+    details.append(h('div', 'empty', 'Żaden agent nie paruje teraz zdalnie – potrzebny zarejestrowany agent na Windows z Bluetooth (wersja z fazy 3).'));
+    return details;
+  }
+  const agent = select(agents.map((a) => [a.name, `${a.name}${a.lastSeenAt ? ` (ostatnio ${ago(a.lastSeenAt)})` : ''}`]), agents[0].name);
+  const id = input('text', 'off', { pattern: '[a-z0-9][a-z0-9_\\-]{0,39}', placeholder: 'np. bazylia' });
+  const name = input('text', 'off', { required: false, maxLength: 80, placeholder: 'np. Bazylia na parapecie' });
+  const mac = input('text', 'off', { required: false, placeholder: 'tylko przy kilku czujnikach w zasięgu' });
+  const status = h('div', 'pair-status');
+  status.hidden = true;
+  const startForm = form([
+    field('Agent', agent, 'Ten, który stoi najbliżej czujnika.'),
+    field('Id czujnika', id, 'Małe litery, cyfry, „_” i „-”, do 40 znaków; zostaje na stałe.'),
+    field('Nazwa', name, 'Puste – jak id.'),
+    field('MAC (opcjonalnie)', mac, 'Gdy w zasięgu jest kilka niesparowanych czujników – strona poda ich adresy.')
+  ], submitButton('Zacznij parowanie'), async () => {
+    const created = await cloud.rpc('owner_pair_start', {
+      p_agent: agent.value, p_sensor: id.value.trim(), p_name: name.value.trim() || null, p_mac: mac.value.trim() || null
+    });
+    startForm.hidden = true;
+    status.hidden = false;
+    await followPairing(created.id, agent.value, id.value.trim(), status, (candidates) => {
+      if (candidates.length > 0) mac.placeholder = candidates.join(' albo ');
+      startForm.hidden = false;
+    });
+  });
+  details.append(startForm, status);
+  return details;
+}
+
+/** Postęp parowania co 2 s: „włóż baterie” dopiero, gdy agent zgłosi działający skan (z odliczaniem). */
+async function followPairing(commandId, agentName, sensorId, status, onFinished) {
+  const show = (tone, ...children) => {
+    status.className = `pair-status action-note tone-${tone}`;
+    status.replaceChildren(...children);
+  };
+  show('grey', `Czekam, aż agent ${agentName} odbierze polecenie (synchronizuje się co ok. 1,5 min). Jeszcze NIE wkładaj baterii.`);
+  let countdown = 0;
+  const stopCountdown = () => window.clearInterval(countdown);
+  try {
+    await follow(cloud, [commandId], (item) => {
+      const progress = item.progress || {};
+      if (item.doneAt) {
+        stopCountdown();
+        const result = item.result || {};
+        if (result.ok) {
+          show('green', h('strong', null, `Sparowano czujnik ${sensorId}`), ` (MAC ${result.mac}). ` +
+            (result.moisture !== undefined && result.moisture !== null ? `Wilgotność ${result.moisture}%. ` : '') +
+            (result.created ? 'Czujnik jest już w konfiguracji – agenci zaczną go czytać przy najbliższej synchronizacji.' : 'Czujnik ma nowy klucz.'));
+          const text = `Czujnik ${sensorId} sparowany zdalnie (MAC ${result.mac}` +
+            (result.moisture !== undefined && result.moisture !== null ? `, wilgotność ${result.moisture}%` : '') + ').';
+          load().then(() => render({ key: config.sensors.some((s) => s.id === sensorId) ? `sensor:${sensorId}` : 'sensors', text }))
+            .catch(() => {});
+        } else {
+          const candidates = result.candidates || [];
+          show('red', `Parowanie nie wyszło: ${result.error || 'agent zgłosił błąd'}.`,
+            candidates.length > 0 ? ` Czujniki w zasięgu: ${candidates.join(', ')} – wpisz MAC właściwego i spróbuj jeszcze raz.` : '');
+          onFinished(candidates);
+        }
+        return;
+      }
+      if (item.expired) {
+        stopCountdown();
+        show('red', `Agent ${agentName} nie dokończył parowania w 15 min (wyłączony, bez Bluetooth albo ze starszą wersją programu).`);
+        onFinished([]);
+        return;
+      }
+      if (progress.stage === 'scanning' && progress.until) {
+        const until = new Date(progress.until);
+        const left = h('div', 'small');
+        const tick = () => {
+          const seconds = Math.max(0, Math.round((until - Date.now()) / 1000));
+          left.textContent = `Skan działa jeszcze ok. ${seconds} s. Czujnik nadaje jako niesparowany tylko ok. 20 s po włożeniu baterii.`;
+        };
+        tick();
+        stopCountdown();
+        countdown = window.setInterval(tick, 1000);
+        show('amber', h('div', 'pair-now', 'Włóż teraz baterie do czujnika'), left);
+        return;
+      }
+      if (progress.stage) {
+        stopCountdown();
+        show('grey', PAIR_STAGE[progress.stage] || progress.text || progress.stage);
+        return;
+      }
+      if (item.takenBy) show('grey', `Agent ${item.takenBy} odebrał polecenie – za chwilę uruchomi skan. Jeszcze NIE wkładaj baterii.`);
+    }, PAIR_POLL_MS);
+  } catch (error) {
+    stopCountdown();
+    show('amber', `Nie udało się sprawdzić stanu parowania (${error.message}) – odśwież stronę.`);
+    onFinished([]);
+  }
+}
+
 function sensorsSection(flash) {
   const active = config.sensors.filter((s) => !s.archivedAt);
   const archived = config.sensors.filter((s) => s.archivedAt);
   const list = h('div', 'cards');
   list.append(...active.map((s) => sensorCard(s, flash)));
   if (active.length === 0) list.append(h('div', 'empty', 'Nie ma jeszcze czujników.'));
-  const children = [flashBox(flash, 'sensors'), list, addSensorForm(flash)];
+  const children = [flashBox(flash, 'sensors'), list, remotePairForm(), addSensorForm(flash)];
   if (archived.length > 0) {
     const box = h('details', 'archive');
     if (flash && archived.some((s) => flash.key === `sensor:${s.id}`)) box.open = true;

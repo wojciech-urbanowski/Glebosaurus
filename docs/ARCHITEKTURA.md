@@ -141,7 +141,17 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
    i sprawdza na nowym połączeniu. Sparowany czujnik znika z aplikacji Smart Life; reset przyciskiem go przywraca. Czujnik
    zostawiony w Smart Life też da się czytać kluczem pobranym z chmury Tuya (MAC ustala `scan` po UUID Tuya z reklamy) –
    wtedy jednak nasze odczyty kasują jego rekordy i Smart Life traci historię. Klucze trafiają do Vault przez `cloud
-   config` (plik konfiguracji chmury wskazuje pliki z `pair` albo zawiera dane wprost).
+   config` (plik konfiguracji chmury wskazuje pliki z `pair` albo zawiera dane wprost) albo przez stronę w chmurze (plik
+   klucza wgrany w edytorze). **Parowanie zdalne** (faza 3d): kroki BLE w `ShinySensorPairer` (`ISensorPairer` z Core –
+   skan kandydatów z oknem 1,5 s na drugiego, przypisanie w sesji Tuya, weryfikacja odczytem; to samo radio ma `pair`),
+   przebieg w `PairingProcedure` (Core, testy na atrapie): skan rusza pierwszy i dopiero wtedy postęp „wkładaj baterie”,
+   kilku kandydatów – odmowa z ich adresami, nowy klucz zapisany przed wysłaniem (`IPairingKeyStore`: plik albo Vault),
+   chwila spokoju, weryfikacja. `RemotePairing` wykonuje polecenie `pair` w zbieraczu: czeka na wolne radio (`RadioGate` –
+   zbieracz pomija nasłuch i odczyty, gdy radio trzyma parowanie), zgłasza postęp (`command_progress`), klucz trzyma w
+   Vault (`pair_key_put` – tylko agent wskazany w czekającym poleceniu; `pair_key_get` oddaje klucz przerwanego parowania
+   albo istniejącego czujnika o tym id), a po weryfikacji woła `pair_complete` – baza zakłada czujnik (albo podmienia klucz
+   i MAC istniejącego), przenosi klucz z `glebosaurus:pairing:<id>` do klucza czujnika i kończy polecenie. Na razie tylko
+   agent na Windows; inny agent odpowiada na `pair` od razu odmową (`CollectorEngine.NoPairingError`).
 6. **Warstwa BLE: Shiny.BluetoothLE (+ `.Linux`, BlueZ)** za własnym wąskim interfejsem (`IGattLink`); protokół Tuya jest
    czysto zarządzany (`Glebosaurus.Tuya`) i nie zna biblioteki BLE. Zapasowo: SimpleSharpBLE (licencja BUSL-1.1, tylko
    użytek niekomercyjny) albo bezpośrednio WinRT + Linux.Bluetooth. Na Androidzie radio jest wprost na API systemu
@@ -449,7 +459,8 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
       alerty, produkt Tuya bez kluczy) i `owner_readings`; alerty (3b): `owner_alerts` (otwarte, zamknięte z 30 dni,
       wyciszenia), `owner_alert_acknowledge`, `owner_alert_close` (`closed_manually`; gdy stan trwa, nadawca otwiera nowy
       epizod), `owner_alerts_mute` (czujnik albo wszystkie, najwyżej 90 dni; zmiana podnosi wersję konfiguracji),
-      `owner_mail_history` i `owner_mail_body`. **Agenci (3b):** `get_config` niesie `alertsMutedUntil` (ustawienia i
+      `owner_mail_history` i `owner_mail_body`; parowanie zdalne (3d): `owner_pair_start` (agent zarejestrowany i
+      włączony, id czujnika, opcjonalnie MAC; jedno parowanie naraz na agenta), `owner_command_status` z postępem. **Agenci (3b):** `get_config` niesie `alertsMutedUntil` (ustawienia i
       czujniki), `alert_list` – `acknowledgedAt`; nadawca nie wysyła maili o potwierdzonych alertach i o wyciszonych
       czujnikach (alert żyje dalej, mail wychodzi po końcu wyciszenia), w urlopie – żadnych maili o alertach, a raport ma
       notkę o wyciszeniu i szarą etykietę przy wyciszonym czujniku. **Archiwum maili** (`mail_archive`, 90 dni): nadawca po

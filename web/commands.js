@@ -3,7 +3,7 @@
 
 const POLL_MS = 5000;
 
-export const KIND_TEXT = { read_now: 'Odczyt', report_now: 'Raport', mail_test: 'Próbny mail', send_log: 'Dziennik' };
+export const KIND_TEXT = { read_now: 'Odczyt', report_now: 'Raport', mail_test: 'Próbny mail', send_log: 'Dziennik', pair: 'Parowanie' };
 
 /** Zleca polecenie; zwraca { id, created } (created = false – takie samo zlecono w ostatniej minucie). */
 export function command(cloud, kind, { sensor = null, agent = null } = {}) {
@@ -14,10 +14,10 @@ export function command(cloud, kind, { sensor = null, agent = null } = {}) {
  * Śledzi polecenia, aż każde się skończy (wynik albo wygaśnięcie). onState(item) dostaje każdy nowy stan:
  * { id, kind, sensor, takenBy, doneAt, result, expired }.
  */
-export async function follow(cloud, ids, onState) {
+export async function follow(cloud, ids, onState, pollMs = POLL_MS) {
   let pending = [...ids];
   while (pending.length > 0) {
-    await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+    await new Promise((resolve) => setTimeout(resolve, pollMs));
     const items = await cloud.rpc('owner_command_status', { p_ids: pending });
     for (const item of items) onState(item);
     pending = items.filter((i) => !i.doneAt && !i.expired).map((i) => i.id);

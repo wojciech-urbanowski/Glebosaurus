@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Text;
 using Glebosaurus.Core.Cloud;
 using Glebosaurus.Core.Monitoring;
+using Glebosaurus.Core.Pairing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -429,8 +430,41 @@ public sealed class CollectorTests : IDisposable
     public async Task OtherCommands_AreNotForCollector()
     {
         Assert.False(await collector.HandleCommandAsync(Command(5, "report_now"), Ct));
-        Assert.False(await collector.HandleCommandAsync(Command(6, "pair", "s1"), Ct));
+        Assert.False(await collector.HandleCommandAsync(Command(7, "mail_test"), Ct));
         Assert.Empty(api.Done);
+    }
+
+    /// <summary>Parowanie zdalne trzyma radio: obrót zbieracza bez nasłuchu i odczytów, zlecony odczyt czeka na następny.</summary>
+    [Fact]
+    public async Task WhilePairingHoldsTheRadio_NoListeningOrReading_RequestsWait()
+    {
+        var radio = new RadioGate();
+        var config = new CloudAgentConfig(Fixtures.Config(Fixtures.Sensor("s1")), TimeZoneInfo.Utc, 1, new("bestia5", false, null), null, []);
+        var engine = new CollectorEngine(() => config, db.Store, reader, listener, leases, hearing, api, logs, clock, NullLogger.Instance, radio: radio);
+        Grant("s1");
+        await radio.EnterAsync(Ct);
+        Assert.True(await engine.HandleCommandAsync(Command(9, "read_now", "s1"), Ct));
+
+        await engine.CycleAsync(Ct);
+        Assert.Empty(reader.Calls);
+        Assert.Empty(listener.Calls);
+        Assert.Empty(api.Done);
+
+        radio.Exit();
+        await engine.CycleAsync(Ct);
+        Assert.Equal([["s1"]], reader.Calls);
+        Assert.False(radio.Busy);
+    }
+
+    /// <summary>Agent bez parowania zdalnego (Android, Linux na razie) odpowiada od razu – strona nie czeka 15 min.</summary>
+    [Fact]
+    public async Task Pair_WithoutRemotePairing_IsRefusedWithReason()
+    {
+        Assert.True(await collector.HandleCommandAsync(Command(6, "pair", "s1"), Ct));
+
+        var (id, result) = Assert.Single(api.Done);
+        Assert.Equal(6, id);
+        Assert.Equal(CollectorEngine.NoPairingError, (string)result!["error"]!);
     }
 
     [Fact]

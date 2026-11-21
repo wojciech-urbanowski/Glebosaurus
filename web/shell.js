@@ -7,7 +7,7 @@ import { Cloud, CloudError, forgetProject, loadProject, projectFromHash, savePro
 import { errorBox, field, form, input, submitButton } from './ui.js';
 
 /** Migracja, której potrzebuje ta wersja strony (najnowsza używana funkcja owner_*). */
-export const REQUIRED_MIGRATION = '20261121180000';
+export const REQUIRED_MIGRATION = '20261121200000';
 
 const PAGES = [
   ['index.html', 'Pulpit'],

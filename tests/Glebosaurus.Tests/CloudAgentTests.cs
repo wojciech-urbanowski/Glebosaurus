@@ -198,7 +198,9 @@ public sealed class CloudAgentTests : IDisposable
         await parts.Sync.SyncOnceAsync(Ct);
 
         Assert.Equal(1, parts.Api.ConfigCalls);
-        Assert.Equal(1, Assert.Single(parts.Api.Done).Id);   // release obsłużył zbieracz; report_now czeka u nadawcy; pair – nikt
+        // release obsłużył zbieracz; report_now czeka u nadawcy; pair – odmowa (ten agent nie paruje zdalnie).
+        Assert.Equal([1L, 3L], parts.Api.Done.Select(d => d.Id));
+        Assert.Equal(CollectorEngine.NoPairingError, (string)parts.Api.Done[1].Result!["error"]!);
     }
 
     [Fact]

@@ -11,9 +11,9 @@ public sealed class SecurityTests(CloudDatabase db)
 {
     private static readonly string[] ApiFunctions =
     [
-        "agent_sync", "alert_list", "alert_notified", "alert_open", "alert_resolve", "command_create", "command_done", "enroll",
-        "get_config", "lease_claim", "lease_release", "log_get", "log_put", "mail_abandon", "mail_archive_put", "mail_claim",
-        "mail_credentials", "mail_sent", "readings_feed", "readings_range"
+        "agent_sync", "alert_list", "alert_notified", "alert_open", "alert_resolve", "command_create", "command_done", "command_progress",
+        "enroll", "get_config", "lease_claim", "lease_release", "log_get", "log_put", "mail_abandon", "mail_archive_put", "mail_claim",
+        "mail_credentials", "mail_sent", "pair_complete", "pair_key_get", "pair_key_put", "readings_feed", "readings_range"
     ];
 
     [Fact]

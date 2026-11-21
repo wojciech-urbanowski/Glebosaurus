@@ -58,7 +58,9 @@ bash deploy/test-install-linux.sh STARA NOWA [--systemd]   # próba install-linu
 - `src/Glebosaurus.Agent` – CLI (Shiny.BluetoothLE): `run` (`CloudAgent.RunAsync`; z `"bluetooth": false` w pliku agenta bez
   BLE – zbieracz bez radia, np. Raspberry Pi jako sam nadawca, ROADMAP 2.3a), `enroll`, `stop`, `web-password`, `pair`
   (klucz obok pliku konfiguracji chmury, `--file`), `mail-test --file`, `mail-preview`, `cloud …` (`CloudAdminCommands`),
-  diagnostyka `scan`/`read`/`listen`; radio Shiny to tylko `ISensorRadio` (`ShinySensorRadio`).
+  diagnostyka `scan`/`read`/`listen`; radio Shiny to tylko `ISensorRadio` (`ShinySensorRadio`) i `ISensorPairer`
+  (`ShinySensorPairer` – kroki BLE `pair` i parowania zdalnego z `Core/Pairing`: `PairingProcedure`, `RemotePairing`,
+  `RadioGate`; zdalnie paruje na razie tylko agent na Windows).
 - `src/Glebosaurus.Cloud.Admin` – połączenie z bazą (Npgsql, pooler sesji, zawsze `VerifyFull` z wbudowanym certyfikatem
   głównym Supabase `supabase/prod-ca-2021.crt`, ważnym do 2031-04-26), `MigrationRunner` z migracjami wbudowanymi,
   `CloudSetupWriter` (plan i zapis pliku konfiguracji chmury), `CloudAgents`, `CloudSettingsAdmin` i `CloudBackup` (zrzut
@@ -85,7 +87,7 @@ bash deploy/test-install-linux.sh STARA NOWA [--systemd]   # próba install-linu
   `shell.js`), dane tylko z funkcji `public.owner_*` (rola `authenticated`, `require_owner()`: konto z `owners` + `aal2`).
   Strony: pulpit (`dashboard.js`), czujnik (`sensor.js`; wykresy z `owner_series` – uśrednianie w SQL jak
   `ReadingSeriesBuilder`, pilnuje `SeriesContractTests`), edytor konfiguracji (`config.js`; zapisy z `config_version`,
-  walidacja jak `CloudSetupLoader` – `ConfigContractTests`), alerty (`alerts.js`: potwierdzenie, zamknięcie, wyciszenia,
+  walidacja jak `CloudSetupLoader` – `ConfigContractTests`; parowanie zdalne – `owner_pair_start`, postęp co 2 s), alerty (`alerts.js`: potwierdzenie, zamknięcie, wyciszenia,
   historia maili) i podgląd maila (`mail.html` – jedyna strona z `style-src 'unsafe-inline'`, treść w ramce `sandbox`).
   `charts.js` – też kopia pliku panelu. `vendor/qrcode.js` – qrcode-generator 2.0.4 bez zmian (suma w teście).
   Adres projektu z odnośnika `cloud web-link` (nie w repozytorium). `format.js`, `charts.js` i `favicon.svg` to kopie plików lokalnego
@@ -162,7 +164,8 @@ bash deploy/test-install-linux.sh STARA NOWA [--systemd]   # próba install-linu
 
 ## Czego nie robić bez zgody użytkownika
 
-- `pair` zmienia stan czujnika (wymaga `--confirm-bind` i fizycznej obecności użytkownika przy baterii).
+- `pair` zmienia stan czujnika (wymaga `--confirm-bind` i fizycznej obecności użytkownika przy baterii). To samo parowanie
+  zdalne ze strony w chmurze (`owner_pair_start`, „Sparuj czujnik zdalnie”) – tylko na prośbę i z użytkownikiem przy czujniku.
 - `mail-test` (też z `--samples`) i prawdziwy `run` nadawcy wysyłają prawdziwe maile; w panelu WWW prawdziwy mail wysyła
   też „Wyślij raport teraz” (`POST /api/report`). Wyglądu maili sprawdzaj przez `mail-preview` (tylko pliki) – maile są
   projektowane pod wąski ekran telefonu, nie psuj tego (testy pilnują układu).

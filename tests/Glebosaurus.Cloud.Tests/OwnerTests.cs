@@ -13,7 +13,7 @@ public sealed class OwnerTests(CloudDatabase db)
     [
         "owner_agent_code", "owner_agent_revoke", "owner_agent_save", "owner_alert_acknowledge", "owner_alert_close", "owner_alerts",
         "owner_alerts_mute", "owner_command", "owner_command_status", "owner_config",
-        "owner_dashboard", "owner_info", "owner_mail_body", "owner_mail_history", "owner_readings", "owner_secret_set", "owner_sensor", "owner_sensor_add", "owner_sensor_archive",
+        "owner_dashboard", "owner_info", "owner_mail_body", "owner_mail_history", "owner_pair_start", "owner_readings", "owner_secret_set", "owner_sensor", "owner_sensor_add", "owner_sensor_archive",
         "owner_sensor_credentials", "owner_sensor_delete", "owner_sensor_update", "owner_series", "owner_settings_update"
     ];
 

@@ -162,6 +162,17 @@ Na jednym koncie działa naraz jeden agent: `run` z konsoli obok usługi od razu
 5 min, dopóki działa inny. Nie zatrzymuj usługi przez `Stop-ScheduledTask` ani zabijając proces – zabicie w trakcie
 rozłączania z czujnikiem potrafi zawiesić następny odczyt; do tego jest `glebosaurus stop`.
 
+## Nowy czujnik: parowanie zdalne ze strony w chmurze
+
+Strona w chmurze → Konfiguracja → Czujniki → **„Sparuj czujnik zdalnie”**: wybierz agenta na komputerze z Windows w
+zasięgu czujnika, wpisz id (i nazwę) i zacznij. Strona najpierw czeka, aż agent odbierze polecenie (synchronizuje się co
+ok. 1,5 min), i dopiero gdy agent zgłosi działający skan, pokazuje **„Włóż teraz baterie do czujnika”** z odliczaniem.
+Agent na czas parowania wstrzymuje odczyty, zapisuje klucz w chmurze (Vault) **zanim** wyśle go do czujnika, przypisuje go
+i sprawdza odczytem; po sukcesie czujnik od razu jest w konfiguracji. Przy kilku niesparowanych czujnikach w zasięgu
+strona poda ich adresy – wpisz MAC właściwego i spróbuj jeszcze raz. Przerwane parowanie (albo reset przyciskiem
+istniejącego czujnika – to samo id) używa zapisanego klucza. Na razie paruje tylko agent na Windows (Linux po fazie 2.3b,
+Android później).
+
 ## Nowy czujnik: parowanie lokalne
 
 Bez konta i aplikacji Tuya: `pair` sam wymyśla `deviceId` i 6-bajtowy klucz, zapisuje je w czujniku przez BLE i sprawdza na

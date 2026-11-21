@@ -199,6 +199,8 @@ button:disabled { opacity: 0.6; cursor: default; }
 
 /* Wyjście z cudzej ramki (shell.js): dopóki skrypt nie potwierdzi, że strona jest na wierzchu, nic nie widać. */
 html:not(.top) body { visibility: hidden; }
+/* Atrybut hidden zawsze chowa – także elementy, którym styl nadaje display (np. form.stack). */
+[hidden] { display: none !important; }
 
 .wrap { max-width: 1000px; margin: 0 auto; padding: 0 16px; }
 main.narrow { max-width: 460px; padding-top: 32px; }
@@ -279,3 +281,7 @@ table.history td.subject { text-align: left; }
 table.history th, table.history td { white-space: normal; }
 .table-wrap.tall { max-height: 520px; }
 iframe.mail-frame { display: block; width: 100%; max-width: 640px; height: 75vh; margin-top: 12px; border: 1px solid var(--border); background: #fff; }
+
+/* Parowanie zdalne (3d). */
+.pair-status { margin-top: 10px; }
+.pair-now { font-size: 20px; font-weight: 700; padding: 4px 0; }

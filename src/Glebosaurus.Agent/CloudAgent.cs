@@ -6,6 +6,7 @@ using Glebosaurus.Core.Cloud;
 using Glebosaurus.Core.Config;
 using Glebosaurus.Core.Hosting;
 using Glebosaurus.Core.Monitoring;
+using Glebosaurus.Core.Pairing;
 using Glebosaurus.Data;
 using Glebosaurus.Mail;
 using Glebosaurus.Web;
@@ -102,9 +103,15 @@ internal static class CloudAgent
                 CpuTemperatureCelsius = OperatingSystem.IsLinux() ? LinuxThermal.CpuTemperatureCelsius() : null
             },
             clock, logger);
+        // Parowanie zdalne ze strony w chmurze (faza 3d): na razie tylko Windows (Linux po 2.3b, Android później) – radio
+        // na wyłączność, odczyty stają na czas parowania.
+        var radioGate = radio is null ? null : new RadioGate();
+        var pairing = ble is not null && radioGate is not null && OperatingSystem.IsWindows()
+            ? new RemotePairing(new ShinySensorPairer(ble), api, radioGate, clock, logger)
+            : null;
         var collector = new CollectorEngine(() => configSource.Current, store,
             radio is null ? null : new ListenThenReadSensorReader<SeenSensor>(radio, clock, logger),
-            radio, sensorPolicy, hearing, api, loaded.LogFiles, clock, logger);
+            radio, sensorPolicy, hearing, api, loaded.LogFiles, clock, logger, radio: radioGate, pairing: pairing);
         var notifier = new NotifierEngine(() => configSource.Current, api, notifierPolicy,
             credentials => new GmailSender(credentials.GmailAddress!, credentials.AppPassword!), new HealthchecksHeartbeat(http),
             () => sync.State, clock, logger);

@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json.Nodes;
 using Glebosaurus.Core.Config;
 using Glebosaurus.Core.Monitoring;
+using Glebosaurus.Core.Pairing;
 using Microsoft.Extensions.Logging;
 
 namespace Glebosaurus.Core.Cloud;
@@ -59,11 +60,17 @@ public sealed record CollectorOptions
 /// (<see cref="AgentConfig.Bluetooth"/> = false): nie słucha i nie czyta, zlecony odczyt zgłasza jako niewykonalny, a
 /// dziennik dnia poprzedniego, <c>send_log</c>, <c>release</c> i sprzątanie bazy działają jak zwykle.</param>
 /// <param name="listener">Nasłuch wszystkich czujników (słyszenia do przydziału); null – agent bez Bluetooth.</param>
+/// <param name="radio">Radio na wyłączność z parowaniem zdalnym; null – bez parowania (radio zawsze dla zbieracza).</param>
+/// <param name="pairing">Parowanie zdalne (polecenie <c>pair</c>); null – agent nie paruje (Android i Linux na razie, bez
+/// Bluetooth) i odpowiada na polecenie odmową.</param>
 public sealed class CollectorEngine(
     Func<CloudAgentConfig?> config, IMonitorStore store, ISensorReader? reader, ISensorListener? listener,
     SensorLeasePolicy leases, SensorHearingTracker hearing, ICloudApi api, ILogArchive? logs,
-    TimeProvider clock, ILogger logger, CollectorOptions? options = null)
+    TimeProvider clock, ILogger logger, CollectorOptions? options = null, RadioGate? radio = null, RemotePairing? pairing = null)
 {
+    /// <summary>Odpowiedź na <c>pair</c> u agenta, który nie paruje zdalnie.</summary>
+    public const string NoPairingError = "ten agent nie paruje czujników zdalnie (na razie tylko agent na Windows z Bluetooth)";
+
     /// <summary>Wynik zleconego odczytu na agencie bez Bluetooth (chmura kieruje odczyt do właściciela dzierżawy, więc
     /// trafia tu tylko wyjątkowo – np. polecenie właściciela wskazujące tego agenta).</summary>
     public const string NoRadioError = "agent bez Bluetooth (\"bluetooth\": false) – nie czyta czujników";
@@ -174,6 +181,15 @@ public sealed class CollectorEngine(
                 await ReportAsync(command.Id, result, cancellationToken);
                 return true;
 
+            case "pair":
+                if (pairing is null)
+                {
+                    await ReportAsync(command.Id, Failure(NoPairingError), cancellationToken);
+                    return true;
+                }
+                _ = pairing.StartAsync(command, cancellationToken);
+                return true;
+
             default:
                 return false;
         }
@@ -210,19 +226,33 @@ public sealed class CollectorEngine(
         {
             await RetryReportsAsync(cancellationToken);
 
-            if (hasRadio && clock.GetUtcNow() - lastHearAt >= settings.HearEvery) await HearAsync(agent, cancellationToken);
-
-            Dictionary<string, List<long>> onRequest;
-            lock (gate)
+            // Parowanie zdalne trzyma radio – ten obrót bez nasłuchu i odczytów (zlecone odczyty czekają do następnego).
+            var radioFree = hasRadio && (radio is null || radio.TryEnter());
+            if (hasRadio && !radioFree) logger.LogDebug("Radio zajęte parowaniem – obrót bez nasłuchu i odczytów.");
+            try
             {
-                onRequest = new(requested, StringComparer.Ordinal);
-                requested.Clear();
+                if (radioFree && clock.GetUtcNow() - lastHearAt >= settings.HearEvery) await HearAsync(agent, cancellationToken);
+
+                Dictionary<string, List<long>> onRequest;
+                lock (gate)
+                {
+                    if (hasRadio && !radioFree) onRequest = [];
+                    else
+                    {
+                        onRequest = new(requested, StringComparer.Ordinal);
+                        requested.Clear();
+                    }
+                }
+                var due = radioFree ? await DueAsync(agent, onRequest, cancellationToken) : [];
+                if (due.Count > 0) await ReadAsync(agent, due, onRequest, cancellationToken);
+                foreach (var (sensorId, ids) in onRequest.Where(r => due.All(d => d.Id != r.Key)))
+                    foreach (var id in ids)
+                        await ReportAsync(id, Failure("agent nie ma teraz ważnej dzierżawy tego czujnika"), cancellationToken);
             }
-            var due = hasRadio ? await DueAsync(agent, onRequest, cancellationToken) : [];
-            if (due.Count > 0) await ReadAsync(agent, due, onRequest, cancellationToken);
-            foreach (var (sensorId, ids) in onRequest.Where(r => due.All(d => d.Id != r.Key)))
-                foreach (var id in ids)
-                    await ReportAsync(id, Failure("agent nie ma teraz ważnej dzierżawy tego czujnika"), cancellationToken);
+            finally
+            {
+                if (radioFree && radio is not null) radio.Exit();
+            }
 
             await UploadDailyLogAsync(current, cancellationToken);
             await PurgeAsync(agent, cancellationToken);

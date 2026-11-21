@@ -281,6 +281,13 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   urlop z raportem, archiwum i jego błąd); strona alertów przeklikana na atrapie (potwierdzenie, urlop na 3 dni, podgląd
   maila w ramce sandbox ze stylami). **Wygląd raportu z wyciszeniem czeka na akceptację użytkownika** (`mail-preview` →
   `raport-wyciszenie.html`).
+  **Etap 5 (3d) w kodzie:** migracja `20261121200000_owner_pairing` (postęp poleceń, `pair_key_get|put`,
+  `pair_complete`, `owner_pair_start`), `PairingProcedure` i `RemotePairing` w Core, `ShinySensorPairer` w agencie (te same
+  kroki BLE co `pair`, który teraz go używa), `RadioGate` w zbieraczu, panel „Sparuj czujnik zdalnie” na stronie. Testy
+  zielone (SQL 176 – od polecenia do nowego czujnika, ponowne parowanie istniejącego, odmowy; Core – kolejność kroków z
+  kluczem przed wysłaniem, kilku kandydatów, wznowienie, zbieracz bez radia w trakcie); panel przeklikany na atrapie
+  („włóż baterie” dopiero po starcie skanu, kilku kandydatów z adresami w polu MAC, sukces). Na sprzęcie ○ – `pair` po
+  przeniesieniu kroków BLE i parowanie zdalne czekają na próbę z użytkownikiem przy czujniku.
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 

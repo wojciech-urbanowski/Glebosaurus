@@ -46,4 +46,12 @@ internal sealed class FlakyApi(ICloudApi inner) : ICloudApi
     public Task<bool> MailArchivePutAsync(long epoch, IReadOnlyList<string> keys, string subject, IReadOnlyList<string> recipients,
         byte[] htmlGzip, CancellationToken cancellationToken) =>
         Inner.MailArchivePutAsync(epoch, keys, subject, recipients, htmlGzip, cancellationToken);
+    public Task<bool> CommandProgressAsync(long commandId, JsonObject progress, CancellationToken cancellationToken) =>
+        Inner.CommandProgressAsync(commandId, progress, cancellationToken);
+    public Task<Glebosaurus.Tuya.TuyaCredentials?> PairKeyGetAsync(long commandId, CancellationToken cancellationToken) =>
+        Inner.PairKeyGetAsync(commandId, cancellationToken);
+    public Task PairKeyPutAsync(long commandId, Glebosaurus.Tuya.TuyaCredentials credentials, CancellationToken cancellationToken) =>
+        Inner.PairKeyPutAsync(commandId, credentials, cancellationToken);
+    public Task<PairCompleteResult> PairCompleteAsync(long commandId, JsonObject result, CancellationToken cancellationToken) =>
+        Inner.PairCompleteAsync(commandId, result, cancellationToken);
 }

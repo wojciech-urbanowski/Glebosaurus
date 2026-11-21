@@ -1,8 +1,8 @@
 using Glebosaurus.Agent.Ble;
 using Glebosaurus.Core.Config;
 using Glebosaurus.Core.Monitoring;
+using Glebosaurus.Core.Pairing;
 using Glebosaurus.Tuya;
-using Shiny.BluetoothLE;
 
 namespace Glebosaurus.Agent;
 
@@ -13,10 +13,7 @@ namespace Glebosaurus.Agent;
 /// </summary>
 internal static class PairCommand
 {
-    /// <summary>Po zobaczeniu pierwszego kandydata czekamy chwilę, czy nie ma drugiego – nie chcemy sparować niewłaściwego czujnika.</summary>
-    private static readonly TimeSpan CompetitorWindow = TimeSpan.FromSeconds(1.5);
-
-    private static readonly TimeSpan SettleDelay = TimeSpan.FromSeconds(1.5);
+    private static readonly TimeSpan SettleDelay = PairingProcedure.SettleDelay;
 
     /// <summary>
     /// Jak długo czekać na reklamę czujnika po przypisaniu. Sparowany czujnik reklamuje się rzadko (zmierzone: ok. 1 pakiet
@@ -43,6 +40,7 @@ internal static class PairCommand
 
         using var ble = new BleHost();
         await ble.EnsureAccessAsync();
+        var pairer = new ShinySensorPairer(ble, options.Timeout, Console.WriteLine);
 
         Console.WriteLine(credentials switch
         {
@@ -50,7 +48,7 @@ internal static class PairCommand
             { Verified: true } => $"Klucz z {path} jest już zweryfikowany – odnawiam przypisanie tym samym kluczem (np. po resecie czujnika). Zresetuj czujnik i włóż baterie (skan już działa).",
             _ => "Wznawiam przerwane parowanie tym samym kluczem..."
         });
-        var candidates = await FindCandidatesAsync(ble, credentials, wantedMac, TimeSpan.FromSeconds(options.Seconds ?? 120), cancellationToken);
+        var candidates = await pairer.FindCandidatesAsync(credentials, wantedMac, TimeSpan.FromSeconds(options.Seconds ?? 120), cancellationToken);
         if (candidates.Count == 0)
         {
             Console.Error.WriteLine(credentials is null
@@ -61,17 +59,17 @@ internal static class PairCommand
         if (candidates.Count > 1)
         {
             Console.Error.WriteLine("Znaleziono kilka niesparowanych czujników – nie wybieram sam, żeby nie sparować niewłaściwego. Wskaż ten, o który chodzi, przez --mac:");
-            foreach (var candidate in candidates) Console.Error.WriteLine("  " + candidate.Describe(verbose: false));
+            foreach (var candidate in candidates) Console.Error.WriteLine("  " + ShinySensorPairer.Describe(candidate));
             return 1;
         }
 
         var target = candidates[0];
-        var identity = target.Identity!;
-        Console.WriteLine($"Znaleziono czujnik {target.Peripheral.Uuid}, produkt {identity.ProductId ?? "ukryty"}, {(identity.IsBound ? "sparowany" : "niesparowany")}.");
+        var identity = target.Identity;
+        Console.WriteLine($"Znaleziono czujnik {target.Address}, produkt {identity.ProductId ?? "ukryty"}, {(identity.IsBound ? "sparowany" : "niesparowany")}.");
 
         if (credentials is null)
         {
-            var mac = BleAddress.TryExtract(target.Peripheral.Uuid, out var address) ? BleAddress.Format(address) : options.Mac ?? "";
+            var mac = target.Mac is { } address ? BleAddress.Format(address) : options.Mac ?? "";
             credentials = TuyaCredentials.Create(mac, identity);
             credentials.Save(path, createNew: true);
             Console.WriteLine($"Klucz lokalny zapisano w {path}. To jedyna kopia – zrób jej kopię zapasową (bez niej czujnik trzeba resetować).");
@@ -83,7 +81,16 @@ internal static class PairCommand
         }
         else
         {
-            try { await BindAsync(target.Peripheral, credentials, path, options.Timeout, cancellationToken); }
+            try
+            {
+                await pairer.BindAsync(target, credentials, () =>
+                {
+                    // Klucz musi być na dysku, zanim opuści komputer.
+                    credentials.BindingAttempted = true;
+                    credentials.Save(path);
+                    return Task.CompletedTask;
+                }, cancellationToken);
+            }
             catch (Exception e) when (e is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
             {
                 Console.Error.WriteLine($"Przypisanie nie powiodło się: {e.Message}");
@@ -93,73 +100,20 @@ internal static class PairCommand
             await Task.Delay(SettleDelay, cancellationToken);
         }
 
-        return await VerifyAsync(ble, credentials, path, id, options, setupDirectory, cancellationToken);
-    }
-
-    /// <summary>
-    /// Kandydat do sparowania: niesparowany, łączliwy, protokół 3 i znany typ produktu (albo – przy wznawianiu – czujnik
-    /// o UUID z pliku klucza). Przy --mac tylko wskazany adres.
-    /// </summary>
-    private static async Task<IReadOnlyList<SeenSensor>> FindCandidatesAsync(
-        BleHost ble, TuyaCredentials? existing, ulong? wantedMac, TimeSpan timeout, CancellationToken cancellationToken)
-    {
-        var candidates = new Dictionary<string, SeenSensor>();
-        DateTimeOffset? firstSeen = null;
-        await BleScanner.ScanAsync(ble, timeout, sensor =>
-        {
-            if (IsCandidate(sensor, existing, wantedMac) && candidates.TryAdd(sensor.Peripheral.Uuid, sensor))
-                firstSeen ??= DateTimeOffset.UtcNow;
-            return firstSeen is { } first && DateTimeOffset.UtcNow - first >= CompetitorWindow;
-        }, cancellationToken);
-        return [.. candidates.Values];
-    }
-
-    private static bool IsCandidate(SeenSensor sensor, TuyaCredentials? existing, ulong? wantedMac)
-    {
-        ulong? address = BleAddress.TryExtract(sensor.Peripheral.Uuid, out var extracted) ? extracted : null;
-        return PairingRules.IsCandidate(sensor.Identity, sensor.IsConnectable, address, existing, wantedMac);
-    }
-
-    private static async Task BindAsync(IPeripheral peripheral, TuyaCredentials credentials, string path, int timeoutSeconds, CancellationToken cancellationToken)
-    {
-        try
-        {
-            await peripheral.ConnectAsync(new ConnectionConfig(false), cancellationToken, TimeSpan.FromSeconds(20));
-            var session = new TuyaSession(new ShinyGattLink(peripheral), credentials, TimeSpan.FromSeconds(timeoutSeconds), Console.WriteLine);
-            await session.BindAsync(_ =>
-            {
-                // Klucz musi być na dysku, zanim opuści komputer.
-                credentials.BindingAttempted = true;
-                credentials.Save(path);
-                return Task.CompletedTask;
-            }, cancellationToken);
-        }
-        finally
-        {
-            await ShinySensorRadio.DisconnectQuietlyAsync(peripheral);
-        }
+        return await VerifyAsync(pairer, credentials, path, id, options, setupDirectory, cancellationToken);
     }
 
     private static async Task<int> VerifyAsync(
-        BleHost ble, TuyaCredentials credentials, string path, string id, CliOptions options, string setupDirectory, CancellationToken cancellationToken)
+        ShinySensorPairer pairer, TuyaCredentials credentials, string path, string id, CliOptions options, string setupDirectory, CancellationToken cancellationToken)
     {
         Console.WriteLine($"Weryfikuję klucz na nowym połączeniu (czekam do {VerifyScanSeconds} s – tuż po przypisaniu czujnik reklamuje się rzadko)...");
-        SeenSensor? target = null;
-        await BleScanner.ScanAsync(ble, TimeSpan.FromSeconds(VerifyScanSeconds), sensor =>
-        {
-            if (!sensor.Matches(credentials)) return false;
-            target = sensor;
-            return true;
-        }, cancellationToken);
-
-        if (target is null)
+        var sensorConfig = new SensorConfig { Id = id, Name = options.Name ?? id, Tuya = credentials };
+        var outcome = await pairer.VerifyAsync(sensorConfig, TimeSpan.FromSeconds(VerifyScanSeconds), cancellationToken);
+        if (outcome.Failure == SensorReadFailure.NotFound)
         {
             Console.Error.WriteLine($"Czujnik nie pojawił się w reklamach po przypisaniu. Klucz jest zapisany w {path}. Uruchom to samo polecenie jeszcze raz.");
             return 3;
         }
-
-        var sensorConfig = new SensorConfig { Id = id, Name = options.Name ?? id, Tuya = credentials };
-        var outcome = await ShinySensorRadio.ReadOneAsync(sensorConfig, target, cancellationToken);
         if (outcome.Failure != SensorReadFailure.None || outcome.Reading is not { } reading)
         {
             Console.Error.WriteLine($"Weryfikacja nie powiodła się ({outcome.Failure}{(outcome.Error is null ? "" : ": " + outcome.Error)}). Klucz jest zapisany w {path}.");

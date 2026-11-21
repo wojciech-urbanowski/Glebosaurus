@@ -212,6 +212,31 @@ internal sealed class FakeCloudApi(ManualTimeProvider clock) : ICloudApi
         Logs.Add((day, gzipContent));
         return Task.FromResult(new LogPutResult(day, gzipContent.Length));
     }
+    public List<(long Id, JsonObject Progress)> Progress { get; } = [];
+    public Dictionary<long, Glebosaurus.Tuya.TuyaCredentials> PairKeys { get; } = [];
+    public List<(long Id, JsonObject Result)> PairCompleted { get; } = [];
+
+    public Task<bool> CommandProgressAsync(long commandId, JsonObject progress, CancellationToken cancellationToken)
+    {
+        Progress.Add((commandId, (JsonObject)progress.DeepClone()));
+        return Task.FromResult(true);
+    }
+
+    public Task<Glebosaurus.Tuya.TuyaCredentials?> PairKeyGetAsync(long commandId, CancellationToken cancellationToken) =>
+        Task.FromResult(PairKeys.GetValueOrDefault(commandId));
+
+    public Task PairKeyPutAsync(long commandId, Glebosaurus.Tuya.TuyaCredentials credentials, CancellationToken cancellationToken)
+    {
+        PairKeys[commandId] = credentials;
+        return Task.CompletedTask;
+    }
+
+    public Task<PairCompleteResult> PairCompleteAsync(long commandId, JsonObject result, CancellationToken cancellationToken)
+    {
+        PairCompleted.Add((commandId, (JsonObject)result.DeepClone()));
+        return Task.FromResult(new PairCompleteResult("nowy", true, PairKeys[commandId].Mac));
+    }
+
     public List<(IReadOnlyList<string> Keys, string Subject, IReadOnlyList<string> Recipients, byte[] HtmlGzip)> Archive { get; } = [];
     public Queue<CloudApiException> ArchiveFailures { get; } = new();
 
