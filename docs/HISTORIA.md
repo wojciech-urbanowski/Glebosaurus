@@ -351,7 +351,11 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   urlop), pokazuje wyciszenia w raporcie i zapisuje wysłane maile do archiwum strony; zbieracz na Windows paruje czujnik
   zdalnie (`pair` z wiersza poleceń na tych samych krokach BLE); `cloud owner`, `cloud web-link`. Wymaga migracji do
   `20261121230000_safe_update` (prawdziwy projekt już ją ma). Skrypty instalacji, usługa Windows i workflow wydania bez
-  zmian od 0.2.7. Testy zielone (686, SQL 177), paczki win-x64 i linux-arm64 oraz APK zbudowane lokalnie.
+  zmian od 0.2.7. Testy zielone (686, SQL 177), paczki win-x64 i linux-arm64 oraz APK zbudowane lokalnie. Na prośbę
+  użytkownika **wydanie 0.2.8** z tagu `v0.2.8` (12:41; workflow „Wydanie” zielony z próbą instalacji na arm64) – usługi
+  na bestia5 i rasp3 pobiorą je same; APK na mi11 niepotrzebny (nowości są dla nadawcy i zbieracza na Windows). Strona
+  z tagu nie poszła: środowisko `github-pages` domyślnie przyjmuje wdrożenia tylko z `main` („Tag "v0.2.8" is not allowed
+  to deploy to github-pages due to environment protection rules”); treść strony i tak aktualna z ręcznego uruchomienia.
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 
