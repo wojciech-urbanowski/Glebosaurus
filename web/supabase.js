@@ -269,7 +269,7 @@ export class Cloud {
         throw new CloudError('notOwner', 'Zalogowano z TOTP, ale to konto nie jest (jeszcze) właścicielem Glebosaurusa. Właściciela nadaje: ' +
           'glebosaurus cloud owner --admin PLIK --email ADRES --confirm – potem odśwież stronę.', response.status);
       }
-      // Błędy z funkcji Glebosaurusa niosą powód po polsku; konflikt wersji (40001) – osobny rodzaj.
+      // Błędy z funkcji Glebosaurusa niosą powód po polsku; konflikt wersji (PT409, HTTP 409) – osobny rodzaj.
       if (message.startsWith('Glebosaurus: conflict')) {
         throw new CloudError('conflict', message.replace(/^Glebosaurus: conflict: ?/, ''), response.status);
       }

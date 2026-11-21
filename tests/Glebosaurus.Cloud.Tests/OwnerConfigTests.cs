@@ -26,7 +26,7 @@ public sealed class OwnerConfigTests(CloudDatabase db)
             ("p", new JsonObject { ["alertReminderHours"] = 24 }));
         Assert.True(Version(saved) > version);
 
-        var error = await Scenario.FailsAsync("40001", () => db.OwnerAsync("owner_settings_update", owner, null, ("p_version", version),
+        var error = await Scenario.FailsAsync("PT409", () => db.OwnerAsync("owner_settings_update", owner, null, ("p_version", version),
             ("p", new JsonObject { ["alertReminderHours"] = 12 })));
         Assert.Contains("conflict", error.MessageText);
     }
@@ -53,7 +53,7 @@ public sealed class OwnerConfigTests(CloudDatabase db)
 
         var error = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => session.CallAsync("owner_settings_update",
             ("p_version", 0L), ("p", new JsonObject { ["readIntervalMinutes"] = "15" })));
-        Assert.Equal("40001", error.SqlState);   // najpierw wersja…
+        Assert.Equal("PT409", error.SqlState);   // najpierw wersja…
         error = await Assert.ThrowsAsync<Npgsql.PostgresException>(async () => await session.CallAsync("owner_settings_update",
             ("p_version", await session.VersionAsync()), ("p", new JsonObject { ["readIntervalMinutes"] = "15" })));
         Assert.Contains("podaj liczbę", error.MessageText);   // …potem typ: napis udający liczbę nie przechodzi

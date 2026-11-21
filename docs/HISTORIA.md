@@ -107,11 +107,11 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   przeklikać edytor na prawdziwych danych (zapisy ustawień, odbiorców, progów, „Wyślij próbny mail” po aktualizacji
   rasp3 do 0.2.8), sprawdzić `pair` na sprzęcie po przeniesieniu kroków BLE do `ShinySensorPairer` i parowanie zdalne
   przy czujniku.
-- **Błąd: konflikt wersji konfiguracji na stronie** (znaleziony 2026-11-21 testem przez Data API, niżej w kalendarium):
-  zapis z nieaktualną wersją wisi ok. 50 s zamiast od razu pokazać „konfigurację zmieniono w międzyczasie”, bo
-  PostgREST ponawia transakcję z SQLSTATE 40001. Poprawka – nowa migracja (konflikt kodem spoza klasy 40) i zdjęcie
-  pominięcia z `DataApiOwnerTests.StaleConfigVersion_ReturnsConflictAtOnce`; na prawdziwym projekcie – na prośbę
-  użytkownika. Do tego czasu: przed zapisem w edytorze odświeżyć stronę, jeśli była otwarta dłużej albo w dwóch kartach.
+- **Migracja `20261121233000_config_conflict` na prawdziwym projekcie** (na prośbę użytkownika; w kodzie i na próbnym
+  projekcie od 2026-11-21): bez niej zapis konfiguracji ze strony z nieaktualną wersją wisi ok. 50 s zamiast od razu
+  pokazać „konfigurację zmieniono w międzyczasie” (PostgREST ponawia transakcję z SQLSTATE 40001 – niżej w kalendarium).
+  Strona działa z nią i bez niej; do tego czasu przed zapisem w edytorze odświeżyć stronę, jeśli była otwarta dłużej albo
+  w dwóch kartach.
 
 - Obejrzeć na telefonie: pierwszy prawdziwy raport z wykresem (2026-11-16, 19:00), log administratora, nowy mail „agent
   milczy” (w `mail-preview`).
@@ -384,8 +384,13 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   transakcję po 40001: ok. 1000 ponowień na sekundę przez ok. 50 s (ok. 45 tys. wycofanych transakcji na jedno żądanie,
   także po zerwaniu połączenia przez klienta po 30 s). Dotyczy każdego zapisu konfiguracji ze strony z nieaktualną
   wersją; przez połączenie bezpośrednie konflikt przechodzi od razu, więc dotąd nikt tego nie widział. Test
-  oczekiwanego zachowania czeka pominięty na poprawkę (wyżej, „Czeka na użytkownika”). Testy SQL zielone (143, 1
-  pominięty); potem dane pokazowe (`web-preview.cs -- seed`) i właściciel próbnego projektu (`cloud owner`) przywrócone.
+  oczekiwanego zachowania czekał pominięty (143 zielone, 1 pominięty). **Poprawka** (na prośbę użytkownika): migracja
+  `20261121233000_config_conflict` – `require_config_version` zgłasza konflikt kodem PT409 (PostgREST oddaje PTxyz jako
+  status HTTP xyz, bez ponawiania), treść „Glebosaurus: conflict: …” bez zmian, więc strona działa z migracją i bez niej
+  (`REQUIRED_MIGRATION` bez zmian); test statyczny `SqlDataApiRulesTests` (żadna funkcja nie zgłasza kodu z klasy 40),
+  podgląd (`web-preview.cs`) oddaje PTxyz jako status. Testy SQL zielone (144, konflikt przez Data API wraca od razu
+  jako 409); potem dane pokazowe (`web-preview.cs -- seed`) i właściciel próbnego projektu (`cloud owner`) przywrócone.
+  Migracja na prawdziwym projekcie – na prośbę użytkownika (wyżej, „Czeka na użytkownika”).
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 

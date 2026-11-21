@@ -11,7 +11,7 @@ namespace Glebosaurus.Cloud.Tests;
 /// pozostałych testów <c>Owner*</c>, które wołają je przez połączenie bezpośrednie. Data API działa w innym środowisku:
 /// rola <c>authenticator</c> ładuje <c>pg_safeupdate</c> (UPDATE/DELETE bez WHERE – SQLSTATE 21000, także w wyzwalaczach;
 /// 2026-11-21 tak zawiodła prawdziwa strona), role mają limity czasu, argumenty dopasowuje się po nazwach (PGRST202/203),
-/// transakcję z SQLSTATE 40001 PostgREST ponawia w pętli, a błędy wracają jako kody HTTP z JSON-em PostgREST. Zegar prawdziwy – Data API nie pozwala klientom ustawić
+/// transakcję z SQLSTATE 40001 PostgREST ponawia w pętli (do 2026-11-21 tak wisiał konflikt wersji), a błędy wracają jako kody HTTP z JSON-em PostgREST. Zegar prawdziwy – Data API nie pozwala klientom ustawić
 /// <c>glebosaurus.test_now</c>. Wspólne ustawienia (przypomnienia, urlop, hasło Gmaila) wracają na miejsce w <c>finally</c>.
 /// </summary>
 public sealed class DataApiOwnerTests(CloudDatabase db)
@@ -201,14 +201,15 @@ public sealed class DataApiOwnerTests(CloudDatabase db)
     }
 
     /// <summary>
-    /// Nieaktualna wersja konfiguracji (dwie karty, strona otwarta od wczoraj) ma wrócić od razu jako błąd z przedrostkiem
-    /// „Glebosaurus: conflict” – po nim strona rozpoznaje konflikt. Dziś <c>glebosaurus.require_config_version</c> zgłasza
-    /// SQLSTATE 40001 (serialization_failure), a Data API (PostgREST 14.18) ponawia transakcję po każdym 40001: sprawdzone
-    /// 2026-11-21 – ok. 1000 ponowień na sekundę przez ok. 50 s (ok. 45 tys. wycofanych transakcji na jedno żądanie, dalej
-    /// po zerwaniu połączenia przez klienta), klient nie dostaje odpowiedzi. Przez połączenie bezpośrednie konflikt przechodzi
-    /// (OwnerConfigTests). Do zdjęcia pominięcia po migracji, która zgłasza konflikt kodem spoza klasy 40.
+    /// Nieaktualna wersja konfiguracji (dwie karty, strona otwarta od wczoraj) wraca od razu jako 409 z przedrostkiem
+    /// „Glebosaurus: conflict” – po nim strona rozpoznaje konflikt. Do migracji 20261121233000_config_conflict
+    /// <c>glebosaurus.require_config_version</c> zgłaszała SQLSTATE 40001 (serialization_failure), a Data API (PostgREST
+    /// 14.18) ponawia transakcję po każdym 40001: sprawdzone 2026-11-21 – ok. 1000 ponowień na sekundę przez ok. 50 s (ok. 45
+    /// tys. wycofanych transakcji na jedno żądanie, dalej po zerwaniu połączenia przez klienta), klient nie dostawał
+    /// odpowiedzi. Przez połączenie bezpośrednie konflikt przechodził (OwnerConfigTests), dlatego nikt tego nie widział.
+    /// Pętla wraca, gdyby jakakolwiek funkcja znów zgłosiła kod z klasy 40 – pilnuje tego też SqlDataApiRulesTests.
     /// </summary>
-    [Fact(Skip = "Błąd znaleziony 2026-11-21: konflikt wersji (SQLSTATE 40001) Data API ponawia w pętli przez ok. 50 s – czeka na migrację z innym kodem.")]
+    [Fact]
     public async Task StaleConfigVersion_ReturnsConflictAtOnce()
     {
         var api = await db.DataApiOwnerAsync();
@@ -217,9 +218,9 @@ public sealed class DataApiOwnerTests(CloudDatabase db)
         var conflict = await Assert.ThrowsAsync<DataApiException>(() => api.RpcAsync("owner_settings_update", ("p_version", 0L),
             ("p", new JsonObject { ["alertReminderHours"] = 24 })));
 
+        AssertError(conflict, HttpStatusCode.Conflict, "PT409");
         Assert.StartsWith("Glebosaurus: conflict", conflict.Text);
-        Assert.False(conflict.Code?.StartsWith("40", StringComparison.Ordinal), $"SQLSTATE {conflict.Code} z klasy 40 – Data API ponawia takie transakcje.");
-        Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(10));
+        Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(10), "Konflikt wrócił dopiero po pętli ponowień Data API.");
     }
 
     /// <summary>

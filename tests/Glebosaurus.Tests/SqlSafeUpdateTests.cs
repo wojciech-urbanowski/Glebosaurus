@@ -64,7 +64,7 @@ public sealed partial class SqlSafeUpdateTests
     }
 
     /// <summary>Treść obowiązującej definicji każdej funkcji (ostatnie create w kolejności migracji, bez usuniętych).</summary>
-    private static Dictionary<string, string> LatestFunctions(IEnumerable<Migration> migrations)
+    internal static Dictionary<string, string> LatestFunctions(IEnumerable<Migration> migrations)
     {
         var latest = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var migration in migrations)

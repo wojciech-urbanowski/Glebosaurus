@@ -102,7 +102,9 @@ bash deploy/test-install-linux.sh STARA NOWA [--systemd]   # próba install-linu
   Zmiana funkcji SQL = zmiana typów protokołu i testów `CloudProtocolTests`/`CloudApiClientTests`.
   Data API Supabase ładuje `pg_safeupdate` (rola `authenticator`): każde UPDATE/DELETE w funkcjach (także w wyzwalaczach)
   musi mieć WHERE – `settings` ma jeden wiersz, więc `where id` (pilnuje `SqlSafeUpdateTests`; testy SQL łączą się wprost
-  i tego błędu nie zobaczą).
+  i tego błędu nie zobaczą). PostgREST ponawia w pętli transakcję z SQLSTATE klasy 40 – funkcje ich nie zgłaszają
+  (konflikt wersji: PT409 → HTTP 409; `SqlDataApiRulesTests`). Funkcje strony idą też przez prawdziwe Auth i Data API
+  (`DataApiOwnerTests`: konto testowe z TOTP w Auth próbnego projektu, wymaga `secretKey` w `cloud-admin.test.json`).
 - `src/Glebosaurus.Android` – agent na Androida (ARCHITEKTURA.md, zasada 12), **poza `Glebosaurus.slnx`** (obciążenie
   `android`; narzędzia bez administratora w jednym katalogu poza repozytorium – dotnet z obciążeniem, jdk, android-sdk z
   adb; ścieżka w pamięci Claude). Tylko zbieracz: `AgentHost` składa `CloudRuntime` bez nadawcy (`notifier: null`,

@@ -466,8 +466,8 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
       (konto, czas bazy, lista migracji), `owner_dashboard` (czujniki spoza archiwum z ostatnim odczytem i dzierżawcą,
       agenci z sygnałem życia przez `agent_status_view`, nadawca), `owner_config` (cała konfiguracja; sekrety tylko jako
       data ustawienia z `vault.secrets`), zapisy z `config_version` (`owner_settings_update`, `owner_sensor_add|update|
-      credentials|archive|delete`; inna wersja w bazie → 40001 „conflict” – przez Data API dziś nie wraca, bo PostgREST
-      ponawia transakcje z 40001; niżej „Środowisko Data API”), `owner_secret_set` (hasło Gmaila, adres
+      credentials|archive|delete`; inna wersja w bazie → PT409 „conflict”, przez Data API HTTP 409; niżej „Środowisko
+      Data API”), `owner_secret_set` (hasło Gmaila, adres
       strażnika; null – usunięcie), `owner_agent_save|code|revoke`, `owner_command` (`read_now`, `report_now`,
       `mail_test`, `send_log`) i `owner_command_status`, `owner_series` (dane wykresu: uśrednianie w bazie jak
       `ReadingSeriesBuilder` – ta sama drabinka, `date_bin` w czasie lokalnym od poniedziałku 0001-01-01, ta sama reguła
@@ -500,9 +500,9 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
       `where id` przy jedynym wierszu `settings`; pilnuje `SqlSafeUpdateTests`), rola `authenticated` ma limit czasu zapytań
       (funkcja strony dłuższa niż on zawiedzie z 57014), argumenty dopasowuje się po nazwach (zła nazwa – 404 PGRST202), a
       PostgREST ponawia transakcję po SQLSTATE 40001 – w pętli, ok. 1000 razy na sekundę przez ok. 50 s, także po zerwaniu
-      połączenia przez klienta. Dlatego funkcje nie powinny zgłaszać kodów z klasy 40; dziś robi to tylko
-      `require_config_version` (konflikt wersji) – do poprawki nową migracją. Kody HTTP błędów: 22023 → 400, 42501 → 403
-      z tokenem użytkownika, 401 bez niego (sam klucz publikowalny), zepsuty token → 401. Te różnice łapią testy przez
+      połączenia przez klienta. Dlatego żadna funkcja nie zgłasza kodów z klasy 40 (pilnuje `SqlDataApiRulesTests`);
+      konflikt wersji ma kod PT409 – PostgREST oddaje kod PTxyz jako status HTTP xyz. Kody HTTP błędów: 22023 → 400,
+      42501 → 403 z tokenem użytkownika, 401 bez niego (sam klucz publikowalny), PT409 → 409, zepsuty token → 401. Te różnice łapią testy przez
       prawdziwe Supabase Auth i Data API (`DataApiOwnerTests`, niżej).
     - **Czas:** wszystko liczy `glebosaurus.clock()` = `now()`; tylko w bazie ze znacznikiem próbnej testy przesuwają zegar
       ustawieniem `glebosaurus.test_now`.

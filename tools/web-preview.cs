@@ -630,10 +630,13 @@ static partial class Rpc
         }
     }
 
-    /// <summary>Tabela PostgREST „HTTP status codes” dla błędów Postgresa (rola authenticated: 42501 → 403).</summary>
+    /// <summary>Tabela PostgREST „HTTP status codes” dla błędów Postgresa (rola authenticated: 42501 → 403; PTxyz – status
+    /// xyz). Ponawiania transakcji po 40001 podgląd nie udaje – funkcje tego kodu nie zgłaszają (SqlDataApiRulesTests).</summary>
     private static int HttpStatus(string state) => state switch
     {
         "42501" => 403,
+        _ when state.StartsWith("PT", StringComparison.Ordinal)
+               && int.TryParse(state.AsSpan(2), NumberStyles.None, CultureInfo.InvariantCulture, out var status) => status,
         "P0001" => 400,
         "23503" or "23505" => 409,
         "42883" or "42P01" => 404,
