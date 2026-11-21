@@ -9,7 +9,7 @@ internal sealed class PanelAssets(IReadOnlyDictionary<string, (byte[] Content, s
     public static readonly string[] Pages = ["index.html", "sensor.html"];
 
     /// <summary>Skrypty (moduły ES), arkusz stylów i ikona – pod adresem „/nazwa”.</summary>
-    public static readonly string[] Files = ["common.js", "charts.js", "app.js", "sensor.js", "app.css", "favicon.svg"];
+    public static readonly string[] Files = ["format.js", "common.js", "charts.js", "app.js", "sensor.js", "app.css", "favicon.svg"];
 
     public static PanelAssets Load()
     {

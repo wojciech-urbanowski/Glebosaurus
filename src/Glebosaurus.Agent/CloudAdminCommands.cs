@@ -9,7 +9,8 @@ namespace Glebosaurus.Agent;
 
 /// <summary>
 /// Narzędzia właściciela chmury (ARCHITEKTURA.md, zasada 15): migracje schematu, zapis pliku konfiguracji chmury,
-/// wspólne ustawienia (odstęp odczytów), agenci z kodami rejestracji i kopia zapasowa. Łączą się z bazą hasłem bazy z pliku administratora (pooler sesji,
+/// wspólne ustawienia (odstęp odczytów), agenci z kodami rejestracji, właściciele strony w chmurze, odnośnik do niej i
+/// kopia zapasowa. Łączą się z bazą hasłem bazy z pliku administratora (pooler sesji,
 /// VerifyFull). Bez --confirm każde polecenie zmieniające chmurę tylko pokazuje, co zrobi (kopia tylko czyta).
 /// </summary>
 internal static class CloudAdminCommands
@@ -21,7 +22,9 @@ internal static class CloudAdminCommands
         "settings" => await SettingsAsync(options, cancellationToken),
         "agent" => await AgentAsync(options, cancellationToken),
         "backup" => await BackupAsync(options, cancellationToken),
-        _ => throw new ArgumentException("Podaj polecenie: glebosaurus cloud migrate|config|settings|agent|backup --admin PLIK (zob. --help).")
+        "owner" => await OwnerAsync(options, cancellationToken),
+        "web-link" => WebLink(options),
+        _ => throw new ArgumentException("Podaj polecenie: glebosaurus cloud migrate|config|settings|agent|owner|web-link|backup --admin PLIK (zob. --help).")
     };
 
     private static (CloudAdminSettings Settings, NpgsqlDataSource Data) Open(CliOptions options)
@@ -188,12 +191,12 @@ internal static class CloudAdminCommands
         if (file is not null)
         {
             var path = Path.GetFullPath(file);
-            File.WriteAllBytes(path, EnrollmentQr.Png(link));
+            File.WriteAllBytes(path, EnrollmentQr.Png(link.ToUri()));
             Console.WriteLine($"Telefon (Android): w aplikacji Glebosaurus „Zeskanuj kod QR” – kod zapisany w {path} (ma kod rejestracji – usuń go po użyciu).");
             return;
         }
         Console.WriteLine("Telefon (Android): w aplikacji Glebosaurus „Zeskanuj kod QR” (jeśli nie czyta z ekranu: --qr plik.png):");
-        Console.WriteLine(EnrollmentQr.Text(link));
+        Console.WriteLine(EnrollmentQr.Text(link.ToUri()));
     }
 
     private static async Task<int> RevokeAsync(NpgsqlDataSource data, string name, CloudAgentInfo? current, bool confirm,
@@ -218,6 +221,105 @@ internal static class CloudAdminCommands
         var result = await CloudAgents.RevokeAsync(data, name, cancellationToken);
         Console.WriteLine($"Agent „{name}” odcięty: token {(result.HadToken ? "unieważniony" : "– nie było")}, skasowane kody rejestracji: {result.CancelledCodes}.");
         Console.WriteLine($"Z powrotem: glebosaurus cloud agent --admin PLIK --name {name} [--sender-priority N] --confirm, potem enroll na urządzeniu i restart agenta.");
+        return ExitCodes.Success;
+    }
+
+    /// <summary>Właściciele strony w chmurze (faza 3): lista, dodanie istniejącego konta Supabase Auth, usunięcie.</summary>
+    private static async Task<int> OwnerAsync(CliOptions options, CancellationToken cancellationToken)
+    {
+        if (options.Remove && options.Email is null) throw new ArgumentException("--remove wymaga --email ADRES (którego właściciela usunąć).");
+        var (_, data) = Open(options);
+        await using var _ = data;
+        if (!await SchemaReadyAsync(data, cancellationToken)) return ExitCodes.Error;
+        var owners = await CloudOwners.ListAsync(data, cancellationToken);
+
+        if (options.Email is not { } email)
+        {
+            if (owners.Count == 0)
+                Console.WriteLine("Strona w chmurze nie ma jeszcze właściciela – dodaj: glebosaurus cloud owner --admin PLIK --email ADRES --confirm.");
+            foreach (var owner in owners)
+                Console.WriteLine($"  {owner.Email,-36} {(owner.Account ? "konto jest" : "KONTA NIE MA w Supabase Auth"),-28} " +
+                                  $"{(owner.Totp ? "TOTP ustawione" : "bez TOTP (doda je przy logowaniu)"),-34} " +
+                                  $"od {owner.AddedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)}");
+            return ExitCodes.Success;
+        }
+
+        email = email.Trim();
+        var listed = owners.FirstOrDefault(o => string.Equals(o.Email, email, StringComparison.OrdinalIgnoreCase));
+        if (options.Remove)
+        {
+            if (listed is null)
+            {
+                Console.Error.WriteLine($"„{email}” nie jest właścicielem – lista: glebosaurus cloud owner --admin PLIK.");
+                return ExitCodes.Error;
+            }
+            Console.WriteLine($"Usunę właściciela {listed.Email}: strona odmówi mu dostępu od razu (konto w Supabase Auth zostaje – usuwa się je w panelu Supabase).");
+            if (owners.Count == 1) Console.WriteLine("  uwaga: to jedyny właściciel – strona nie wpuści nikogo.");
+            if (!options.Confirm)
+            {
+                Console.WriteLine("Bez --confirm niczego nie zmieniam.");
+                return ExitCodes.Success;
+            }
+            await CloudOwners.RemoveAsync(data, listed.Email, cancellationToken);
+            Console.WriteLine($"Usunięto właściciela {listed.Email}.");
+            return ExitCodes.Success;
+        }
+
+        if (listed is not null)
+        {
+            Console.WriteLine($"{listed.Email} już jest właścicielem – nic do zmiany.");
+            return ExitCodes.Success;
+        }
+        if (!await CloudOwners.AccountExistsAsync(data, email, cancellationToken))
+        {
+            Console.Error.WriteLine($"W Supabase Auth nie ma konta {email}. Załóż je w panelu Supabase: Authentication → Users → Add user " +
+                                    "(e-mail, hasło, „Auto Confirm User”), a zakładanie kont przez stronę wyłącz (Authentication → Sign In / Providers → " +
+                                    "„Allow new users to sign up”).");
+            return ExitCodes.Error;
+        }
+        Console.WriteLine($"Dodam właściciela {email}: po zalogowaniu na stronie hasłem i kodem TOTP zobaczy i zmieni całą konfigurację " +
+                          "(sekrety tylko ustawia, nigdy ich nie odczyta). Przy pierwszym logowaniu strona poprosi o dodanie TOTP.");
+        if (!options.Confirm)
+        {
+            Console.WriteLine("Bez --confirm niczego nie zmieniam.");
+            return ExitCodes.Success;
+        }
+        await CloudOwners.AddAsync(data, email, cancellationToken);
+        Console.WriteLine($"Dodano właściciela {email}. Odnośnik do strony: glebosaurus cloud web-link --admin PLIK.");
+        return ExitCodes.Success;
+    }
+
+    /// <summary>
+    /// Odnośnik do strony w chmurze z adresem projektu i kluczem publikowalnym we fragmencie (<see cref="OwnerWebLink"/>) –
+    /// strona zapamiętuje je w przeglądarce. Bez połączenia z bazą; klucz publikowalny z pliku administratora.
+    /// </summary>
+    private static int WebLink(CliOptions options)
+    {
+        if (options.Admin is null)
+            throw new ArgumentException("Podaj plik administratora projektu: --admin PLIK (stąd adres projektu i klucz publikowalny).");
+        var settings = CloudAdminSettings.Load(Path.GetFullPath(options.Admin));
+        Console.WriteLine($"Projekt Supabase: {settings.ProjectRef} (z {Path.GetFileName(options.Admin)}).");
+        if (settings.PublishableKey is not { } key)
+        {
+            Console.Error.WriteLine("W pliku administratora brak publishableKey (klucz publikowalny projektu: Project Settings → API Keys).");
+            return ExitCodes.Error;
+        }
+        var link = OwnerWebLink.Create(options.Page ?? OwnerWebLink.DefaultPage, settings.Url.ToString(), key);
+        Console.WriteLine("Odnośnik do strony w chmurze (otwórz go raz w każdej przeglądarce – zapamięta projekt; bez sekretów):");
+        Console.WriteLine(link.ToUri());
+        if (options.Qr is { } file)
+        {
+            var path = Path.GetFullPath(file);
+            File.WriteAllBytes(path, EnrollmentQr.Png(link.ToUri()));
+            Console.WriteLine($"Kod QR (telefon: aparat albo skaner kodów): {path}");
+        }
+        else
+        {
+            Console.WriteLine("Kod QR (telefon: aparat albo skaner kodów; jeśli nie czyta z ekranu: --qr plik.png):");
+            Console.WriteLine(EnrollmentQr.Text(link.ToUri()));
+        }
+        Console.WriteLine("Logowanie: konto Supabase Auth dodane poleceniem cloud owner. W panelu Supabase (Authentication → URL Configuration) " +
+                          $"ustaw Site URL na {link.Page.GetLeftPart(UriPartial.Path)}.");
         return ExitCodes.Success;
     }
 

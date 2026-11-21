@@ -1,0 +1,44 @@
+# Strona właściciela w chmurze (faza 3, ARCHITEKTURA.md, zasada 10): katalog web/ jako GitHub Pages – z każdym wydaniem
+# (tag v*) i ręcznie (Actions → Strona w chmurze → Run workflow). Strona nie ma adresu projektu Supabase w kodzie; dostaje
+# go z odnośnika „glebosaurus cloud web-link”. W ustawieniach repozytorium: Pages → Source: GitHub Actions.
+name: Strona w chmurze
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # Moduły ES bez kroku budowania – sprawdzamy tylko składnię, zanim strona wyjdzie.
+      - name: Składnia skryptów
+        run: |
+          for f in web/*.js; do
+            cp "$f" "$RUNNER_TEMP/check.mjs"
+            node --check "$RUNNER_TEMP/check.mjs" || { echo "::error file=$f::błąd składni"; exit 1; }
+          done
+
+      - uses: actions/configure-pages@v6
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: web
+
+      - id: deployment
+        uses: actions/deploy-pages@v5

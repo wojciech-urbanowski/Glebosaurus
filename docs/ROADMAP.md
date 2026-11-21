@@ -41,7 +41,8 @@ zbieracz, 9 czujników):
 1. **Tydzień próby chmury** (kryterium fazy 2.1) i **tydzień telefonu obok komputera** (2.2.4).
 2. **2.3a – Raspberry Pi 24/7 jako nadawca maili** (bez Bluetooth; komputer z Windows zostaje zapasowym): w kodzie, z próbą
    skryptu w CI na arm64; od 2026-11-19 nadawcą jest Pi – zostało przejęcie w drugą stronę i tydzień pracy.
-3. **Faza 3** – interfejs WWW w chmurze, przede wszystkim edytor konfiguracji (dziś plik konfiguracji chmury i `cloud config`).
+3. **Faza 3** – interfejs WWW w chmurze, przede wszystkim edytor konfiguracji (dziś plik konfiguracji chmury i `cloud config`);
+   w toku od 2026-11-21, etapy niżej.
 4. **Odtwarzanie z kopii zapasowej** (faza 4) – kopia jest, odtwarzania i jego próby jeszcze nie ma.
 5. **2.3b – czujniki na Raspberry Pi**, gdy Pi stanie w ich zasięgu (albo drugie, 32-bitowe Pi jako zbieracz).
 
@@ -59,7 +60,7 @@ zbieracz, 9 czujników):
 | **2.2** | Agent na Androida – tylko zbieranie | L | ◐ agent pracuje; tydzień obok komputera ○ |
 | **2.3a** | Raspberry Pi 24/7 – główny nadawca maili, bez Bluetooth | S–M | ◐ w kodzie (próba skryptu w CI na arm64); na Pi ○ |
 | **2.3b** | Raspberry Pi czyta czujniki (BlueZ), także 32-bitowe Pi | M | ○ |
-| **3** | Interfejs webowy w chmurze: pulpit, historia, alerty, konfiguracja, parowanie zdalne | L | ○ (lokalny panel diagnostyczny jest) |
+| **3** | Interfejs webowy w chmurze: pulpit, historia, alerty, konfiguracja, parowanie zdalne | L | ◐ decyzje i plan etapów 2026-11-21; etap 1 (szkielet) w kodzie, próba na żywo ○ |
 | **4** | Wdrożenie i utwardzanie: aktualizacje, monitoring, bezpieczeństwo, odtwarzanie, runbook | M | ◐ aktualizacje Windows i CI ✔ |
 | **5** | Rozszerzenia (opcjonalne): mądrzejsze podlewanie, inne kanały, inne czujniki, zasięg | – | ○ |
 
@@ -143,21 +144,30 @@ nadawcy zgłasza healthchecks.io; aktualizacja z wydania przechodzi sama.
 
 ## Faza 3 – interfejs webowy w chmurze
 
-Hipoteza: statyczna strona (np. GitHub Pages) czytająca Supabase wprost przez RLS, logowanie Supabase Auth tylko na konto
-właściciela, wykresy z `charts.js` lokalnego panelu, polecenia jako wiersze w tabeli poleceń; konfiguracja jawna dla
-właściciela, sekrety tylko do ustawienia. Lokalny panel zostaje obok jako narzędzie serwisowe; jego model statusu
-(`MonitorStatus`) i układ kart to punkt wyjścia dla 3a.
+Projekt: ARCHITEKTURA.md, zasady 4 (logowanie właściciela) i 10 (interfejs w chmurze). Decyzje użytkownika z 2026-11-21
+(niżej, „Rozstrzygnięte”): statyczna strona na GitHub Pages w zwykłym JS bez budowania (jak lokalny panel, wspólny
+`charts.js`), dane wyłącznie przez funkcje `public.owner_*` dla zalogowanego właściciela z MFA (tabele zostają zamknięte),
+logowanie Supabase Auth hasłem i kodem TOTP, adres projektu z linku od `cloud web-link` (nie w repozytorium). Lokalny
+panel zostaje obok jako narzędzie serwisowe.
 
-| # | Zakres | Wielkość |
-|---|---|---|
-| 3a | Szkielet, logowanie, **pulpit** (czujniki, ostatni odczyt, który agent), stan agentów, **historia** (wykresy). | M |
-| 3b | **Alerty i raporty:** lista alertów, potwierdzenie i wyciszenie, historia raportów z podglądem HTML. | M |
-| 3c | **Konfiguracja:** edytor czujników, progów, harmonogramów, odbiorców i ról agentów; sekrety tylko do ustawienia; te same reguły walidacji co `CloudSetupLoader` (wspólny schemat, testy kontraktowe), zapis z kontrolą wersji. Zastąpi plik konfiguracji chmury. | M–L |
-| 3d | **Parowanie zdalne:** UI tworzy „żądanie parowania”, wybrany agent w zasięgu uruchamia `pair` (skan rusza pierwszy), UI mówi „włóż baterie teraz”, klucz trafia od razu do Vault. Wymaga krótkiego odpytywania w trybie parowania (okno czujnika ok. 20 s). | M |
-| 3e | Widok mobilny, motyw jasny/ciemny, polski interfejs. | S |
+Kolejność etapów (3e – widok mobilny, motyw jasny/ciemny, polski interfejs – wchodzi w każdy etap):
+
+| Etap | Zakres | Wielkość | Stan |
+|---|---|---|---|
+| 1 | **Szkielet:** tabela właścicieli i `require_owner()` (konto z listy + `aal2`), `owner_info` (wersja bazy, brakujące migracje), `cloud owner`, `cloud web-link [--qr]`; strona: połączenie z linku, logowanie z TOTP (dodanie TOTP przy pierwszym logowaniu), odświeżanie sesji, wylogowanie, lista czujników; publikacja `pages.yml` (tag `v*` i ręcznie). | M | ◐ w kodzie 2026-11-21 (testy SQL, podgląd na atrapie); na żywo ○ – kroki właściciela niżej |
+| 2 | **3c – konfiguracja:** ustawienia, poczta i odbiorcy, czujniki (dodanie z pliku klucza z `pair`, progi, archiwum zamiast usuwania), agenci (nowy z kodem i QR, rola nadawcy, wyłączenie, unieważnienie), strażnik; sekrety tylko do ustawienia; zapis z `config_version`; reguły walidacji jak `CloudSetupLoader` (test kontraktowy); próbny mail (`mail_test`) przez obecnego nadawcę. Po próbie na żywo – usunięcie pliku konfiguracji chmury i `cloud config`. | M–L | ○ |
+| 3 | **3a – pulpit i historia:** czujniki z ostatnim odczytem, kto czyta, stan agentów i urządzeń, wykresy (uśrednianie w SQL jak `ReadingSeriesBuilder`), odczyt i raport na żądanie ze stanem polecenia. | M | ○ |
+| 4 | **3b – alerty i raporty:** lista alertów, potwierdzenie (koniec przypomnień), wyciszenie czujnika do daty, wyciszenie wszystkiego (urlop), ręczne zamknięcie; historia maili (raporty i alerty 90 dni, `mail_archive`) z podglądem w izolowanej ramce. | M | ○ |
+| 5 | **3d – parowanie zdalne:** polecenie `pair` w zbieraczu (najpierw Windows, Linux po 2.3b, Android później): skan rusza pierwszy, postęp przez `command_progress`, strona mówi „włóż baterie teraz” dopiero po potwierdzeniu skanu, klucz w Vault przed wysłaniem do czujnika (przerwane parowanie wznawia się tym samym kluczem). | M | ○ |
+| 6 | Kryterium fazy na żywo, wpis w HISTORIA.md. | S | ○ |
 
 **Kryterium:** cały scenariusz z przeglądarki, bez dotykania plików: dodać czujnik (parowanie zdalne), ustawić próg,
 zobaczyć alert, zmienić odbiorców.
+
+**Kroki właściciela** (nie da się ich zrobić z repozytorium): w Supabase (najpierw próbny, potem prawdziwy projekt) –
+wyłączyć zakładanie kont, dodać użytkownika właściciela (Authentication → Add user), ustawić Site URL na adres strony;
+na GitHubie – Pages ze źródłem „GitHub Actions”; logowanie i TOTP na stronie; migracje i `cloud owner` na prawdziwym
+projekcie.
 
 ---
 
@@ -199,7 +209,6 @@ zobaczyć alert, zmienić odbiorców.
 |---|---|---|
 | Raport przy wielu czujnikach | przy ok. 10 czujnikach | 1b.7b: szersze kolumny wykresu albo kilka maili. |
 | Szyfrowanie kopii zapasowej chmury | zanim kopie trafią poza komputer | Dziś kopia (z odszyfrowanymi sekretami) leży bez szyfrowania obok pliku administratora, którego hasło bazy i tak otwiera wszystkie sekrety. |
-| Technologia UI (TypeScript / Blazor WASM) | start 3a | Strona czyta Supabase wprost. |
 
 ### Rozstrzygnięte (daty i uzasadnienia – HISTORIA.md)
 
@@ -217,6 +226,13 @@ zobaczyć alert, zmienić odbiorców.
   w pliku agenta (ustawienie urządzenia – nie rola w chmurze, bez migracji); `install-linux.sh` z samoaktualizacją jak na
   Windows; paczka zależna od frameworka (ASP.NET Core Runtime 10 instaluje i aktualizuje właściciel); 32-bit (`linux-arm`)
   dopiero w 2.3b.
+- Faza 3 (2026-11-21): kolejność – szkielet, 3c, 3a, 3b, 3d (3e w każdym etapie); zwykły JS (moduły ES) bez budowania i
+  bez npm, Auth i RPC zwykłym `fetch`; dane tylko przez `public.owner_*` dla `authenticated` z kontrolą właściciela i
+  `aal2`; logowanie hasłem i TOTP, sesja zapamiętana w przeglądarce do wylogowania; GitHub Pages, adres projektu z linku
+  (`cloud web-link`), publikacja z wydaniem i ręcznie; plik konfiguracji chmury i `cloud config --file` znikają po
+  sprawdzeniu edytora na żywo (`cloud settings` zostaje); alerty – potwierdzenie, wyciszenie czujnika, wyciszenie
+  wszystkiego, ręczne zamknięcie; historia raportów i alertów 90 dni; pełne zarządzanie agentami w panelu; parowanie
+  zdalne w tej fazie (najpierw Windows).
 
 ## Główne ryzyka
 

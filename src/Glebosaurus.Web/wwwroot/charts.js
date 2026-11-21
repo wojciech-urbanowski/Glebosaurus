@@ -9,7 +9,7 @@
 // Kolory i grubości są w app.css (klasy), elementy powstają przez createElementNS, a teksty idą przez textContent –
 // strona ma CSP bez stylów i skryptów inline.
 
-import { h, dateFmt, num1 } from './common.js';
+import { h, dateFmt, num1 } from './format.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const HOUR = 3600e3;

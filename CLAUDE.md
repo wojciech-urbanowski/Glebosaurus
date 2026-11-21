@@ -16,7 +16,8 @@ dotnet test --solution Glebosaurus.slnx -c Release        # xunit.v3 na Microsof
 $env:GLEBOSAURUS_CLOUD_TESTS='1'; dotnet test --project tests/Glebosaurus.Cloud.Tests -c Release   # SQL na PRÓBNYM Supabase (czyści go)
 dotnet run --project src/Glebosaurus.Agent -f net10.0-windows10.0.19041.0 -- --help   # Windows; Linux: -f net10.0
 # Agent: plik z sekcją "cloud" (wzór examples/glebosaurus.config.json), potem enroll --code KOD i run
-# Właściciel: cloud migrate|config|settings|agent|backup --admin local/cloud-admin.test.json (bez --confirm tylko plan; prawdziwy projekt – tylko na prośbę)
+# Właściciel: cloud migrate|config|settings|agent|owner|backup --admin local/cloud-admin.test.json (bez --confirm tylko plan; prawdziwy projekt – tylko na prośbę)
+# Strona w chmurze: cloud owner --email ADRES --confirm (konto musi być w Supabase Auth), cloud web-link [--qr PLIK] (odnośnik z adresem projektu)
 # cloud config --file PLIK – plik konfiguracji chmury (wzór examples/cloud-config.json: czujniki, progi, raporty, poczta)
 # cloud settings --read-interval MIN – sam odstęp odczytów w chmurze (admin_settings_update), bez pełnego pliku
 # Kopia chmury: cloud backup --admin local/cloud-admin.test.json --out <scratchpad> (tylko czyta bazę; plik ZIP z odszyfrowanymi sekretami)
@@ -79,6 +80,13 @@ bash deploy/test-install-linux.sh STARA NOWA [--systemd]   # próba install-linu
   `/sensor?id=` z przeglądalnym wykresem całej historii – SVG w `wwwroot/charts.js`, bez bibliotek, dane z
   `/api/sensors/{id}/series` uśredniane w Core przez `ReadingSeriesBuilder`; akcje przez chmurę; konfiguracji nie zmienia).
   Strona: `wwwroot/` wbudowane w bibliotekę, dane wstawiane tylko jako tekst (CSP bez skryptów inline).
+- `web/` – **strona właściciela w chmurze** (faza 3, ARCHITEKTURA.md, zasady 4 i 10): zwykłe moduły ES bez budowania,
+  GitHub Pages (`pages.yml`: tag `v*` i ręcznie); logowanie Supabase Auth hasłem i TOTP przez `fetch` (`supabase.js`,
+  `shell.js`), dane tylko z funkcji `public.owner_*` (rola `authenticated`, `require_owner()`: konto z `owners` + `aal2`).
+  Adres projektu z odnośnika `cloud web-link` (nie w repozytorium). `format.js` i `favicon.svg` to kopie plików lokalnego
+  panelu – zmiany w obu (pilnuje `OwnerWebTests`); nowa funkcja `owner_*` = podbicie `REQUIRED_MIGRATION` w `shell.js`.
+  Podgląd: atrapa Supabase w Pythonie w scratchpadzie (serwuje `web/` i udaje Auth i RPC) na loopbacku – prawdziwego
+  logowania (hasło, TOTP) Claude nie wykonuje.
 - `supabase/migrations/` – schemat i funkcje SQL chmury (ARCHITEKTURA.md, zasada 13): tabele w prywatnym schemacie
   `glebosaurus` z RLS, agenci wołają tylko funkcje `public.*` (rola `anon`), administracja (`glebosaurus.admin_*`) tylko
   przez połączenie z bazą. **Zastosowanej migracji nie zmieniaj** – zmiana schematu to nowa migracja (suma kontrolna).

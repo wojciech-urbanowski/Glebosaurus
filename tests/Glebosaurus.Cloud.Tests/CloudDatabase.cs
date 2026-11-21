@@ -127,7 +127,20 @@ public sealed class CloudDatabase : IAsyncLifetime
     /// <summary>Zapytanie jako dowolna rola (do testów uprawnień).</summary>
     public Task<JsonElement> AsRoleAsync(string role, string sql) => CallAsync(role, sql, null, []);
 
-    private async Task<JsonElement> CallAsync(string? role, string sql, DateTimeOffset? at, (string Name, object? Value)[] args)
+    /// <summary>Wywołuje funkcję strony jako zalogowany użytkownik Supabase Auth – rola authenticated i żądania tokenu
+    /// (<c>request.jwt.claims</c>) tak, jak ustawia je Data API po sprawdzeniu podpisu tokenu.</summary>
+    public Task<JsonElement> OwnerAsync(string function, JsonObject claims, DateTimeOffset? at = null, params (string Name, object? Value)[] args) =>
+        CallAsync("authenticated", $"select public.{function}({string.Join(", ", args.Select(a => $"{a.Name} => @{a.Name}"))})::text", at, args,
+            claims);
+
+    /// <summary>Żądania tokenu właściciela: <c>aal2</c> = zalogowany z TOTP.</summary>
+    public static JsonObject Claims(Guid user, string aal = "aal2") => new()
+    {
+        ["sub"] = user.ToString(), ["role"] = "authenticated", ["aal"] = aal, ["email"] = $"{user:N}@example.com"
+    };
+
+    private async Task<JsonElement> CallAsync(string? role, string sql, DateTimeOffset? at, (string Name, object? Value)[] args,
+        JsonObject? claims = null)
     {
         await using var connection = await DataSource.OpenConnectionAsync();
         await using var transaction = await connection.BeginTransactionAsync();
@@ -136,6 +149,12 @@ public sealed class CloudDatabase : IAsyncLifetime
             await using var clock = new NpgsqlCommand("select set_config('glebosaurus.test_now', @now, true)", connection, transaction);
             clock.Parameters.AddWithValue("now", time.UtcDateTime.ToString("O", CultureInfo.InvariantCulture));
             await clock.ExecuteNonQueryAsync();
+        }
+        if (claims is not null)
+        {
+            await using var jwt = new NpgsqlCommand("select set_config('request.jwt.claims', @claims, true)", connection, transaction);
+            jwt.Parameters.AddWithValue("claims", claims.ToJsonString());
+            await jwt.ExecuteNonQueryAsync();
         }
         if (role is not null)
         {

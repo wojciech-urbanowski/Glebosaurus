@@ -26,7 +26,7 @@ serwera).
  │ Vault: klucze Tuya, hasło Gmaila · dzienne logi agentów (gzip)   │
  └──────┬───────────────────────────────────────────────────────────┘
         │ połączenie z bazą hasłem bazy – tylko właściciel (CLI: cloud migrate|config|agent|backup)
-        │ HTTPS, Supabase Auth – tylko konto właściciela                (faza 3: interfejs w chmurze)
+        │ HTTPS, Supabase Auth z TOTP – tylko konto właściciela, funkcje owner_*  (faza 3: strona na GitHub Pages)
  Poczta: nadawca z blokadą → Gmail SMTP (MailKit). Strażnik: nadawca → healthchecks.io.
 ```
 
@@ -49,6 +49,7 @@ src/Glebosaurus.Cloud.Admin narzędzia właściciela: połączenie z bazą (Npgs
 src/Glebosaurus.Agent       CLI i agent na Windows/Linux (Shiny.BluetoothLE; net10.0 + net10.0-windows10.0.19041.0)
 src/Glebosaurus.Service     usługa Windows bez okna (glebosaurus-service.exe): nadzór agenta, sprawdzanie wydań, aktualizacja
 src/Glebosaurus.Android     agent na Androida (zasada 12) – poza Glebosaurus.slnx (obciążenie android)
+web/                        strona właściciela w chmurze (zasada 10): moduły ES bez budowania, GitHub Pages
 supabase/migrations/        schemat i funkcje SQL chmury (zasada 13), wbudowane w Glebosaurus.Cloud.Admin
 supabase/prod-ca-2021.crt   certyfikat główny Supabase (publiczny, do 2031-04-26), wbudowany w Glebosaurus.Cloud.Admin
 tests/                      protokół i sesja na atrapie czujnika; Core na atrapach z ręcznie sterowanym czasem;
@@ -56,7 +57,8 @@ tests/                      protokół i sesja na atrapie czujnika; Core na atra
 examples/                   wzory: plik agenta, plik konfiguracji chmury, plik administratora
 deploy/                     install-windows.ps1, package-windows.ps1 (Windows); install-linux.sh, package-linux.ps1,
                             test-install-linux.sh (Linux/Raspberry Pi, zasada 7); build-android.ps1
-.github/workflows/          ci.yml (build + testy, APK), release.yml (tag v* → testy, paczka, APK, próba instalacji, wydanie)
+.github/workflows/          ci.yml (build + testy, APK), release.yml (tag v* → testy, paczka, APK, próba instalacji, wydanie),
+                            pages.yml (tag v* i ręcznie → web/ na GitHub Pages)
 ```
 
 Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLink` (BLE dla protokołu), `ISensorRadio` /
@@ -126,8 +128,14 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
    `security definer`, które sprawdzają token i rolę. Funkcje Postgresa domyślnie dostają `execute` dla `PUBLIC`, więc
    migracje to odbierają (także jako domyślne uprawnienie dla przyszłych funkcji) i nadają `anon` tylko funkcje agentów.
    Najcenniejszy jest token nadawcy (może zdobyć blokadę, a z nią hasło Gmaila), więc rolę nadawcy dostają tylko 1–2
-   zaufane urządzenia. Właściciel (faza 3): Supabase Auth, tylko jego konto; sekrety w panelu można ustawić, nigdy
-   odczytać.
+   zaufane urządzenia. **Właściciel w przeglądarce** (faza 3, zasada 10): konto Supabase Auth (e-mail i hasło) z
+   obowiązkowym drugim składnikiem TOTP. Konto zakłada właściciel w panelu Supabase (zakładanie kont wyłączone), a
+   właścicielem Glebosaurusa czyni je dopiero wpis w tabeli `glebosaurus.owners` (`cloud owner --email`, połączenie z
+   bazą) – samo konto w Auth nie daje niczego. Strona woła wyłącznie funkcje `public.owner_*` (`security definer`, puste
+   `search_path`, `execute` tylko dla roli `authenticated`), a każda zaczyna od `glebosaurus.require_owner()`:
+   `auth.uid()` musi być w `owners`, a token mieć `aal2` (zalogowanie z TOTP) – inaczej SQLSTATE 42501. Tabele zostają
+   zamknięte (RLS bez zasad), więc właściciel widzi i zmienia tylko to, co dają funkcje. Sekrety (hasło Gmaila, klucze
+   Tuya, adres strażnika) można w panelu ustawić, nigdy odczytać – funkcje zwracają tylko „ustawione” i datę.
 5. **Klucze Tuya: lokalne parowanie własnym kluczem** (bez Smart Life i Tuya IoT). `pair` wymyśla `deviceId` i 6-bajtowy
    klucz lokalny, zapisuje go w pliku **przed** wysłaniem do czujnika (przerwane parowanie wznawia się tym samym kluczem)
    i sprawdza na nowym połączeniu. Sparowany czujnik znika z aplikacji Smart Life; reset przyciskiem go przywraca. Czujnik
@@ -274,9 +282,34 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
       (ROADMAP, faza 4);
     - 2 aktywne projekty – drugi przydaje się do testów funkcji SQL (zasada 2); też usypia po tygodniu bez ruchu.
     Połączenie właściciela z bazą idzie przez pooler sesji (IPv4; bezpośrednie `db.<id>.supabase.co` ma tylko IPv6) jako
-    `postgres.<id projektu>`. Interfejs w chmurze (faza 3, hipoteza): statyczna strona czytająca Supabase przez RLS,
-    logowanie Supabase Auth tylko na konto właściciela, wykresy z `charts.js` lokalnego panelu, polecenia jako wiersze w
-    tabeli poleceń; konfiguracja jawna dla właściciela, sekrety tylko do ustawienia.
+    `postgres.<id projektu>`.
+    **Interfejs w chmurze** (faza 3, w budowie – ROADMAP, etapy): statyczna strona w katalogu `web/`, publikowana na
+    GitHub Pages (`.github/workflows/pages.yml`: z wydaniem i ręcznie). Zwykły JS (moduły ES) bez kroku budowania i bez
+    npm – jak lokalny panel, z którym dzieli `charts.js` i część `common.js`; Supabase Auth i funkcje SQL przez zwykły
+    `fetch` (bez supabase-js).
+    - **Adres projektu nie jest w kodzie** (repozytorium jest publiczne): strona dostaje go z linku
+      `…#url=<adres projektu>&key=<klucz publikowalny>` (`cloud web-link [--qr]`; fragment nie trafia do serwera) i
+      zapamiętuje w przeglądarce. Klucz publikowalny nie jest sekretem – chroni logowanie i `require_owner()` (zasada 4).
+    - **Sesja:** hasło → token `aal1` → kod TOTP (przy pierwszym logowaniu strona dodaje TOTP i pokazuje jego kod QR z
+      odpowiedzi Supabase) → token `aal2`; token odświeżania w `localStorage` do wylogowania, token dostępu tylko w pamięci
+      i odświeżany 5 min przed wygaśnięciem. Supabase wymienia token odświeżania przy każdym użyciu, więc karty
+      przeglądarki odświeżają pod wspólną blokadą (Web Locks) i zawsze ostatnim zapisanym tokenem. Ograniczenie: strony
+      `<konto>.github.io` jednego konta GitHub dzielą źródło (origin), a więc i `localStorage` – na tym koncie nie publikuje
+      się stron z obcym kodem (README).
+    - **Dane:** tylko `public.owner_*`; `owner_info` zwraca wersję schematu, więc strona nowsza niż baza mówi, której
+      migracji brakuje. Zapisy niosą `config_version` (kontrola współbieżności – druga karta nie nadpisze cudzej zmiany).
+      Zmiany protokołu agentów tylko przez dodawanie pól i funkcji, więc starsi agenci działają dalej. Odświeżanie co 60 s
+      (bez Realtime), czas lokalny przeglądarki.
+    - **Strona:** CSP w `<meta>` (GitHub Pages nie ustawia nagłówków) bez skryptów inline i z `connect-src` do Supabase,
+      wyjście z ramki w JS (brak `frame-ancestors` w `<meta>`; dopóki skrypt nie potwierdzi, że strona jest na wierzchu,
+      `app.css` jej nie pokazuje), dane wstawiane wyłącznie jako tekst, motyw jasny i ciemny (według systemu), układ pod
+      telefon, manifest PWA bez trybu offline; podgląd maili (etap 4) w izolowanej ramce `sandbox` z osobną stroną i własną
+      CSP. Pliki: `shell.js` (ramka, projekt z odnośnika, logowanie, TOTP, nagłówek, odświeżanie co 60 s przy widocznej
+      karcie), `supabase.js` (Auth i RPC), strony (`index.html` + `dashboard.js`), `format.js` – ten sam plik co w
+      lokalnym panelu. Testy (`OwnerWebTests`) pilnują CSP i braku kodu inline, braku wstawiania HTML, zgodności kopii
+      wspólnych plików z panelem i tego, że migracja wymagana przez stronę (`REQUIRED_MIGRATION`) definiuje każdą wołaną
+      funkcję `owner_*`. Funkcje strony sprawdzają testy SQL (`OwnerTests`) z żądaniami tokenu ustawionymi jak przez Data
+      API (`request.jwt.claims`): obce konto, brak `aal2` i rola `anon` – odmowa.
 11. **Lokalny panel diagnostyczny** (podgląd, odczyt i raport na żądanie, bez zmian konfiguracji). Kestrel w procesie `run`
     (projekt `Glebosaurus.Web`, tylko framework ASP.NET Core), włączany sekcją `web` (port domyślnie 8470). Warstwy: filtr
     adresów źródłowych (loopback + sieci prywatne albo `web.allowedNetworks`) przed wszystkim innym; HTTPS z certyfikatem z
@@ -364,7 +397,7 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
       Vault jako `glebosaurus:sensor:<id>`), `readings` (klucz `(sensor_id, at)`, temperatura w dziesiątych częściach, agent,
       numer kolejny i chwila przyjęcia), `sightings`, `leases` (wiersz zostaje po oddaniu, więc epoka tylko rośnie),
       `mail_outbox`, `alerts` (jeden otwarty na czujnik i rodzaj), `commands`, `agent_logs`, `environment` (znacznik bazy
-      próbnej) i `schema_migrations`.
+      próbnej), `owners` (właściciele strony w chmurze – faza 3) i `schema_migrations`.
     - **API agentów** – funkcje `public.*` `security definer` z pustym `search_path`, wykonywalne tylko przez `anon`:
       `enroll`, `get_config`, `agent_sync`, `lease_claim`, `lease_release`, `mail_claim`, `mail_sent`, `mail_abandon`,
       `mail_credentials`, `readings_range`, `readings_feed`, `alert_list`, `alert_open`, `alert_resolve`, `alert_notified`,
@@ -386,8 +419,14 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
     - **Dzienne logi agentów:** tabela zamiast Storage (Storage wymaga zalogowanego użytkownika albo klucza tajnego).
       Agent pakuje log gzipem (`log_put`, najwyżej 4 MB po spakowaniu), czyta go tylko obecny nadawca (`log_get`).
       Retencja `settings.log_retention_days`.
+    - **API strony właściciela** (faza 3, zasada 4) – funkcje `public.owner_*` `security definer` z pustym `search_path`,
+      wykonywalne tylko przez `authenticated`, każda zaczyna od `glebosaurus.require_owner()` (konto z
+      `glebosaurus.owners` i token z `aal2`, inaczej 42501 z powodem `mfa_required` albo `not_owner`): `owner_info`
+      (konto, czas bazy, lista migracji), `owner_dashboard` (czujniki z ostatnim odczytem i dzierżawcą, agenci z sygnałem
+      życia przez `agent_status_view`, nadawca). Tabela `owners` bez klucza obcego do `auth.users` (schemat Supabase; kopia
+      i testy od niego nie zależą) – usunięte konto i tak się nie zaloguje, a natychmiast odcina `cloud owner --remove`.
     - **Administracja** (`glebosaurus.admin_*`: agent i kod rejestracji, unieważnienie, czujnik, dane Tuya, sekrety poczty,
-      ustawienia) – tylko przez połączenie z bazą hasłem bazy (`Glebosaurus.Cloud.Admin`), nigdy przez Data API; klucz
+      ustawienia, właściciele strony) – tylko przez połączenie z bazą hasłem bazy (`Glebosaurus.Cloud.Admin`), nigdy przez Data API; klucz
       tajny `sb_secret_…` nie jest do niczego potrzebny. Migracje stosuje `MigrationRunner` (blokada doradcza, suma
       kontrolna).
     - **Czas:** wszystko liczy `glebosaurus.clock()` = `now()`; tylko w bazie ze znacznikiem próbnej testy przesuwają zegar
@@ -464,6 +503,11 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
         bez ponownej rejestracji (agent przejmuje ją przy najbliższej synchronizacji);
       - `cloud agent --name NAZWA --revoke` – odcięcie agenta: token przestaje działać od razu, niewykorzystane kody
         przepadają; dzierżawy wygasają same (czujniki po ok. 32 min, blokada nadawcy po ok. 7 min);
+      - `cloud owner [--email ADRES [--remove] --confirm]` (`CloudOwners`) – właściciele strony w chmurze: lista (czy konto
+        jest w Supabase Auth, czy ma TOTP), dodanie konta, które już jest w Auth (bez niego – instrukcja, jak je założyć),
+        odebranie dostępu;
+      - `cloud web-link [--page ADRES] [--qr PLIK]` (`OwnerWebLink`, bez połączenia z bazą) – odnośnik do strony z adresem
+        projektu i kluczem publikowalnym we fragmencie i jego kod QR;
       - `cloud backup` – kopia zapasowa (zasada 10).
     - **Pozostałe polecenia:** `pair` (zasada 5; klucz obok pliku konfiguracji chmury i gotowy wpis do niego), `mail-test`
       (próbny mail z konta z pliku konfiguracji chmury – sprawdza hasło aplikacji przed `cloud config`), `mail-preview`,

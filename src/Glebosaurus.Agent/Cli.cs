@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text;
 using Glebosaurus.Agent.Ble;
 using Glebosaurus.Core;
+using Glebosaurus.Core.Cloud;
 using Glebosaurus.Core.Config;
 using Glebosaurus.Core.Hosting;
 using Glebosaurus.Core.Mail;
@@ -19,7 +20,8 @@ internal sealed record CliOptions(
     string Command, int? Seconds, int Timeout, string? Credentials, string? Config, string? Output, bool Verbose, bool Quiet,
     int? Minutes, bool ConfirmBind, string? Id, string? Name, string? Mac, int? Linger, bool Samples, string? StopEvent,
     string? Code = null, string? Subcommand = null, string? Admin = null, bool Confirm = false, int? SenderPriority = null,
-    int? Keep = null, bool Revoke = false, int? ReadInterval = null, string? Qr = null, string? File = null)
+    int? Keep = null, bool Revoke = false, int? ReadInterval = null, string? Qr = null, string? File = null, string? Email = null,
+    bool Remove = false, string? Page = null)
 {
     /// <summary>Plik konfiguracji chmury (<c>--file</c>, domyślnie <see cref="CloudSetupLoader.DefaultFile"/> w bieżącym katalogu).</summary>
     public string SetupPath => Path.GetFullPath(File ?? CloudSetupLoader.DefaultFile);
@@ -73,6 +75,14 @@ internal static class Cli
           glebosaurus cloud agent --admin PLIK --name NAZWA --revoke [--confirm]
               Odcina agenta (zgubione urządzenie, wyciek tokenu): unieważnia token od razu i kasuje jego niewykorzystane
               kody rejestracji. Agent zostaje na liście; z powrotem – nowy kod (polecenie wyżej), enroll i restart agenta.
+          glebosaurus cloud owner --admin PLIK [--email ADRES [--remove] --confirm]
+              Właściciele strony w chmurze. Bez --email: lista (czy konto jest w Supabase Auth, czy ma TOTP). Z --email i
+              --confirm: dodaje właściciela – konto musi już być w Supabase Auth (panel Supabase: Authentication → Add
+              user); z --remove odbiera mu dostęp od razu. Strona wpuszcza tylko właściciela zalogowanego hasłem i kodem TOTP.
+          glebosaurus cloud web-link --admin PLIK [--page ADRES] [--qr PLIK.png]
+              Odnośnik do strony w chmurze z adresem projektu i kluczem publikowalnym (bez sekretów) i jego kod QR – w
+              konsoli albo z --qr w pliku PNG. Strona zapamiętuje projekt w przeglądarce. --page: inny adres strony
+              (domyślnie {OwnerWebLink.DefaultPage}). Nie łączy się z bazą.
           glebosaurus cloud backup --admin PLIK [--out KATALOG] [--keep N]
               Kopia zapasowa chmury teraz (darmowy plan Supabase jej nie robi): tabele i odszyfrowane sekrety z Vault w
               jednym pliku ZIP (domyślnie katalog backups/ obok pliku administratora), zostawia N najnowszych (domyślnie 14).
@@ -149,14 +159,14 @@ internal static class Cli
     {
         var hasCommand = args.Length > 0 && !args[0].StartsWith('-');
         var command = hasCommand ? args[0].ToLowerInvariant() : "help";
-        // „cloud migrate|config|settings|agent|backup” – polecenie z podpoleceniem.
+        // „cloud migrate|config|settings|agent|owner|web-link|backup” – polecenie z podpoleceniem.
         var subcommand = command == "cloud" && args.Length > 1 && !args[1].StartsWith('-') ? args[1].ToLowerInvariant() : null;
         int? seconds = null, minutes = null, linger = null;
         var timeout = 12;
         string? credentials = null, config = null, output = null, id = null, name = null, mac = null, stopEvent = null, code = null;
-        string? admin = null, qr = null, file = null;
+        string? admin = null, qr = null, file = null, email = null, page = null;
         int? senderPriority = null, keep = null, readInterval = null;
-        bool verbose = false, quiet = false, confirmBind = false, samples = false, confirm = false, revoke = false;
+        bool verbose = false, quiet = false, confirmBind = false, samples = false, confirm = false, revoke = false, remove = false;
         for (var i = (hasCommand ? 1 : 0) + (subcommand is null ? 0 : 1); i < args.Length; i++)
         {
             switch (args[i])
@@ -186,13 +196,16 @@ internal static class Cli
                 case "--keep": keep = Number(args, ++i, "--keep", 365); break;
                 case "--read-interval": readInterval = Number(args, ++i, "--read-interval", 1440); break;
                 case "--qr": qr = Value(args, ++i, "--qr"); break;
+                case "--email": email = Value(args, ++i, "--email"); break;
+                case "--remove": remove = true; break;
+                case "--page": page = Value(args, ++i, "--page"); break;
                 // Prywatny sygnał zatrzymania od usługi Windows (glebosaurus-service); nie dla ludzi, więc bez opisu w pomocy.
                 case "--stop-event": stopEvent = Value(args, ++i, "--stop-event"); break;
                 default: throw new ArgumentException($"Nieznany parametr {args[i]}. Użyj --help.");
             }
         }
         return new(command, seconds, timeout, credentials, config, output, verbose, quiet, minutes, confirmBind, id, name, mac, linger, samples, stopEvent, code,
-            subcommand, admin, confirm, senderPriority, keep, revoke, readInterval, qr, file);
+            subcommand, admin, confirm, senderPriority, keep, revoke, readInterval, qr, file, email, remove, page);
     }
 
     private static string Value(string[] args, int index, string flag) =>

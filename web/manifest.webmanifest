@@ -1,0 +1,14 @@
+{
+  "name": "Glebosaurus",
+  "short_name": "Glebosaurus",
+  "description": "Czujniki gleby: pulpit, alerty i konfiguracja w chmurze",
+  "lang": "pl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f3ee",
+  "theme_color": "#2b6a3c",
+  "icons": [
+    { "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

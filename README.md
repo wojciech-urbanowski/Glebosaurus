@@ -233,7 +233,7 @@ glebosaurus web-password --config glebosaurus.config.json  # hasło i certyfikat
 glebosaurus pair --id ID --file cloud-config.json --confirm-bind   # nowy czujnik (skan rusza pierwszy)
 glebosaurus mail-test --file cloud-config.json [--samples]          # PRAWDZIWY mail z konta z pliku konfiguracji chmury
 glebosaurus mail-preview --out mail-preview             # przykładowe maile (HTML i tekst) do obejrzenia, niczego nie wysyła
-glebosaurus cloud migrate|config|settings|agent|backup --admin cloud-admin.json …   # właściciel chmury
+glebosaurus cloud migrate|config|settings|agent|owner|web-link|backup --admin cloud-admin.json …   # właściciel chmury
 glebosaurus scan --seconds 15 --verbose                 # diagnostyka: urządzenia Tuya w zasięgu, z mocą sygnału
 glebosaurus read --credentials monstera.credentials.json             # diagnostyka: jednorazowy odczyt jednego czujnika
 glebosaurus listen --credentials monstera.credentials.json --out listen.log  # diagnostyka: wszystkie ramki czujnika
@@ -285,6 +285,33 @@ konfiguracji i usuwa starsze niż `logs.retentionDays`. Wczorajszy dziennik każ
 wysyła pod `mail.adminRecipients` osobny mail z dziennika każdego agenta: streszczenie (liczba wpisów, ostatnie ostrzeżenia i
 błędy) i pełny dziennik jako załącznik `.log`. Dziennik nie zawiera kluczy czujników ani hasła Gmaila. Agent, który nie
 synchronizuje się z chmurą dłużej niż 30 min, daje mail „agent milczy”.
+
+## Strona w chmurze (faza 3, w budowie)
+
+Strona właściciela na GitHub Pages (`https://wojciech-urbanowski.github.io/Glebosaurus/`, katalog [web/](web/)) czyta
+chmurę wprost – bez komputera z agentem i spoza sieci domowej. Dziś: **pulpit** (czujniki z ostatnim odczytem i agentem,
+który je czyta, agenci z ostatnim sygnałem życia, obecny nadawca). Kolejne etapy – edytor konfiguracji (zastąpi plik
+konfiguracji chmury), wykresy, alerty, historia maili i parowanie zdalne – [docs/ROADMAP.md](docs/ROADMAP.md), faza 3.
+
+Strona nie ma w kodzie adresu Twojego projektu (repozytorium jest publiczne) – dostaje go z odnośnika. Logowanie: e-mail,
+hasło i kod TOTP z aplikacji uwierzytelniającej; dane dostaje tylko konto dodane jako właściciel. Włączenie (raz):
+
+1. Migracje: `glebosaurus cloud migrate --admin cloud-admin.json --confirm`.
+2. Panel Supabase → **Authentication**:
+   - Sign In / Providers → wyłącz „Allow new users to sign up” (konta zakłada tylko właściciel);
+   - Users → **Add user** → Create new user: Twój e-mail i mocne hasło, zaznacz „Auto Confirm User”;
+   - URL Configuration → **Site URL**: adres strony (wypisze go `cloud web-link`).
+3. Właściciel: `glebosaurus cloud owner --admin cloud-admin.json --email TWÓJ@ADRES --confirm` (lista – bez `--email`;
+   odebranie dostępu – `--remove`).
+4. Odnośnik: `glebosaurus cloud web-link --admin cloud-admin.json` – otwórz go w przeglądarce (albo zeskanuj kod QR
+   telefonem; `--qr plik.png` zapisuje kod do pliku). Strona zapamięta projekt; odnośnik nie zawiera sekretów.
+5. Pierwsze logowanie: hasło, potem strona pokaże kod QR do aplikacji uwierzytelniającej (Aegis, Google Authenticator,
+   1Password…) i poprosi o kod z niej. Kolejne logowania – hasło i kod.
+
+Sesja zostaje w przeglądarce do wylogowania („Wyloguj” – na cudzym komputerze zawsze). Strona na `github.io` dzieli
+pamięć przeglądarki z innymi stronami GitHub Pages tego samego konta – nie publikuj tam stron z obcym kodem. Własna kopia
+repozytorium (fork) publikuje stronę pod swoim adresem: Settings → Pages → Source „GitHub Actions”, workflow „Strona w
+chmurze” (z każdym wydaniem albo ręcznie), a odnośnik – `cloud web-link --page https://<konto>.github.io/<repozytorium>/`.
 
 ## Panel WWW (diagnostyka w przeglądarce)
 

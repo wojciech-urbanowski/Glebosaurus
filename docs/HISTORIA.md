@@ -98,6 +98,11 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
 
 ### Czeka na użytkownika
 
+- **Strona w chmurze (faza 3, etap 1)** – na próbnym projekcie, potem na prawdziwym (migracja tylko na prośbę): w panelu
+  Supabase wyłączyć zakładanie kont, dodać swoje konto (Add user), Site URL; na GitHubie Pages ze źródłem „GitHub
+  Actions” i uruchomienie workflow „Strona w chmurze”; `cloud owner --email … --confirm`, odnośnik z `cloud web-link`,
+  pierwsze logowanie z dodaniem TOTP (README, „Strona w chmurze”).
+
 - Obejrzeć na telefonie: pierwszy prawdziwy raport z wykresem (2026-11-16, 19:00), log administratora, nowy mail „agent
   milczy” (w `mail-preview`).
 - Obejrzeć pierwsze maile z trybu chmurowego (2026-11-18 18:09: alert „słaba bateria” Cypryska i log administratora –
@@ -241,6 +246,19 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   (`adb install -r` w przerwie między nasłuchami, ostatnie połączenie z czujnikiem zamknięte o 14:43): agent wstał sam po
   `MY_PACKAGE_REPLACED` z tą samą rejestracją, wziął konfigurację i kopię odczytów, nasłuchy idą co 4–5 min. Jak sprawdzić
   efekt – niżej, „Rzadsze odpytywanie – jak sprawdzić”.
+- **2026-11-21** – **faza 3** (interfejs w chmurze): decyzje użytkownika (12, wszystkie zalecane) – kolejność etapów
+  (szkielet, 3c, 3a, 3b, 3d; 3e w każdym), zwykły JS bez budowania, dane tylko przez `public.owner_*` dla zalogowanego
+  właściciela z TOTP, GitHub Pages z adresem projektu z odnośnika, plik konfiguracji chmury do usunięcia po sprawdzeniu
+  edytora, alerty z potwierdzeniem i wyciszeniami, historia maili 90 dni, pełne zarządzanie agentami, parowanie zdalne
+  w tej fazie (ROADMAP, faza 3 i „Rozstrzygnięte”). **Etap 1 w kodzie:** migracja `20261121120000_owner_web` (tabela
+  `owners`, `require_owner()`, `owner_info`, `owner_dashboard`, `admin_owner_*`), `cloud owner` i `cloud web-link`, strona
+  `web/` (połączenie z odnośnika, logowanie hasłem i TOTP z dodaniem TOTP przy pierwszym logowaniu, odświeżanie sesji
+  pod blokadą kart, wylogowanie, pulpit, motyw ciemny, telefon), `pages.yml`; `format.js` wydzielony z lokalnego panelu
+  jako plik wspólny. Testy SQL na próbnym projekcie zielone (78, w tym odmowa dla obcego konta, bez `aal2` i dla `anon`,
+  dodanie właściciela z kontem w `auth.users` w wycofywanej transakcji); strona przeklikana na atrapie Supabase na
+  loopbacku (zły i dobry e-mail/hasło, dodanie TOTP z kodem QR, zły i dobry kod, pulpit, sesja po przeładowaniu,
+  wylogowanie, 375 px bez przewijania w bok, motyw ciemny; nazwa czujnika z `<b>` pokazana jako tekst). Na żywo ○ –
+  czeka na kroki użytkownika (niżej, „Czeka na użytkownika”).
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 
