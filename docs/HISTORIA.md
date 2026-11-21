@@ -343,7 +343,8 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   (załadować go tam nie można: „access to library "safeupdate" is not allowed”). Poprawka: migracja
   `20261121230000_safe_update` (te same funkcje z `where id`, także dwie `admin_*`), test statyczny `SqlSafeUpdateTests`
   (bez migracji wskazuje dokładnie te 8 funkcji), `REQUIRED_MIGRATION` strony podbite. Testy SQL 177 zielone na
-  próbnym projekcie. Agenci 0.2.7 nie byli dotknięci (ich funkcje nie zmieniają czujników ani ustawień).
+  próbnym projekcie. Agenci 0.2.7 nie byli dotknięci (ich funkcje nie zmieniają czujników ani ustawień). Migracja na
+  prawdziwym projekcie na prośbę użytkownika (12:29); agenci synchronizują się dalej.
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 
