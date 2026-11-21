@@ -9,7 +9,7 @@ import { CloudError } from './supabase.js';
 import { qrSvg, enrollmentLink } from './qr.js';
 import { command, describe, follow } from './commands.js';
 import {
-  button, checkbox, confirmBox, field, form, input, listValue, note, numberInput, numberValue, select, submitButton
+  button, checkbox, confirmBox, field, form, input, listValue, note, numberInput, numberValue, PLATFORMS, select, submitButton
 } from './ui.js';
 
 const MAX_KEY_FILE = 16 * 1024;
@@ -560,7 +560,7 @@ function agentCard(agent, flash) {
     ['Rola', agent.canSendMail ? `zbiera i wysyła maile (priorytet ${agent.senderPriority})` : 'tylko zbiera odczyty'],
     ['Ostatnio', agent.lastSeenAt ? stamp(agent.lastSeenAt) : 'jeszcze nigdy'],
     ['Zarejestrowany', agent.enrolledAt ? when(agent.enrolledAt) : null],
-    ['Program', agent.status ? [agent.status.platform, agent.status.version].filter(Boolean).join(' ') : null]
+    ['Program', agent.status ? [PLATFORMS[agent.status.platform] || agent.status.platform, agent.status.version].filter(Boolean).join(' ') : null]
   ]));
   if (flash && flash.key === key && flash.code) card.append(codePanel(flash.code, agent.name));
 

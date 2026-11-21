@@ -326,8 +326,10 @@ internal static class CloudAdminCommands
             Console.WriteLine("Kod QR (telefon: aparat albo skaner kodów; jeśli nie czyta z ekranu: --qr plik.png):");
             Console.WriteLine(EnrollmentQr.Text(link.ToUri()));
         }
-        Console.WriteLine("Logowanie: konto Supabase Auth dodane poleceniem cloud owner. W panelu Supabase (Authentication → URL Configuration) " +
-                          $"ustaw Site URL na {link.Page.GetLeftPart(UriPartial.Path)}.");
+        Console.WriteLine("Logowanie: konto z panelu Supabase (Authentication → Users → Add user); TOTP dodaje strona przy pierwszym " +
+                          "logowaniu, a właścicielem czyni konto dopiero cloud owner --email ADRES --confirm.");
+        if (link.Page.Scheme == Uri.UriSchemeHttps)
+            Console.WriteLine($"W panelu Supabase (Authentication → URL Configuration) ustaw Site URL na {link.Page.GetLeftPart(UriPartial.Path)}.");
         return ExitCodes.Success;
     }
 

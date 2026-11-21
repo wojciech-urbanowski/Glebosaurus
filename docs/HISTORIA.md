@@ -98,10 +98,14 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
 
 ### Czeka na użytkownika
 
-- **Strona w chmurze (faza 3, etapy 1–5 w kodzie)** – na próbnym projekcie, potem na prawdziwym (migracje tylko na prośbę):
-  w panelu Supabase wyłączyć zakładanie kont, dodać swoje konto (Add user), Site URL; na GitHubie Pages ze źródłem „GitHub
-  Actions” i uruchomienie workflow „Strona w chmurze”; `cloud owner --email … --confirm`, odnośnik z `cloud web-link`,
-  pierwsze logowanie z dodaniem TOTP (README, „Strona w chmurze”). Potem: zdecydować o wydaniu (nadawca z `mail_test`, wyciszeniami i archiwum maili,
+- **Strona w chmurze (faza 3, etapy 1–5 w kodzie, strony przeklikane na funkcjach SQL próbnego projektu)** – najpierw
+  próbny projekt, bez GitHub Pages: w jego panelu Supabase wyłączyć zakładanie kont (dziś włączone) i dodać swoje konto
+  (Add user, Auto Confirm); strona z tego komputera (`dotnet run tools/web-preview.cs -- static`, odnośnik
+  `cloud web-link --admin local/cloud-admin.test.json --page http://127.0.0.1:8473/`), logowanie z dodaniem TOTP, potem
+  `cloud owner --email … --confirm` na próbnym (może Claude). `seed` i testy SQL czyszczą próbny projekt razem z listą
+  właścicieli – konto w Auth zostaje, wystarczy znów `cloud owner`. Potem prawdziwy projekt (migracje tylko na prośbę):
+  to samo w jego panelu plus Site URL; na GitHubie Pages ze źródłem „GitHub Actions” i workflow „Strona w chmurze”
+  (README, „Strona w chmurze”). Potem: zdecydować o wydaniu (nadawca z `mail_test`, wyciszeniami i archiwum maili,
   parowanie zdalne na Windows – wersja do podbicia), sprawdzić `pair` na sprzęcie po przeniesieniu kroków BLE do
   `ShinySensorPairer` i parowanie zdalne przy czujniku; po sprawdzeniu edytora na żywo – zgoda na usunięcie pliku
   konfiguracji chmury i `cloud config --file`.
@@ -299,6 +303,18 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   wysłanych maili z limitami długości i limitem rozpakowania w przeglądarce, pytanie przed przełączeniem projektu z
   odnośnika, odświeżanie sesji raz na kartę i bez wylogowania przy 429, klasa `html` nie koliduje już ze stylem `.top`.
   Testy SQL 177 i jednostkowe zielone; zmiany strony sprawdzone na atrapie.
+  **Podgląd na prawdziwych funkcjach SQL** (`tools/web-preview.cs` zamiast atrapy w Pythonie): `seed` wgrywa na próbny
+  projekt dane pokazowe (5 czujników, 3 agentów, 2 tygodnie odczytów co godzinę, 4 alerty, 9 maili w archiwum z szablonów
+  `MailSamples`), `serve` udaje tylko Supabase Auth, a funkcje `owner_*` woła w bazie jak PostgREST (rola `authenticated`
+  z żądaniami tokenu, dopasowanie po nazwach argumentów, transakcja tylko do odczytu dla `STABLE`, kody HTTP błędów).
+  Przeklikane: logowanie z kodem i z dodaniem TOTP, pulpit z wykresami 3 dób, strona czujnika (7 dni, odczyty, kto
+  słyszy), alerty (potwierdzenie, wyciszenie czujnika na 3 dni), podgląd maila z archiwum, edytor (odbiorcy, próg
+  czujnika, konflikt wersji z drugiej karty, nowy agent z kodem i QR), odczyt na żądanie (czeka na agenta), 375 px bez
+  przewijania w bok – bez niezgodności strony z funkcjami SQL. Poprawione: pulpit nie powtarza otwartego alertu drugą
+  etykietą („Słaba bateria” i „słaba bateria”), system agenta w edytorze nazwany jak na pulpicie, komunikat
+  `cloud web-link` (konto zakłada się w panelu Supabase; Site URL tylko dla strony https). Tryb `static` serwuje samo
+  `web/` na 127.0.0.1:8473 – prawdziwe logowanie na próbnym projekcie bez GitHub Pages (Supabase odpowiada na CORS `*`;
+  sprawdzone zapytaniem wstępnym dla Auth i RPC). Na próbnym projekcie zakładanie kont jest jeszcze włączone.
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 

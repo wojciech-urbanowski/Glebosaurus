@@ -28,6 +28,10 @@ jobs:
       - name: Testy
         run: dotnet test --solution Glebosaurus.slnx -c Release --no-build
 
+      # Podgląd strony w chmurze na próbnej bazie (poza slnx) – tylko kompilacja, żeby nie rozjechał się z kodem.
+      - name: Narzędzie podglądu strony się buduje
+        run: dotnet build tools/web-preview.cs
+
       - name: Skrypty PowerShell się parsują (Windows PowerShell 5.1)
         shell: powershell
         run: |

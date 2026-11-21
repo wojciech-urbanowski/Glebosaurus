@@ -18,6 +18,7 @@ dotnet run --project src/Glebosaurus.Agent -f net10.0-windows10.0.19041.0 -- --h
 # Agent: plik z sekcją "cloud" (wzór examples/glebosaurus.config.json), potem enroll --code KOD i run
 # Właściciel: cloud migrate|config|settings|agent|owner|backup --admin local/cloud-admin.test.json (bez --confirm tylko plan; prawdziwy projekt – tylko na prośbę)
 # Strona w chmurze: cloud owner --email ADRES --confirm (konto musi być w Supabase Auth), cloud web-link [--qr PLIK] (odnośnik z adresem projektu)
+dotnet run tools/web-preview.cs -- seed|serve   # podgląd web/ na funkcjach SQL PRÓBNEGO projektu (seed czyści go; wlasciciel@example.com / podglad / 123456)
 # cloud config --file PLIK – plik konfiguracji chmury (wzór examples/cloud-config.json: czujniki, progi, raporty, poczta)
 # cloud settings --read-interval MIN – sam odstęp odczytów w chmurze (admin_settings_update), bez pełnego pliku
 # Kopia chmury: cloud backup --admin local/cloud-admin.test.json --out <scratchpad> (tylko czyta bazę; plik ZIP z odszyfrowanymi sekretami)
@@ -92,8 +93,9 @@ bash deploy/test-install-linux.sh STARA NOWA [--systemd]   # próba install-linu
   `charts.js` – też kopia pliku panelu. `vendor/qrcode.js` – qrcode-generator 2.0.4 bez zmian (suma w teście).
   Adres projektu z odnośnika `cloud web-link` (nie w repozytorium). `format.js`, `charts.js` i `favicon.svg` to kopie plików lokalnego
   panelu – zmiany w obu (pilnuje `OwnerWebTests`); nowa funkcja `owner_*` = podbicie `REQUIRED_MIGRATION` w `shell.js`.
-  Podgląd: atrapa Supabase w Pythonie w scratchpadzie (serwuje `web/` i udaje Auth i RPC) na loopbacku – prawdziwego
-  logowania (hasło, TOTP) Claude nie wykonuje.
+  Podgląd: `tools/web-preview.cs` (`seed` – dane pokazowe na próbnym projekcie, `serve` – http://127.0.0.1:8472 z
+  udawanym Auth i prawdziwymi funkcjami `owner_*` próbnej bazy, jak w PostgREST) – prawdziwego logowania (hasło, TOTP)
+  Claude nie wykonuje.
 - `supabase/migrations/` – schemat i funkcje SQL chmury (ARCHITEKTURA.md, zasada 13): tabele w prywatnym schemacie
   `glebosaurus` z RLS, agenci wołają tylko funkcje `public.*` (rola `anon`), administracja (`glebosaurus.admin_*`) tylko
   przez połączenie z bazą. **Zastosowanej migracji nie zmieniaj** – zmiana schematu to nowa migracja (suma kontrolna).

@@ -6,13 +6,12 @@ import { h, ago, when, now, percent, celsius, dbm, plural, badge, kv, syncClock,
 import { TimeChart } from './charts.js';
 import { start } from './shell.js';
 import { command, describe, follow } from './commands.js';
-import { button, confirmBox, note } from './ui.js';
+import { button, confirmBox, note, PLATFORMS } from './ui.js';
 
 const STALE_HOURS = 6;
 const CHART_SPAN = 72 * 3600e3;
 const CHART_REFRESH_MS = 10 * 60e3;
 const ALERT_TEXT = { NeedsWater: 'Do podlania', LowBattery: 'Słaba bateria', SensorSilent: 'Brak odczytów' };
-const PLATFORMS = { windows: 'Windows', android: 'Android', linux: 'Linux' };
 const NETWORKS = { wifi: 'Wi-Fi', cellular: 'sieć komórkowa', ethernet: 'Ethernet', other: 'inna sieć' };
 const ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -130,12 +129,17 @@ function sensorCard(sensor) {
   name.href = sensorUrl(sensor.id);
   card.append(name);
   const badges = h('div', 'badges');
-  for (const alert of sensorAlerts(sensor)) badges.append(badge(ALERT_TEXT[alert.kind] || alert.kind, 'red'));
+  const alerts = sensorAlerts(sensor);
+  for (const alert of alerts) badges.append(badge(ALERT_TEXT[alert.kind] || alert.kind, 'red'));
   if (!sensor.enabled) badges.append(badge('wyłączony', 'grey'));
   if (sensor.alertsMutedUntil) badges.append(badge(`alerty wyciszone do ${when(sensor.alertsMutedUntil)}`, 'grey'));
+  // Ostrzeżenia z ostatniego odczytu – tylko gdy nie mówi tego już otwarty alert (czerwona etykieta wyżej).
+  const alerted = new Set(alerts.map((a) => a.kind));
   const last = sensor.last;
-  if (last && last.battery !== null && last.battery !== undefined && last.battery <= sensor.lowBatteryPercent) badges.append(badge('słaba bateria', 'amber'));
-  if (last && hoursSince(last.at) > STALE_HOURS) badges.append(badge('dawno bez odczytu', 'amber'));
+  if (last && last.battery !== null && last.battery !== undefined && last.battery <= sensor.lowBatteryPercent && !alerted.has('LowBattery')) {
+    badges.append(badge('słaba bateria', 'amber'));
+  }
+  if (last && hoursSince(last.at) > STALE_HOURS && !alerted.has('SensorSilent')) badges.append(badge('dawno bez odczytu', 'amber'));
   if (badges.childElementCount > 0) card.append(badges);
 
   if (last) {

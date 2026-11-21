@@ -319,9 +319,12 @@ chmurę wprost – bez komputera z agentem i spoza sieci domowej. Dziś:
   czujników, adres strażnika) strona tylko zapisuje – nigdy ich nie pokazuje. Każdy zapis sprawdza, czy nikt nie zmienił
   konfiguracji w międzyczasie (np. w drugiej karcie), i wtedy prosi o odświeżenie zamiast nadpisać. Agenci przejmują
   zmiany sami przy najbliższej synchronizacji.
+- **Parowanie zdalne** nowego czujnika przez agenta na Windows w jego zasięgu – wyżej, „Nowy czujnik: parowanie zdalne ze
+  strony w chmurze”.
 
-Kolejny etap – parowanie zdalne – [docs/ROADMAP.md](docs/ROADMAP.md), faza 3. Plik
-konfiguracji chmury i `cloud config` działają do czasu sprawdzenia edytora na żywo, potem znikną.
+Plik konfiguracji chmury i `cloud config` działają do czasu sprawdzenia edytora na żywo, potem znikną. Funkcje agenta
+(próbny mail, wyciszenia i potwierdzenia alertów w mailach, archiwum maili, parowanie zdalne) działają od wydania
+następnego po 0.2.7 – do tego czasu strona je pokazuje, ale agenci ich nie wykonują.
 
 Strona nie ma w kodzie adresu Twojego projektu (repozytorium jest publiczne) – dostaje go z odnośnika. Logowanie: e-mail,
 hasło i kod TOTP z aplikacji uwierzytelniającej; dane dostaje tylko konto dodane jako właściciel. Włączenie (raz):

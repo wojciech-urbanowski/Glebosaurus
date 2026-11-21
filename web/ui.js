@@ -3,6 +3,9 @@
 
 import { h } from './format.js';
 
+/** Nazwy systemów agentów (pole platform sygnału życia). */
+export const PLATFORMS = { windows: 'Windows', android: 'Android', linux: 'Linux' };
+
 let fieldCounter = 0;
 
 export function errorBox(text) {
