@@ -13,7 +13,9 @@
 //       pliki web/ prosto z repozytorium (bez pamięci podręcznej), udawane Supabase Auth (wlasciciel@example.com, hasło
 //       „podglad”, kod TOTP 123456; --no-totp – konto bez TOTP, czyli dodanie TOTP przy logowaniu), a /rest/v1/rpc/* –
 //       funkcje public.* w bazie jak w PostgREST: rola authenticated z żądaniami tokenu (aal z logowania), dopasowanie po
-//       nazwach argumentów, transakcja tylko do odczytu dla funkcji STABLE, kody HTTP błędów jak w PostgREST.
+//       nazwach argumentów, transakcja tylko do odczytu dla funkcji STABLE, kody HTTP błędów jak w PostgREST. Różnica:
+//       bez pg_safeupdate (Data API Supabase odrzuca UPDATE/DELETE bez WHERE; tu nie da się go załadować – regułę
+//       pilnuje test SqlSafeUpdateTests).
 //   dotnet run tools/web-preview.cs -- static  [--port 8473]
 //       same pliki web/ na loopbacku – do prawdziwego logowania (Supabase Auth, TOTP) bez GitHub Pages; odnośnik:
 //       glebosaurus cloud web-link --admin local/cloud-admin.test.json --page http://127.0.0.1:8473/

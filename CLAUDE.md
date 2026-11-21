@@ -100,6 +100,9 @@ bash deploy/test-install-linux.sh STARA NOWA [--systemd]   # próba install-linu
   `glebosaurus` z RLS, agenci wołają tylko funkcje `public.*` (rola `anon`), administracja (`glebosaurus.admin_*`) tylko
   przez połączenie z bazą. **Zastosowanej migracji nie zmieniaj** – zmiana schematu to nowa migracja (suma kontrolna).
   Zmiana funkcji SQL = zmiana typów protokołu i testów `CloudProtocolTests`/`CloudApiClientTests`.
+  Data API Supabase ładuje `pg_safeupdate` (rola `authenticator`): każde UPDATE/DELETE w funkcjach (także w wyzwalaczach)
+  musi mieć WHERE – `settings` ma jeden wiersz, więc `where id` (pilnuje `SqlSafeUpdateTests`; testy SQL łączą się wprost
+  i tego błędu nie zobaczą).
 - `src/Glebosaurus.Android` – agent na Androida (ARCHITEKTURA.md, zasada 12), **poza `Glebosaurus.slnx`** (obciążenie
   `android`; narzędzia bez administratora w jednym katalogu poza repozytorium – dotnet z obciążeniem, jdk, android-sdk z
   adb; ścieżka w pamięci Claude). Tylko zbieracz: `AgentHost` składa `CloudRuntime` bez nadawcy (`notifier: null`,

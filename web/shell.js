@@ -8,7 +8,7 @@ import { errorBox, field, form, input, submitButton } from './ui.js';
 import { qrSvg } from './qr.js';
 
 /** Migracja, której potrzebuje ta wersja strony (najnowsza używana funkcja owner_*). */
-export const REQUIRED_MIGRATION = '20261121220000';
+export const REQUIRED_MIGRATION = '20261121230000';
 
 const PAGES = [
   ['index.html', 'Pulpit'],

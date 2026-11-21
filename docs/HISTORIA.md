@@ -335,6 +335,15 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   do `20261121220000_owner_hardening` zastosowanych, schemat aktualny. Agenci 0.2.7 (bestia5, rasp3, mi11) synchronizują
   się dalej bez błędów (sprawdzone w ciągu kilku minut po migracji). Potem użytkownik: zakładanie kont wyłączone, konto właściciela,
   pierwsze logowanie z dodaniem TOTP na stronie z GitHub Pages (Firefox); `cloud owner` na prawdziwym projekcie (12:06).
+  **Błąd na prawdziwej stronie:** „Wycisz czujnik → 3 dni” kończył się komunikatem „UPDATE requires a WHERE clause”.
+  Supabase ładuje dla roli `authenticator` (Data API) rozszerzenie `pg_safeupdate`, które odrzuca UPDATE/DELETE bez WHERE
+  także wewnątrz funkcji; wyzwalacz `config_changed` (każda zmiana czujnika) i pięć funkcji strony i agenta
+  (`owner_settings_update`, `owner_sensor_add`, `owner_sensor_credentials`, `owner_alerts_mute`, `pair_complete`)
+  zmieniały jedyny wiersz `settings` bez WHERE. Testy SQL i podgląd łączą się z bazą wprost – bez tego rozszerzenia
+  (załadować go tam nie można: „access to library "safeupdate" is not allowed”). Poprawka: migracja
+  `20261121230000_safe_update` (te same funkcje z `where id`, także dwie `admin_*`), test statyczny `SqlSafeUpdateTests`
+  (bez migracji wskazuje dokładnie te 8 funkcji), `REQUIRED_MIGRATION` strony podbite. Testy SQL 177 zielone na
+  próbnym projekcie. Agenci 0.2.7 nie byli dotknięci (ich funkcje nie zmieniają czujników ani ustawień).
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 
