@@ -402,6 +402,9 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   o 14:07:26 „Sparowano czujnik wiszacy_szafka (DC:23:51:CB:F7:7D) – czujnik dodany w chmurze” – skan, klucz w Vault przed
   wysłaniem, przypisanie, weryfikacja odczytem i `pair_complete` w ok. 75 s. **Parowanie zdalne działa na sprzęcie**
   (kryterium fazy 3: dodanie czujnika z przeglądarki); te same kroki BLE ma `pair` z wiersza poleceń.
+  **rasp3 na 0.2.8** – pierwsza samoaktualizacja Raspberry Pi z prawdziwego wydania (użytkownik uruchomił
+  `systemctl start glebosaurus-update.service`; sygnał życia z wersją 0.2.8 o 14:12). Agenci: bestia5 i rasp3 – 0.2.8,
+  mi11 – 0.2.7 (nowości 0.2.8 są dla nadawcy i zbieracza na Windows).
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 
