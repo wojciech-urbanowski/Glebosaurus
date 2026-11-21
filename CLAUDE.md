@@ -85,7 +85,9 @@ bash deploy/test-install-linux.sh STARA NOWA [--systemd]   # próba install-linu
   `shell.js`), dane tylko z funkcji `public.owner_*` (rola `authenticated`, `require_owner()`: konto z `owners` + `aal2`).
   Strony: pulpit (`dashboard.js`), czujnik (`sensor.js`; wykresy z `owner_series` – uśrednianie w SQL jak
   `ReadingSeriesBuilder`, pilnuje `SeriesContractTests`), edytor konfiguracji (`config.js`; zapisy z `config_version`,
-  walidacja jak `CloudSetupLoader` – `ConfigContractTests`). `charts.js` – też kopia pliku panelu. `vendor/qrcode.js` – qrcode-generator 2.0.4 bez zmian (suma w teście).
+  walidacja jak `CloudSetupLoader` – `ConfigContractTests`), alerty (`alerts.js`: potwierdzenie, zamknięcie, wyciszenia,
+  historia maili) i podgląd maila (`mail.html` – jedyna strona z `style-src 'unsafe-inline'`, treść w ramce `sandbox`).
+  `charts.js` – też kopia pliku panelu. `vendor/qrcode.js` – qrcode-generator 2.0.4 bez zmian (suma w teście).
   Adres projektu z odnośnika `cloud web-link` (nie w repozytorium). `format.js`, `charts.js` i `favicon.svg` to kopie plików lokalnego
   panelu – zmiany w obu (pilnuje `OwnerWebTests`); nowa funkcja `owner_*` = podbicie `REQUIRED_MIGRATION` w `shell.js`.
   Podgląd: atrapa Supabase w Pythonie w scratchpadzie (serwuje `web/` i udaje Auth i RPC) na loopbacku – prawdziwego

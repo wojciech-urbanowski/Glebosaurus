@@ -297,6 +297,10 @@ chmurę wprost – bez komputera z agentem i spoza sieci domowej. Dziś:
 - **Strona czujnika** – stan teraz, przeglądalny wykres całej historii (3 doby … całość, przeciąganie, Ctrl + kółko, dwa
   palce, pasek przeglądu – jak w lokalnym panelu), otwarte alerty, ostatnie odczyty, kto czujnik czyta i słyszy (sygnał
   u każdego agenta), ustawienia z odnośnikiem do konfiguracji.
+- **Alerty** – otwarte alerty: **potwierdzenie** (koniec przypomnień – alert zamknie się sam, gdy stan minie),
+  **ręczne zamknięcie** (gdy stan trwa, nadawca otworzy nowy alert z mailem), **wyciszenie czujnika** do wybranej chwili;
+  **urlop** – wyciszenie wszystkich alertów mailowych (raporty idą dalej, z notką o wyciszeniu); zamknięte alerty z 30 dni
+  i **historia maili** (raporty, alerty, próbne – 90 dni) z podglądem treści w izolowanej ramce.
 - **Konfiguracja** – odczyty i raporty (strefa, odstęp, pory, przypomnienia, retencja dzienników), poczta (konto Gmail,
   odbiorcy, hasło aplikacji i **próbny mail** przez obecnego nadawcę), czujniki (dodanie z pliku klucza z `pair`, progi,
   nowy klucz po resecie, archiwum zamiast usuwania – historia zostaje), agenci (nowy z kodem rejestracji i kodem QR dla
@@ -305,8 +309,7 @@ chmurę wprost – bez komputera z agentem i spoza sieci domowej. Dziś:
   konfiguracji w międzyczasie (np. w drugiej karcie), i wtedy prosi o odświeżenie zamiast nadpisać. Agenci przejmują
   zmiany sami przy najbliższej synchronizacji.
 
-Kolejne etapy – potwierdzanie i wyciszanie alertów, historia maili i parowanie zdalne – [docs/ROADMAP.md](docs/ROADMAP.md),
-faza 3. Plik
+Kolejny etap – parowanie zdalne – [docs/ROADMAP.md](docs/ROADMAP.md), faza 3. Plik
 konfiguracji chmury i `cloud config` działają do czasu sprawdzenia edytora na żywo, potem znikną.
 
 Strona nie ma w kodzie adresu Twojego projektu (repozytorium jest publiczne) – dostaje go z odnośnika. Logowanie: e-mail,

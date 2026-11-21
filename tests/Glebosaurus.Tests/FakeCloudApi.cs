@@ -212,6 +212,19 @@ internal sealed class FakeCloudApi(ManualTimeProvider clock) : ICloudApi
         Logs.Add((day, gzipContent));
         return Task.FromResult(new LogPutResult(day, gzipContent.Length));
     }
+    public List<(IReadOnlyList<string> Keys, string Subject, IReadOnlyList<string> Recipients, byte[] HtmlGzip)> Archive { get; } = [];
+    public Queue<CloudApiException> ArchiveFailures { get; } = new();
+
+    public Task<bool> MailArchivePutAsync(long epoch, IReadOnlyList<string> keys, string subject, IReadOnlyList<string> recipients,
+        byte[] htmlGzip, CancellationToken cancellationToken)
+    {
+        RequireNotifier(epoch, "mail_archive_put");
+        if (ArchiveFailures.TryDequeue(out var failure)) throw failure;
+        if (Archive.Any(a => a.Keys[0] == keys[0])) return Task.FromResult(false);
+        Archive.Add((keys, subject, recipients, htmlGzip));
+        return Task.FromResult(true);
+    }
+
     public Task<IReadOnlyList<AgentLog>> LogGetAsync(long epoch, DateOnly day, CancellationToken cancellationToken)
     {
         RequireNotifier(epoch, "log_get");

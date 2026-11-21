@@ -442,12 +442,13 @@ internal static class Cli
     {
         var directory = Path.GetFullPath(options.Output ?? "mail-preview");
         Directory.CreateDirectory(directory);
-        string[] names = ["probna", "alert", "raport", "log", "raport-20", "agent-milczy"];
+        string[] names = ["probna", "alert", "raport", "log", "raport-20", "agent-milczy", "raport-wyciszenie"];
         var now = DateTimeOffset.UtcNow;
         var messages = MailSamples.Build(["ktos@example.com"], "Podgląd", now, TimeZoneInfo.Local)
             .Append(MailSamples.AdminLog(["admin@example.com"], "Podgląd", now, TimeZoneInfo.Local))
             .Append(MailSamples.LargeReport(["ktos@example.com"], "Podgląd", now, TimeZoneInfo.Local))
-            .Append(MailSamples.AgentSilent(["admin@example.com"], "Podgląd", now, TimeZoneInfo.Local)).ToList();
+            .Append(MailSamples.AgentSilent(["admin@example.com"], "Podgląd", now, TimeZoneInfo.Local))
+            .Append(MailSamples.MutedReport(["ktos@example.com"], "Podgląd", now, TimeZoneInfo.Local)).ToList();
         for (var i = 0; i < messages.Count; i++)
         {
             foreach (var attachment in messages[i].Attachments ?? [])

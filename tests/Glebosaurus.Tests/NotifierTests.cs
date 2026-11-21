@@ -122,6 +122,87 @@ public sealed class NotifierTests
         Assert.Contains(api.Outbox.Keys, k => k.EndsWith("|1", StringComparison.Ordinal));
     }
 
+    private List<MailMessage> AlertMails() => [.. mail.Sent.Where(m => !m.Subject.Contains("raport", StringComparison.OrdinalIgnoreCase))];
+
+    [Fact]
+    public async Task AcknowledgedAlert_GetsNoReminder_ButStaysOpen()
+    {
+        Lock();
+        Dry("s1");
+        var engine = Engine();
+        await engine.CycleAsync(Ct);
+        Assert.Single(mail.Sent);
+
+        api.Alerts[0] = api.Alerts[0] with { AcknowledgedAt = clock.GetUtcNow() };      // potwierdzony na stronie
+        Advance(TimeSpan.FromHours(25));
+        Dry("s1");
+        await engine.CycleAsync(Ct);
+
+        Assert.Single(AlertMails());                  // raport o 07:00 idzie normalnie, przypomnienia nie ma
+        Assert.Null(Assert.Single(api.Alerts).ResolvedAt);
+    }
+
+    [Fact]
+    public async Task MutedSensor_AlertWaits_AndGoesOutWhenMuteEnds()
+    {
+        config.Config.Sensors[0].AlertsMutedUntil = Morning.AddHours(3);
+        Lock();
+        Dry("s1");
+        var engine = Engine();
+
+        await engine.CycleAsync(Ct);
+        Assert.Single(api.Alerts);                    // alert żyje (stan liczony dalej)…
+        Assert.Empty(mail.Sent);                      // …tylko mail czeka
+
+        Advance(TimeSpan.FromHours(3) + Minute);
+        Dry("s1");
+        await engine.CycleAsync(Ct);
+        Assert.Single(AlertMails());
+        Assert.NotNull(api.Alerts[0].LastNotifiedAt);
+    }
+
+    [Fact]
+    public async Task Vacation_MutesAlertMails_ButReportsGoWithANote()
+    {
+        config.Config.Alerts.MutedUntil = Morning.AddDays(2);
+        Lock();
+        Dry("s1");
+        var engine = Engine();
+
+        await engine.CycleAsync(Ct);
+        Assert.Single(api.Alerts);
+        Assert.Empty(mail.Sent);
+
+        Advance(TimeSpan.FromHours(1) + Minute);      // 07:01 – pora raportu
+        await engine.CycleAsync(Ct);
+        var report = Assert.Single(mail.Sent);
+        Assert.Contains("raport", report.Subject);
+        Assert.Contains("Alerty mailowe wyciszone do 19.11.2026 06:00", report.TextBody);
+    }
+
+    [Fact]
+    public async Task SentReport_GoesToOwnerPageArchive_AsGzippedHtml_AndArchiveFailureDoesNotMatter()
+    {
+        Lock();
+        var engine = Engine();
+        await engine.HandleCommandAsync(new(9, "report_now", null, null, Morning, 600), Ct);
+        await engine.CycleAsync(Ct);
+
+        var (keys, subject, recipients, gzip) = Assert.Single(api.Archive);
+        Assert.Equal(["report-request|9"], keys);
+        Assert.Equal(mail.Sent[0].Subject, subject);
+        Assert.Equal(["ktos@example.com"], recipients);
+        using (var reader = new StreamReader(new GZipStream(new MemoryStream(gzip), CompressionMode.Decompress), Encoding.UTF8))
+            Assert.Equal(mail.Sent[0].HtmlBody, reader.ReadToEnd());
+
+        api.ArchiveFailures.Enqueue(new CloudApiException(CloudErrorKind.Protocol, "brak funkcji mail_archive_put"));
+        await engine.HandleCommandAsync(new(10, "report_now", null, null, Morning, 600), Ct);
+        await engine.CycleAsync(Ct);
+        Assert.Equal(2, mail.Sent.Count);
+        Assert.True((bool)api.Done[^1].Result!["ok"]!);
+        Assert.Single(api.Archive);
+    }
+
     [Fact]
     public async Task ScheduledReport_GoesOutOnce_EvenWithASecondNotifier()
     {

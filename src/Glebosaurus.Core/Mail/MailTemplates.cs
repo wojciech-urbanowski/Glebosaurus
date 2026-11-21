@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using Glebosaurus.Core.Domain;
 using static Glebosaurus.Core.Mail.MailLayout;
@@ -60,23 +61,23 @@ public static partial class MailTemplates
     /// </remarks>
     public static MailMessage Report(
         IReadOnlyList<SensorSnapshot> snapshots, IReadOnlyList<string> to, string monitorName, DateTimeOffset now, TimeZoneInfo zone,
-        DateTimeOffset? scheduledAt = null, IReadOnlyList<DeviceSnapshot>? devices = null)
+        DateTimeOffset? scheduledAt = null, IReadOnlyList<DeviceSnapshot>? devices = null, DateTimeOffset? alertsMutedUntil = null)
     {
         devices ??= [];
         if (snapshots.Any(s => s.History.Count > 0))
         {
             foreach (var bucket in MailChart.BucketLadder)
             {
-                var message = BuildReport(snapshots, devices, to, monitorName, now, zone, scheduledAt, bucket);
+                var message = BuildReport(snapshots, devices, to, monitorName, now, zone, scheduledAt, bucket, alertsMutedUntil);
                 if (Encoding.UTF8.GetByteCount(message.HtmlBody) <= MailChart.HtmlBudgetBytes) return message;
             }
         }
-        return BuildReport(snapshots, devices, to, monitorName, now, zone, scheduledAt, null);
+        return BuildReport(snapshots, devices, to, monitorName, now, zone, scheduledAt, null, alertsMutedUntil);
     }
 
     private static MailMessage BuildReport(
         IReadOnlyList<SensorSnapshot> snapshots, IReadOnlyList<DeviceSnapshot> devices, IReadOnlyList<string> to, string monitorName,
-        DateTimeOffset now, TimeZoneInfo zone, DateTimeOffset? scheduledAt, int? chartBucketMinutes)
+        DateTimeOffset now, TimeZoneInfo zone, DateTimeOffset? scheduledAt, int? chartBucketMinutes, DateTimeOffset? alertsMutedUntil)
     {
         var ordered = snapshots.OrderBy(Priority).ThenBy(s => s.Sensor.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
         var orderedDevices = devices.OrderBy(DevicePriority).ThenBy(d => d.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
@@ -97,6 +98,13 @@ public static partial class MailTemplates
         if (detail is not null) text.AppendLine(detail);
         var rows = new StringBuilder(Header(title, monitorName, when));
         rows.Append(Banner(headline, detail, tone));
+        // Urlop (strona w chmurze): alerty mailowe czekają, raporty idą – raport mówi, że cisza w skrzynce nie znaczy spokoju.
+        if (alertsMutedUntil > now)
+        {
+            var mutedNote = $"Alerty mailowe wyciszone do {Local(alertsMutedUntil.Value, zone)} – raporty przychodzą dalej.";
+            text.AppendLine(mutedNote);
+            rows.Append(Paragraph(mutedNote));
+        }
         var charts = new Dictionary<SensorSnapshot, string?>(ReferenceEqualityComparer.Instance);
         if (chartBucketMinutes is { } bucket)
             foreach (var s in ordered) charts[s] = s.History.Count > 0 ? MailChart.Html(s.Sensor, s.History, now, zone, bucket) : null;
@@ -104,7 +112,7 @@ public static partial class MailTemplates
             rows.Append(MailChart.Legend(legendBucket, ordered.Any(s => charts[s] is not null && MailChart.AnyDry(s.Sensor, s.History, now, zone, legendBucket))));
         foreach (var snapshot in ordered)
         {
-            var (labels, accent) = Status(snapshot);
+            var (labels, accent) = Status(snapshot, now, zone);
             text.AppendLine();
             text.AppendLine($"{snapshot.Sensor.Name} – {string.Join(", ", labels.Select(l => l.Text))}");
             AppendReadingText(text, snapshot.Latest, now);
@@ -161,13 +169,16 @@ public static partial class MailTemplates
     };
 
     /// <summary>Plakietki stanu czujnika i ton akcentu karty (najpoważniejszy z otwartych alertów, zielony gdy ich nie ma).</summary>
-    private static (List<(string Text, Tone Tone)> Labels, Tone Accent) Status(SensorSnapshot snapshot)
+    private static (List<(string Text, Tone Tone)> Labels, Tone Accent) Status(SensorSnapshot snapshot, DateTimeOffset now, TimeZoneInfo zone)
     {
         var labels = new List<(string Text, Tone Tone)>();
         if (snapshot.OpenAlerts.Contains(AlertKind.NeedsWater)) labels.Add(("podlej", Red));
         if (snapshot.OpenAlerts.Contains(AlertKind.SensorSilent)) labels.Add(("brak odczytów", Grey));
         if (snapshot.OpenAlerts.Contains(AlertKind.LowBattery)) labels.Add(("słaba bateria", Amber));
         if (labels.Count == 0) labels.Add(snapshot.Latest is null ? ("brak danych", Grey) : ("OK", Green));
+        // Wyciszony czujnik (strona w chmurze): ostatnia, szara etykieta – kolor karty zostaje według stanu.
+        if (snapshot.Sensor.AlertsMutedUntil is { } muted && muted > now)
+            labels.Add(($"alerty wyciszone do {TimeZoneInfo.ConvertTime(muted, zone).ToString("dd.MM HH:mm", CultureInfo.InvariantCulture)}", Grey));
         return (labels, labels[0].Tone);
     }
 

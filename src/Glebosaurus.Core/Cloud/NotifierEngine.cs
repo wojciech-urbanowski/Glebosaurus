@@ -357,9 +357,12 @@ public sealed class NotifierEngine(
         }
         var now = clock.GetUtcNow();
         var reminder = TimeSpan.FromHours(current.Config.Alerts.ReminderHours);
+        if (current.Config.Alerts.MutedUntil > now) return;     // urlop: alerty żyją dalej, maile czekają
         var sensors = current.Config.Sensors.ToDictionary(s => s.Id, StringComparer.Ordinal);
+        // Potwierdzony na stronie – bez maili (właściciel już wie); wyciszony czujnik – mail czeka do końca wyciszenia.
         var pending = (await api.AlertListAsync(cancellationToken))
-            .Where(a => sensors.ContainsKey(a.Sensor) && (a.LastNotifiedAt is null || now - a.LastNotifiedAt >= reminder))
+            .Where(a => sensors.TryGetValue(a.Sensor, out var sensor) && !sensor.AlertsMuted(now) && a.AcknowledgedAt is null
+                        && (a.LastNotifiedAt is null || now - a.LastNotifiedAt >= reminder))
             .Select(a => (Alert: a, Key: AlertKey(a, now, reminder)))
             .ToList();
         if (pending.Count == 0) return;
@@ -403,7 +406,8 @@ public sealed class NotifierEngine(
         foreach (var report in due)
         {
             var outcome = await SendAsync(["report|" + report.Key],
-                _ => MailTemplates.Report(snapshots, recipients, settings.MonitorName, now, current.TimeZone, report.ScheduledAt, devices),
+                _ => MailTemplates.Report(snapshots, recipients, settings.MonitorName, now, current.TimeZone, report.ScheduledAt, devices,
+                    current.Config.Alerts.MutedUntil),
                 epoch, cancellationToken);
             if (outcome is MailOutcome.Failed or MailOutcome.Postponed) return;
         }
@@ -430,7 +434,8 @@ public sealed class NotifierEngine(
                 continue;
             }
             var outcome = await SendAsync([string.Create(CultureInfo.InvariantCulture, $"report-request|{id}")],
-                _ => MailTemplates.Report(snapshots, recipients, settings.MonitorName, now, current.TimeZone, devices: devices), epoch, cancellationToken);
+                _ => MailTemplates.Report(snapshots, recipients, settings.MonitorName, now, current.TimeZone, devices: devices,
+                    alertsMutedUntil: current.Config.Alerts.MutedUntil), epoch, cancellationToken);
             if (outcome is MailOutcome.Failed or MailOutcome.Postponed)
             {
                 lock (gate) reportRequests.Add(id);   // spróbuje po przerwie (polecenie w chmurze czeka do 10 min)
@@ -655,7 +660,32 @@ public sealed class NotifierEngine(
             catch (CloudApiException e) { logger.LogWarning("Mail wysłany, ale chmura go nie odnotowała ({Key}): {Error}", key, e.Message); }
         }
         logger.LogInformation("Wysłano mail „{Subject}” (odbiorców: {Count}).", message.Subject, message.To.Count);
+        await ArchiveAsync(claimed, message, epoch, cancellationToken);
         return MailOutcome.Sent;
+    }
+
+    /// <summary>Rodzaje maili w historii na stronie właściciela (log administratora – nie: ma duże załączniki).</summary>
+    public static readonly IReadOnlySet<string> ArchivedKinds = new HashSet<string>(StringComparer.Ordinal)
+        { "report", "report-request", "alert", "mail-test", "agent-silent" };
+
+    /// <summary>
+    /// Wysłany mail do archiwum strony (90 dni): HTML spakowany gzipem. Błąd archiwum nie dotyczy samego maila – tylko wpis w
+    /// dzienniku (np. starsza baza bez <c>mail_archive_put</c>).
+    /// </summary>
+    private async Task ArchiveAsync(IReadOnlyList<string> keys, MailMessage message, long epoch, CancellationToken cancellationToken)
+    {
+        if (!ArchivedKinds.Contains(keys[0].Split('|')[0])) return;
+        try
+        {
+            using var buffer = new MemoryStream();
+            await using (var gzip = new GZipStream(buffer, CompressionLevel.SmallestSize, leaveOpen: true))
+                await gzip.WriteAsync(Encoding.UTF8.GetBytes(message.HtmlBody), cancellationToken);
+            await api.MailArchivePutAsync(epoch, keys, message.Subject, message.To, buffer.ToArray(), cancellationToken);
+        }
+        catch (CloudApiException e)
+        {
+            logger.LogWarning("Mail „{Subject}” wysłany, ale nie trafił do historii na stronie: {Error}", message.Subject, e.Message);
+        }
     }
 
     private async Task AbandonAsync(IEnumerable<string> keys, CancellationToken cancellationToken)

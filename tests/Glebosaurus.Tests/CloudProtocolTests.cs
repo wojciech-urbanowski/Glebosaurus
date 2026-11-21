@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Glebosaurus.Core.Cloud;
+using Glebosaurus.Core.Config;
 using Glebosaurus.Core.Domain;
 
 namespace Glebosaurus.Tests;
@@ -107,6 +108,39 @@ public sealed class CloudProtocolTests
         Assert.Equal(AlertKind.NeedsWater, alert.Kind);
         Assert.Equal(new AlertRecord(5, "cisy", AlertKind.NeedsWater, "wilgotność 18%", new(2026, 11, 16, 7, 0, 0, TimeSpan.Zero), null, null),
             alert.ToRecord());
+        Assert.Null(alert.AcknowledgedAt);
+        Assert.Null(parsed.Settings.AlertsMutedUntil);
+    }
+
+    /// <summary>Faza 3b: potwierdzenia i wyciszenia ze strony w chmurze (nowe pola – starsza baza ich nie ma, patrz wyżej).</summary>
+    [Fact]
+    public void Config_AndAlerts_ReadMutesAndAcknowledgement_AndMapperPassesThemOn()
+    {
+        const string config = """
+            {"protocol": 1, "configVersion": 3, "agent": {"name": "pi", "canSendMail": true, "senderPriority": 1},
+             "settings": {"timeZone": "Europe/Warsaw", "readIntervalMinutes": 15, "scanWindowSeconds": 60, "reportTimes": [],
+                          "reportCatchUpHours": 3, "alertReminderHours": 24, "logRetentionDays": 7,
+                          "alertsMutedUntil": "2026-11-28T17:00:00+00:00"},
+             "mail": null,
+             "sensors": [{"id": "cisy", "name": "Cisy", "mac": "DC:23:51:CC:03:C9", "enabled": true, "readIntervalMinutes": null,
+                          "wateringBelowPercent": 25, "wateringClearAbovePercent": 35, "consecutiveReadings": 2, "lowBatteryPercent": 18,
+                          "silentAfterHours": 6, "alertsMutedUntil": "2026-11-23T08:00:00+00:00",
+                          "tuya": {"mac": "DC:23:51:CC:03:C9", "uuid": "07aaad78f40b0a74", "deviceId": "abc", "localKeyHex": "a1b2c3d4e5f6", "productId": "gvygg3m8"}}]}
+            """;
+        var parsed = JsonSerializer.Deserialize(config, CloudJsonContext.Default.CloudConfig)!;
+        Assert.Equal(new DateTimeOffset(2026, 11, 28, 17, 0, 0, TimeSpan.Zero), parsed.Settings.AlertsMutedUntil);
+        Assert.Equal(new DateTimeOffset(2026, 11, 23, 8, 0, 0, TimeSpan.Zero), Assert.Single(parsed.Sensors).AlertsMutedUntil);
+
+        var mapped = CloudConfigMapper.Map(parsed, new AgentConfig(), DateTimeOffset.UtcNow);
+        Assert.Equal(parsed.Settings.AlertsMutedUntil, mapped.Config.Alerts.MutedUntil);
+        Assert.Equal(parsed.Sensors[0].AlertsMutedUntil, Assert.Single(mapped.Config.Sensors).AlertsMutedUntil);
+
+        const string alerts = """
+            [{"id": 5, "sensor": "cisy", "kind": "NeedsWater", "detail": "wilgotność 18%", "openedAt": "2026-11-16T07:00:00+00:00",
+              "lastNotifiedAt": null, "resolvedAt": null, "acknowledgedAt": "2026-11-16T08:00:00+00:00", "closedManually": false}]
+            """;
+        var alert = Assert.Single(JsonSerializer.Deserialize(alerts, CloudJsonContext.Default.ListCloudAlert)!);
+        Assert.Equal(new DateTimeOffset(2026, 11, 16, 8, 0, 0, TimeSpan.Zero), alert.AcknowledgedAt);
     }
 
     [Fact]

@@ -52,6 +52,25 @@ public static class MailSamples
         ];
     }
 
+    /// <summary>
+    /// Raport w czasie wyciszeń ze strony w chmurze: urlop (wszystkie alerty mailowe wyciszone na 5 dni) i jeden czujnik
+    /// wyciszony na 2 dni – do obejrzenia notki i szarej etykiety.
+    /// </summary>
+    public static MailMessage MutedReport(IReadOnlyList<string> to, string monitorName, DateTimeOffset now, TimeZoneInfo zone)
+    {
+        var fikus = new SensorConfig { Id = "fikus", Name = "Fikus", AlertsMutedUntil = now.AddDays(2) };
+        var papro = new SensorConfig { Id = "paprot", Name = "Paproć w kuchni" };
+        var snapshots = new List<SensorSnapshot>
+        {
+            new(papro, new StoredReading(papro.Id, now.AddMinutes(-2), 64, 23.7m, 88, 2), [])
+                { History = History(papro.Id, now, zone, h => 70 - h * 0.1, 22.5, 1.2) },
+            new(fikus, new StoredReading(fikus.Id, now.AddMinutes(-9), 46, 22.8m, 14, 1), [AlertKind.LowBattery])
+                { History = History(fikus.Id, now, zone, h => 46 + 1.5 * Math.Sin(h / 5), 23, 1) }
+        };
+        return Mark(MailTemplates.Report(snapshots, to, $"{monitorName} (przykład, wyciszenia)", now, zone, devices: [],
+            alertsMutedUntil: now.AddDays(5)));
+    }
+
     /// <summary>Zmyślone urządzenia do sekcji „Urządzenia”: telefon w mrozie ze słabą baterią, Raspberry Pi w normie i
     /// milczący drugi telefon.</summary>
     private static IReadOnlyList<DeviceSnapshot> Devices(DateTimeOffset now) =>

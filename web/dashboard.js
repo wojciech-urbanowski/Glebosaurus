@@ -132,6 +132,7 @@ function sensorCard(sensor) {
   const badges = h('div', 'badges');
   for (const alert of sensorAlerts(sensor)) badges.append(badge(ALERT_TEXT[alert.kind] || alert.kind, 'red'));
   if (!sensor.enabled) badges.append(badge('wyłączony', 'grey'));
+  if (sensor.alertsMutedUntil) badges.append(badge(`alerty wyciszone do ${when(sensor.alertsMutedUntil)}`, 'grey'));
   const last = sensor.last;
   if (last && last.battery !== null && last.battery !== undefined && last.battery <= sensor.lowBatteryPercent) badges.append(badge('słaba bateria', 'amber'));
   if (last && hoursSince(last.at) > STALE_HOURS) badges.append(badge('dawno bez odczytu', 'amber'));
@@ -181,7 +182,8 @@ function alertCard(alert) {
   title.href = sensorUrl(alert.sensor);
   card.append(h('div', null, h('strong', null, title)), h('div', null, alert.detail),
     h('div', 'muted small', `Otwarty ${when(alert.openedAt)} (${ago(alert.openedAt)}) · ` +
-      (alert.lastNotifiedAt ? `mail wysłany ${when(alert.lastNotifiedAt)}` : 'mail jeszcze niewysłany')));
+      (alert.lastNotifiedAt ? `mail wysłany ${when(alert.lastNotifiedAt)}` : 'mail jeszcze niewysłany') +
+      (alert.acknowledgedAt ? ` · potwierdzony ${when(alert.acknowledgedAt)}` : '')));
   return card;
 }
 
@@ -276,10 +278,15 @@ function render() {
     ` · odświeżono ${when(data.serverTime, true)}`;
 
   const children = [h('h1', null, 'Pulpit'), h('p', 'muted', summary)];
+  if (data.alertsMutedUntil) {
+    children.push(h('div', 'banner tone-amber', `Alerty mailowe wyciszone do ${when(data.alertsMutedUntil)} (urlop) – raporty przychodzą dalej.`));
+  }
   if (data.alerts.length > 0) {
     const alerts = h('div', 'cards');
     alerts.append(...data.alerts.map(alertCard));
-    children.push(h('section', null, h('div', 'section-head', h('h2', null, `Otwarte alerty (${data.alerts.length})`)), alerts));
+    const manage = h('a', 'button-link small', 'Potwierdź, wycisz…');
+    manage.href = 'alerts.html';
+    children.push(h('section', null, h('div', 'section-head', h('h2', null, `Otwarte alerty (${data.alerts.length})`), manage), alerts));
   }
   children.push(
     h('section', null, h('div', 'section-head', h('h2', null, 'Czujniki'), readAll), sensorsBox),

@@ -274,6 +274,13 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   (170, w tym kontrakt serii z `ReadingSeriesBuilder` w 5 scenariuszach: pojedyncze odczyty, przedziały z dziurą, koniec
   czasu letniego, dni, tygodnie od poniedziałku); pulpit i strona czujnika przeklikane na atrapie (stan odczytu na
   żądanie, „Całość”, 375 px bez przewijania w bok po poprawce nagłówka strony czujnika, motyw ciemny).
+  **Etap 4 (3b) w kodzie:** migracja `20261121180000_owner_alerts` (potwierdzenie, ręczne zamknięcie, wyciszenie czujnika
+  i wszystkich alertów, tabela `mail_archive` z `mail_archive_put` dla nadawcy, funkcje strony), nadawca: bez maili o
+  potwierdzonych i wyciszonych alertach, notka i etykieta wyciszenia w raporcie, archiwum maila po wysyłce; strony
+  `alerts.html` i `mail.html`. Testy zielone (SQL 173; Core – potwierdzenie, wyciszenie czujnika z mailem po końcu,
+  urlop z raportem, archiwum i jego błąd); strona alertów przeklikana na atrapie (potwierdzenie, urlop na 3 dni, podgląd
+  maila w ramce sandbox ze stylami). **Wygląd raportu z wyciszeniem czeka na akceptację użytkownika** (`mail-preview` →
+  `raport-wyciszenie.html`).
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 

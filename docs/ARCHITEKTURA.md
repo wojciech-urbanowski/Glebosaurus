@@ -309,7 +309,10 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
       `conflict`), `ui.js` (formularze, potwierdzenia w miejscu zamiast okien przeglądarki), strony (`index.html` +
       `dashboard.js` – pulpit z alertami, wykresem 3 dób przy każdym czujniku i odczytem/raportem na żądanie,
       `sensor.html` + `sensor.js` – strona czujnika z przeglądalnym wykresem całej historii, `config.html` + `config.js`
-      – edytor konfiguracji), `commands.js` (zlecenie przez `owner_command` i śledzenie wyniku co 5 s), `charts.js`
+      – edytor konfiguracji, `alerts.html` + `alerts.js` – alerty, wyciszenia i historia maili, `mail.html` + `mail.js` –
+      podgląd maila: HTML z archiwum rozpakowany w przeglądarce (`DecompressionStream`) i pokazany w ramce `sandbox` bez
+      żadnych uprawnień przez `srcdoc`; ta jedna strona ma w CSP `style-src 'unsafe-inline'`, bo maile mają style w
+      atrybutach – skrypty nadal tylko z `'self'`, a ramka i tak ich nie uruchamia), `commands.js` (zlecenie przez `owner_command` i śledzenie wyniku co 5 s), `charts.js`
       (ten sam plik co w lokalnym panelu), `qr.js` (kod QR rejestracji telefonu
       jako SVG z biblioteki qrcode-generator, MIT, `vendor/qrcode.js` bez zmian – test pilnuje sumy), `format.js` – ten
       sam plik co w lokalnym panelu.
@@ -443,7 +446,15 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
       `ReadingSeriesBuilder` – ta sama drabinka, `date_bin` w czasie lokalnym od poniedziałku 0001-01-01, ta sama reguła
       dziur; strefa przeglądarki, nieznana – strefa raportów; pilnuje `SeriesContractTests` na tych samych odczytach co
       C#, także przy zmianie czasu), `owner_sensor` (strona czujnika: ustawienia, ostatni odczyt, dzierżawa, słyszenia,
-      alerty, produkt Tuya bez kluczy) i `owner_readings`. Walidacja jak `CloudSetupLoader` (strefa IANA z
+      alerty, produkt Tuya bez kluczy) i `owner_readings`; alerty (3b): `owner_alerts` (otwarte, zamknięte z 30 dni,
+      wyciszenia), `owner_alert_acknowledge`, `owner_alert_close` (`closed_manually`; gdy stan trwa, nadawca otwiera nowy
+      epizod), `owner_alerts_mute` (czujnik albo wszystkie, najwyżej 90 dni; zmiana podnosi wersję konfiguracji),
+      `owner_mail_history` i `owner_mail_body`. **Agenci (3b):** `get_config` niesie `alertsMutedUntil` (ustawienia i
+      czujniki), `alert_list` – `acknowledgedAt`; nadawca nie wysyła maili o potwierdzonych alertach i o wyciszonych
+      czujnikach (alert żyje dalej, mail wychodzi po końcu wyciszenia), w urlopie – żadnych maili o alertach, a raport ma
+      notkę o wyciszeniu i szarą etykietę przy wyciszonym czujniku. **Archiwum maili** (`mail_archive`, 90 dni): nadawca po
+      udanej wysyłce raportu, alertu, maila próbnego i „agent milczy” zapisuje HTML spakowany gzipem (`mail_archive_put` –
+      tylko obecny nadawca i tylko mail, który sam zarezerwował; błąd archiwum nie dotyczy maila). Walidacja jak `CloudSetupLoader` (strefa IANA z
       `pg_timezone_names`, odstęp ≥ 0,5 min, okno skanu 5–120 s, progi 0–100 z „koniec” > „podlać”, 1–10 odczytów z rzędu,
       adresy bez imion i z kropką w domenie – ujednolicone i bez powtórzeń, plik klucza: MAC, UUID 16 znaków, deviceId,
       klucz 6 bajtów, znany productId, MAC i UUID niepowtarzalne); pilnuje tego `ConfigContractTests` – te same przypadki

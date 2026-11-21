@@ -132,7 +132,11 @@ public sealed record EnrollResult(int Protocol, string Agent, string Token, bool
 }
 
 public sealed record CloudSettings(string TimeZone, double ReadIntervalMinutes, int ScanWindowSeconds, IReadOnlyList<string> ReportTimes,
-    double ReportCatchUpHours, double AlertReminderHours, int LogRetentionDays);
+    double ReportCatchUpHours, double AlertReminderHours, int LogRetentionDays)
+{
+    /// <summary>Wszystkie alerty mailowe wyciszone do tej chwili (urlop); null – bez wyciszenia (także u starszej bazy).</summary>
+    public DateTimeOffset? AlertsMutedUntil { get; init; }
+}
 
 public sealed record CloudMailSettings(string? GmailAddress, IReadOnlyList<string> AlertRecipients, IReadOnlyList<string> ReportRecipients,
     IReadOnlyList<string> AdminRecipients);
@@ -142,6 +146,9 @@ public sealed record CloudSensor(string Id, string Name, string Mac, bool Enable
 {
     /// <summary>Dane przypisania Tuya z Vault – sekret (klucz lokalny czujnika), więc poza <see cref="ToString"/>.</summary>
     public TuyaCredentials? Tuya { get; init; }
+
+    /// <summary>Alerty mailowe czujnika wyciszone do tej chwili (strona w chmurze).</summary>
+    public DateTimeOffset? AlertsMutedUntil { get; init; }
 
     public override string ToString() => $"CloudSensor {{ Id = {Id}, Name = {Name}, Mac = {Mac}, Enabled = {Enabled} }}";
 }
@@ -164,6 +171,9 @@ public sealed record MailCredentials(string? GmailAddress, string? AppPassword, 
 public sealed record CloudAlert(long Id, string Sensor, AlertKind Kind, string Detail, DateTimeOffset OpenedAt, DateTimeOffset? LastNotifiedAt,
     DateTimeOffset? ResolvedAt)
 {
+    /// <summary>Właściciel potwierdził alert na stronie – bez przypomnień; zamknie się sam, gdy stan minie.</summary>
+    public DateTimeOffset? AcknowledgedAt { get; init; }
+
     public AlertRecord ToRecord() => new(Id, Sensor, Kind, Detail, OpenedAt, LastNotifiedAt, ResolvedAt);
 }
 
@@ -240,6 +250,13 @@ public interface ICloudApi
     Task<bool> CommandDoneAsync(long commandId, JsonObject? result, CancellationToken cancellationToken);
 
     Task<LogPutResult> LogPutAsync(DateOnly day, byte[] gzipContent, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Wysłany mail do archiwum strony właściciela (<c>mail_archive_put</c>, tylko obecny nadawca): HTML spakowany gzipem.
+    /// false – już był w archiwum.
+    /// </summary>
+    Task<bool> MailArchivePutAsync(long epoch, IReadOnlyList<string> keys, string subject, IReadOnlyList<string> recipients,
+        byte[] htmlGzip, CancellationToken cancellationToken);
     Task<IReadOnlyList<AgentLog>> LogGetAsync(long epoch, DateOnly day, CancellationToken cancellationToken);
 }
 

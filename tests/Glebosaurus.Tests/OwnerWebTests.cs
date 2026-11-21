@@ -63,7 +63,9 @@ public sealed partial class OwnerWebTests
         Assert.Contains("script-src 'self';", policy);
         Assert.Contains("base-uri 'none'", policy);
         Assert.Contains("form-action 'none'", policy);
-        Assert.DoesNotContain("unsafe", policy);
+        // Wyjątek: podgląd maila – maile mają style w atrybutach; skrypty i tak tylko z 'self', a treść w ramce sandbox.
+        var withoutMailStyles = page == "mail.html" ? policy.Replace("style-src 'self' 'unsafe-inline';", "style-src;", StringComparison.Ordinal) : policy;
+        Assert.DoesNotContain("unsafe", withoutMailStyles);
         Assert.Contains("<meta name=\"referrer\" content=\"no-referrer\">", html);
         Assert.DoesNotMatch(new Regex("<script(?![^>]*\\bsrc=)", RegexOptions.IgnoreCase), html);
         Assert.DoesNotMatch(new Regex("\\son[a-z]+=", RegexOptions.IgnoreCase), html);
@@ -84,6 +86,17 @@ public sealed partial class OwnerWebTests
             Assert.DoesNotContain(forbidden, code);
         foreach (Match import in ImportFrom().Matches(code))
             Assert.Matches("^\\./(vendor/)?[a-z-]+\\.js$", import.Groups[1].Value);
+    }
+
+    /// <summary>Podgląd maila: treść tylko w ramce sandbox bez skryptów i bez wspólnego źródła ze stroną.</summary>
+    [Fact]
+    public void MailPreview_ShowsMailOnlyInSandboxedFrame()
+    {
+        var code = File.ReadAllText(Path.Combine(Web, "mail.js"));
+
+        Assert.Contains("frame.setAttribute('sandbox', '');", code);
+        Assert.Contains("frame.srcdoc = html;", code);
+        Assert.DoesNotContain("allow-", code);
     }
 
     /// <summary>Biblioteka QR jest wgrana bez zmian (qrcode-generator 2.0.4, dist/qrcode.mjs) – THIRD-PARTY-NOTICES.md.</summary>

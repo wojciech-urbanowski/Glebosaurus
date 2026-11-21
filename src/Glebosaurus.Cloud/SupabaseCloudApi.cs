@@ -105,6 +105,15 @@ public sealed class SupabaseCloudApi : ICloudApi
         Call("log_put", new() { ["p_day"] = Day(day), ["p_content_gzip_base64"] = Convert.ToBase64String(gzipContent) },
             CloudJsonContext.Default.LogPutResult, cancellationToken);
 
+    public Task<bool> MailArchivePutAsync(long epoch, IReadOnlyList<string> keys, string subject, IReadOnlyList<string> recipients,
+        byte[] htmlGzip, CancellationToken cancellationToken) =>
+        Call("mail_archive_put", new()
+        {
+            ["p_epoch"] = epoch, ["p_keys"] = new JsonArray([.. keys.Select(k => (JsonNode)JsonValue.Create(k))]), ["p_subject"] = subject,
+            ["p_recipients"] = new JsonArray([.. recipients.Select(r => (JsonNode)JsonValue.Create(r))]),
+            ["p_html_gzip"] = Convert.ToBase64String(htmlGzip)
+        }, CloudJsonContext.Default.Boolean, cancellationToken);
+
     public async Task<IReadOnlyList<AgentLog>> LogGetAsync(long epoch, DateOnly day, CancellationToken cancellationToken) =>
         await Call("log_get", new() { ["p_epoch"] = epoch, ["p_day"] = Day(day) }, CloudJsonContext.Default.ListAgentLog, cancellationToken);
 

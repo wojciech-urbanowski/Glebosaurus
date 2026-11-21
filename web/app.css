@@ -272,3 +272,10 @@ svg.qr { width: 220px; max-width: 100%; height: auto; display: block; }
 .page-head .picker { margin: 4px 0 0; max-width: 100%; }
 .page-head .picker select { max-width: 100%; }
 a.sensor-name { color: var(--text); }
+
+/* Alerty i historia maili (3b). */
+.muted-list { margin-top: 10px; }
+table.history td.subject { text-align: left; }
+table.history th, table.history td { white-space: normal; }
+.table-wrap.tall { max-height: 520px; }
+iframe.mail-frame { display: block; width: 100%; max-width: 640px; height: 75vh; margin-top: 12px; border: 1px solid var(--border); background: #fff; }

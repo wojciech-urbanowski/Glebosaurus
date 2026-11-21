@@ -58,6 +58,26 @@ public class MailTemplatesTests
         Assert.Contains("13.11.2026 07:30", message.TextBody);
     }
 
+    [Fact]
+    public void Report_ShowsMutes_FromOwnerPage_WithoutChangingTheCardColour()
+    {
+        var muted = Snapshot("Fikus", 50);
+        muted.Sensor.AlertsMutedUntil = Now.AddDays(2);
+        var past = Snapshot("Zielistka", 60);
+        past.Sensor.AlertsMutedUntil = Now.AddMinutes(-1);           // wyciszenie już minęło – bez etykiety
+
+        var message = MailTemplates.Report([muted, past], To, "Salon", Now, TimeZoneInfo.Utc, alertsMutedUntil: Now.AddDays(5));
+
+        Assert.Contains("Alerty mailowe wyciszone do 18.11.2026 07:30 – raporty przychodzą dalej.", message.TextBody);
+        Assert.Contains("Fikus – OK, alerty wyciszone do 15.11 07:30", message.TextBody);
+        Assert.Contains("Zielistka – OK\n", Lf(message.TextBody));
+        Assert.Contains("alerty wyciszone do 15.11 07:30", message.HtmlBody);
+        Assert.Equal("Poranny raport – wszystko w porządku", message.Subject);
+
+        var quiet = MailTemplates.Report([muted], To, "Salon", Now, TimeZoneInfo.Utc, alertsMutedUntil: Now.AddMinutes(-5));
+        Assert.DoesNotContain("Alerty mailowe wyciszone", quiet.TextBody);
+    }
+
     [Theory]
     [InlineData(false, false, "wszystko w porządku")]
     [InlineData(false, true, "uwagi: 1")]

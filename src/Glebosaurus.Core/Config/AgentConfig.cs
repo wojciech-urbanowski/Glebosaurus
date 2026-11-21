@@ -182,6 +182,11 @@ public sealed class SensorConfig
 
     /// <summary>Alert „brak odczytów”, gdy od ostatniego udanego odczytu minie tyle godzin.</summary>
     public double SilentAfterHours { get; set; } = 6;
+
+    /// <summary>Alerty mailowe tego czujnika wyciszone do tej chwili (strona w chmurze); alerty dalej się otwierają i zamykają.</summary>
+    public DateTimeOffset? AlertsMutedUntil { get; set; }
+
+    public bool AlertsMuted(DateTimeOffset now) => AlertsMutedUntil > now;
 }
 
 /// <summary>Poczta w pliku konfiguracji chmury (<see cref="CloudSetup"/>); hasło trafia do Vault, reszta do ustawień w chmurze.</summary>
@@ -226,4 +231,7 @@ public sealed class AlertsConfig
 {
     /// <summary>Co ile godzin przypominać o wciąż otwartym alercie.</summary>
     public double ReminderHours { get; set; } = 24;
+
+    /// <summary>Wszystkie alerty mailowe wyciszone do tej chwili (urlop – strona w chmurze); raporty idą dalej.</summary>
+    public DateTimeOffset? MutedUntil { get; set; }
 }

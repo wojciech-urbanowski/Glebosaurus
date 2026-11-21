@@ -43,4 +43,7 @@ internal sealed class FlakyApi(ICloudApi inner) : ICloudApi
         Inner.LogPutAsync(day, gzipContent, cancellationToken);
     public Task<IReadOnlyList<AgentLog>> LogGetAsync(long epoch, DateOnly day, CancellationToken cancellationToken) =>
         Inner.LogGetAsync(epoch, day, cancellationToken);
+    public Task<bool> MailArchivePutAsync(long epoch, IReadOnlyList<string> keys, string subject, IReadOnlyList<string> recipients,
+        byte[] htmlGzip, CancellationToken cancellationToken) =>
+        Inner.MailArchivePutAsync(epoch, keys, subject, recipients, htmlGzip, cancellationToken);
 }
