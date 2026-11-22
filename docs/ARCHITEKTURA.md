@@ -329,7 +329,8 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
     - **Strona:** CSP w `<meta>` (GitHub Pages nie ustawia nagłówków) bez skryptów inline i z `connect-src` do Supabase,
       wyjście z ramki w JS (brak `frame-ancestors` w `<meta>`; dopóki skrypt nie potwierdzi, że strona jest na wierzchu,
       `app.css` jej nie pokazuje), dane wstawiane wyłącznie jako tekst, motyw jasny i ciemny (według systemu), układ pod
-      telefon, manifest PWA bez trybu offline; podgląd maili (etap 4) w izolowanej ramce `sandbox` z osobną stroną i własną
+      telefon, a na szerokim ekranie na całą szerokość okna (kafle dokładają kolumny; pojedyncze karty, tabele i opisy
+      zostają w czytelnej szerokości; tak samo lokalny panel), manifest PWA bez trybu offline; podgląd maili (etap 4) w izolowanej ramce `sandbox` z osobną stroną i własną
       CSP. Pliki: `shell.js` (ramka, projekt z odnośnika, logowanie, TOTP, nagłówek, odświeżanie co 60 s przy widocznej
       karcie), `supabase.js` (Auth i RPC; błąd z funkcji – rodzaj `invalid` z polskim powodem, konflikt wersji –
       `conflict`), `ui.js` (formularze, potwierdzenia w miejscu zamiast okien przeglądarki), strony (`index.html` +

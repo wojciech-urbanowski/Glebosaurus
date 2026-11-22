@@ -341,7 +341,8 @@ typu Tag `v*` (domyślnie GitHub przyjmuje tylko `main`).
 
 Agent z sekcją `web` pokazuje w sieci lokalnej stan **wszystkich** czujników i agentów – trzyma lokalną kopię odczytów
 wszystkich agentów (dociąga ją z chmury co 2 min). Wygląd jak w mailach: kwadratowe, pastelowe karty, jedna kolumna na
-telefonie; strony odświeżają się same.
+telefonie, a na szerokim ekranie kafle czujników i agentów wypełniają całą szerokość okna (tak samo strona w chmurze);
+strony odświeżają się same.
 
 - **Pulpit:** karta każdego czujnika (alerty, wilgotność, temperatura, bateria, wiek odczytu, który agent go czyta, problem
   z ostatnią próbą) z wykresem ostatnich 3 dób; otwarte alerty, chmura i agenci (synchronizacja, bufor, nadawca), poczta,

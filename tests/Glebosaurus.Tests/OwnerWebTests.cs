@@ -123,6 +123,45 @@ public sealed partial class OwnerWebTests
         Assert.True(panel == web, $"web/{file} różni się od src/Glebosaurus.Web/wwwroot/{file} – zmiany rób w obu plikach.");
     }
 
+    /// <summary>
+    /// Na szerokim ekranie strona i lokalny panel zajmują całe okno – kafle (min. 300 px) dokładają kolumny; pojedyncze
+    /// karty i tabele zostają do 1000 px, telefon ma jedną kolumnę, a logowanie zostaje wąskim formularzem. Układ jest
+    /// wspólną częścią obu arkuszy <c>app.css</c>.
+    /// </summary>
+    [Fact]
+    public void Layout_UsesFullWindowWidth_SameAsLocalPanel()
+    {
+        var web = File.ReadAllText(Path.Combine(Web, "app.css")).ReplaceLineEndings("\n");
+        var panel = File.ReadAllText(Path.Combine(Root, "src", "Glebosaurus.Web", "wwwroot", "app.css")).ReplaceLineEndings("\n");
+
+        foreach (var css in new[] { web, panel })
+        {
+            Assert.DoesNotContain("max-width", CssRule(css, ".top, main, footer"));
+            Assert.Contains("repeat(auto-fill, minmax(min(100%, 300px), 1fr))", CssRule(css, ".cards"));
+            // Pojedyncze karty, tabele i komunikaty w dawnej szerokości (karty w siatce i tak są węższe).
+            Assert.Contains("max-width: 1000px", CssRule(css, ".card, .confirm, .action-note, table.readings, .table-wrap"));
+        }
+        Assert.DoesNotContain("max-width", CssRule(web, ".wrap"));
+        Assert.Contains("max-width: 460px", CssRule(web, "main.narrow"));
+        Assert.Contains("max-width: 420px", CssRule(panel, "main.login"));
+        Assert.Equal(LayoutBlock(panel), LayoutBlock(web));
+
+        static string LayoutBlock(string css)
+        {
+            var start = css.IndexOf(".top, main, footer {", StringComparison.Ordinal);
+            var end = css.IndexOf("}\n}", start, StringComparison.Ordinal);
+            Assert.True(start >= 0 && end > start, "Brak układu strony (.top, main, footer i @media) w app.css.");
+            return css[start..end];
+        }
+    }
+
+    private static string CssRule(string css, string selector)
+    {
+        var match = Regex.Match(css, $@"(?m)^{Regex.Escape(selector)} \{{([^}}]*)\}}");
+        Assert.True(match.Success, $"Brak reguły „{selector}” w app.css.");
+        return match.Groups[1].Value;
+    }
+
     [Fact]
     public void RequiredMigration_Exists_AndDefinesEveryOwnerFunctionThePageCalls()
     {

@@ -26,8 +26,12 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
-.top, main, footer { max-width: 1000px; margin: 0 auto; padding: 12px 16px; }
+/* Bez górnej granicy szerokości: na szerokim ekranie kafle (.cards) dokładają kolumny zamiast zostawiać puste boki. */
+.top, main, footer { margin: 0 auto; padding: 12px 16px; }
 footer { padding-bottom: 32px; }
+@media (min-width: 1200px) {
+  .top, main, footer { padding-left: 24px; padding-right: 24px; }
+}
 section { margin-top: 22px; }
 
 h1 { font-size: 24px; line-height: 1.2; margin: 2px 0 0; }
@@ -105,6 +109,9 @@ table.readings th, table.readings td { text-align: right; padding: 3px 6px; bord
 table.readings th:first-child, table.readings td:first-child { text-align: left; }
 table.readings th { font-weight: 600; color: var(--muted); }
 .table-wrap { max-height: 320px; overflow: auto; }
+/* Całe okno wypełniają siatki kart (.cards); pojedyncze karty, tabele i komunikaty zostają w dawnej szerokości –
+   rozciągnięte na szeroki ekran rozsuwają treść za daleko. */
+.card, .confirm, .action-note, table.readings, .table-wrap { max-width: 1000px; }
 
 .toolbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-bottom: 8px; font-size: 14px; }
 .toolbar label { display: flex; gap: 6px; align-items: center; }
@@ -202,9 +209,14 @@ html:not(.gl-ok) body { visibility: hidden; }
 /* Atrybut hidden zawsze chowa – także elementy, którym styl nadaje display (np. form.stack). */
 [hidden] { display: none !important; }
 
-.wrap { max-width: 1000px; margin: 0 auto; padding: 0 16px; }
+.wrap { margin: 0 auto; padding: 0 16px; }
+@media (min-width: 1200px) {
+  .wrap { padding-left: 24px; padding-right: 24px; }
+}
 main.narrow { max-width: 460px; padding-top: 32px; }
 main h1 { margin-bottom: 8px; }
+/* Strona ma całą szerokość okna – dłuższe opisy (np. w Konfiguracji) zostają w czytelnej szerokości wiersza. */
+main p { max-width: 80ch; }
 footer { font-size: 13px; }
 
 nav.tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 10px; border-bottom: 1px solid var(--border); }
