@@ -1,14 +1,16 @@
 // Pulpit strony w chmurze (3a) w dwóch widokach. Pełny: otwarte alerty, czujniki z ostatnim odczytem, agentem, który je
 // czyta, i wykresem ostatnich 3 dób, odczyt na żądanie (pojedynczo i wszystkie) i raport na żądanie, agenci z sygnałem
 // życia, obecny nadawca. Skrócony (domyślny na telefonie): małe kafelki z kodem czujnika (sensor-codes.js),
-// wilgotnością, baterią, temperaturą i ostrzeżeniem, agenci po jednym wierszu – bez wykresów, więc bez owner_series i
-// bez pobierania charts.js. Dane z owner_dashboard co 60 s; wykresy z owner_series – przy nowym odczycie albo co 10 min.
+// wilgotnością, baterią, temperaturą i ostrzeżeniem, od najsuchszej gleby (tile-order.js), agenci po jednym wierszu –
+// bez wykresów, więc bez owner_series i bez pobierania charts.js. Dane z owner_dashboard co 60 s; wykresy z
+// owner_series – przy nowym odczycie albo co 10 min.
 
 import { h, ago, when, now, percent, celsius, dbm, plural, badge, kv, syncClock, num1, dateFmt } from './format.js';
 import { start } from './shell.js';
 import { command, describe, follow } from './commands.js';
 import { button, confirmBox, note, PLATFORMS } from './ui.js';
 import { sensorCodes } from './sensor-codes.js';
+import { tileOrder } from './tile-order.js';
 
 const STALE_HOURS = 6;
 const CHART_SPAN = 72 * 3600e3;
@@ -441,7 +443,7 @@ function compactSections(sensors, readAll) {
   const sections = [];
   if (data.alerts.length > 0) sections.push(alertsLine());
   const tiles = h('div', 'tiles');
-  tiles.append(...sensors.map(sensorTile));
+  tiles.append(...tileOrder(sensors).map(sensorTile));      // od najsuchszej gleby – do podlania na początku
   if (sensors.length === 0) tiles.append(h('div', 'empty', 'W chmurze nie ma jeszcze czujników – dodasz je w Konfiguracji.'));
   const agents = h('div', 'agent-rows');
   agents.append(...data.agents.map(agentRow));

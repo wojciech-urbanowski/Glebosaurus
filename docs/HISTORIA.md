@@ -416,7 +416,8 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   cyrylica). Pomiar wielkości: kafelek ok. 1 KB, więc przy przedziałach 2–3 godz. wykresy znikały już od 18 czujników
   i szybciej robiły się szersze – użytkownik zgodził się na wykres po 4 godz. zamiast 2 godz.; przy 10 czujnikach raport
   z kafelkami ma ok. 73 KB (poranny bez kafelków miał 72 KB po 3 godz.). `mail-preview` obejrzany w 360 px: przykład
-  z alertami, z wyciszeniem („! bateria +1”) i z 16 czujnikami (wykresy po 12 godz.).
+  z alertami, z wyciszeniem („! bateria +1”) i z 16 czujnikami (wykresy po 12 godz.). Na życzenie użytkownika kafelki
+  na stronie i w mailu idą od najsuchszej gleby (wcześniej alfabetycznie) – do podlania widać od razu.
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 

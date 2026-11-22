@@ -86,7 +86,8 @@ bash deploy/test-install-linux.sh STARA NOWA [--systemd]   # próba install-linu
 - `web/` – **strona właściciela w chmurze** (faza 3, ARCHITEKTURA.md, zasady 4 i 10): zwykłe moduły ES bez budowania,
   GitHub Pages (`pages.yml`: tag `v*` i ręcznie); logowanie Supabase Auth hasłem i TOTP przez `fetch` (`supabase.js`,
   `shell.js`), dane tylko z funkcji `public.owner_*` (rola `authenticated`, `require_owner()`: konto z `owners` + `aal2`).
-  Strony: pulpit (`dashboard.js`; na telefonie widok skrócony – kafelki z kodami z `sensor-codes.js` – zmiany razem z
+  Strony: pulpit (`dashboard.js`; na telefonie widok skrócony – kafelki od najsuchszej gleby (`tile-order.js`, ta sama
+  kolejność w raporcie) z kodami z `sensor-codes.js` – zmiany razem z
   `Core/Config/SensorCodes.cs`, testy kodów i zgodności obu w silniku Jint `SensorCodesTests`; `charts.js` dopiero w widoku pełnym), czujnik (`sensor.js`; wykresy z `owner_series` – uśrednianie w SQL jak
   `ReadingSeriesBuilder`, pilnuje `SeriesContractTests`), edytor konfiguracji (`config.js`; zapisy z `config_version`,
   walidacja tylko w bazie – `ConfigContractTests`; parowanie zdalne – `owner_pair_start`, postęp co 2 s), alerty (`alerts.js`: potwierdzenie, zamknięcie, wyciszenia,
@@ -210,6 +211,6 @@ Co działa, co zostało i w jakiej kolejności – [docs/ROADMAP.md](docs/ROADMA
 maszyna jest prawdziwym nadawcą, telefon, czujniki, prawdziwy projekt Supabase) – [docs/HISTORIA.md](docs/HISTORIA.md),
 „Wdrożenie autora”, i pamięć Claude. Zatwierdzone przez użytkownika – nie zmieniaj bez prośby: układ i kolorystyka maili
 (kwadratowe, pastelowe, pod telefon), wykres w raporcie (`MailChart`: kolumny po 4 godz. – od 2026-11-22, wcześniej 2 godz.;
-temperatura jako blady zakres), zestawienie kafelkami nad wykresami (kody jak na pulpicie strony, `SensorCodes`),
+temperatura jako blady zakres), zestawienie kafelkami nad wykresami (od najsuchszej gleby, kody jak na pulpicie strony, `SensorCodes`),
 wyciszenia w raporcie (notka o urlopie pod paskiem, szara etykieta „alerty wyciszone do …” przy czujniku),
 panel WWW bez edycji konfiguracji (pełny edytor – faza 3c), log administratora jako osobny mail od każdego agenta.

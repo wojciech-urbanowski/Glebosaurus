@@ -59,7 +59,8 @@ public static partial class MailTemplates
     /// czujników w chmurze, jak na stronie; null albo brak któregoś czujnika z raportu – kody z samych czujników raportu.</param>
     /// <remarks>
     /// Pod paskiem podsumowania – zestawienie kafelkami (kod, wilgotność, bateria, temperatura, pierwsza etykieta), po
-    /// trzy w rzędzie, w kolejności nazw (każdy czujnik co dzień w tym samym miejscu); niżej karty w kolejności ważności.
+    /// trzy w rzędzie, od najsuchszej gleby (do podlania teraz albo wkrótce – na początku; bez odczytu na końcu; jak na
+    /// pulpicie strony, <c>web/tile-order.js</c>); niżej karty w kolejności ważności.
     /// Czujniki z historią (<see cref="SensorSnapshot.History"/>) dostają wykres ostatnich 3 dób. Kolumny wykresu są tak
     /// wąskie, jak pozwala budżet wielkości maila (<see cref="MailChart.HtmlBudgetBytes"/>): przy wielu czujnikach przedziały
     /// rosną (4 → 6 → 8 → 12 godz.; kafelki też zabierają budżet), a gdy nawet najszersze się nie mieszczą, raport idzie bez
@@ -115,7 +116,8 @@ public static partial class MailTemplates
             text.AppendLine(mutedNote);
             rows.Append(Paragraph(mutedNote));
         }
-        var tiles = snapshots.OrderBy(s => s.Sensor.Name, StringComparer.CurrentCultureIgnoreCase)
+        var tiles = snapshots.OrderBy(s => s.Latest?.MoisturePercent ?? int.MaxValue)
+            .ThenBy(s => s.Sensor.Name, StringComparer.CurrentCultureIgnoreCase)
             .Select(s => Tile(s, sensorCodes[s.Sensor.Id], now, zone)).ToList();
         if (tiles.Count > 0)
         {

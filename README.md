@@ -268,7 +268,7 @@ stanu, trzy duże liczby (wilgotność, temperatura gleby, bateria) i pasek wilg
 Elementy są kwadratowe, w pastelowych kolorach (czerwień – podlej, żółć – słaba bateria, zieleń – OK, szarość – brak
 odczytów). Tytuł zaczyna się od tego, co ważne („Monstera – czas podlać”, „Poranny raport – do podlania: Monstera, Fikus
 +1”), a w podglądzie na liście wiadomości widać wilgotność wszystkich roślin. Raport zaczyna się **zestawieniem kafelkami**
-– po trzy w rzędzie, z tymi samymi kodami co pulpit strony w chmurze (LWe, Zio): wilgotność, bateria, temperatura i
+– po trzy w rzędzie, od najsuchszej gleby (do podlania na początku), z tymi samymi kodami co pulpit strony w chmurze (LWe, Zio): wilgotność, bateria, temperatura i
 etykieta, gdy coś wymaga uwagi. Niżej każdy czujnik ma kartę z wykresem ostatnich
 3 dób z samego HTML (kolumny po 4 godz.: niebieska kreska – średnia wilgotność, blady pasek – temperatura od najniższej do
 najwyższej, różowe tło – poniżej progu podlania; przy wielu czujnikach kolumny są szersze, żeby Gmail nie przyciął maila),
@@ -296,7 +296,7 @@ chmurę wprost – bez komputera z agentem i spoza sieci domowej. Dziś:
   pyta, pokazując odbiorców), agenci z ostatnim sygnałem życia (bateria i temperatura telefonu, procesor Pi), nadawca.
   Na telefonie (okno węższe niż 700 px) pulpit startuje w **widoku skróconym**: małe kafelki z trzyznakowym kodem
   czujnika (z nazwy: Laurowiśnia wejście → LWe, Zioła → Zio; pełna nazwa w dymku i na stronie czujnika), wilgotnością,
-  baterią, temperaturą i etykietą ostrzeżenia, agenci po jednym wierszu – bez wykresów, więc ładuje się tylko ostatni
+  baterią, temperaturą i etykietą ostrzeżenia, od najsuchszej gleby (do podlania na początku), agenci po jednym wierszu – bez wykresów, więc ładuje się tylko ostatni
   stan. Przełącznik **Skrócony / Pełny** przy tytule; wybór trwa do zamknięcia karty.
 - **Strona czujnika** – stan teraz, przeglądalny wykres całej historii (3 doby … całość, przeciąganie, Ctrl + kółko, dwa
   palce, pasek przeglądu – jak w lokalnym panelu), otwarte alerty, ostatnie odczyty, kto czujnik czyta i słyszy (sygnał

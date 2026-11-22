@@ -462,14 +462,14 @@ public class MailTemplatesTests
     }
 
     [Fact]
-    public void Report_TilesComeRightAfterTheBanner_InNameOrder_WithTheCardsLabels()
+    public void Report_TilesComeRightAfterTheBanner_DriestFirst_WithTheCardsLabels()
     {
         var html = Report(Snapshot("Zielistka", 60), Snapshot("Monstera", 18, AlertKind.NeedsWater), Snapshot("Fikus", 50, AlertKind.LowBattery)).HtmlBody;
         var tiles = TilesSection(html);
 
         Assert.True(html.IndexOf("Do podlania: 1", StringComparison.Ordinal) < html.IndexOf("border-left:4px solid", StringComparison.Ordinal));
-        Assert.True(tiles.IndexOf(">Fik<", StringComparison.Ordinal) < tiles.IndexOf(">Mon<", StringComparison.Ordinal));
-        Assert.True(tiles.IndexOf(">Mon<", StringComparison.Ordinal) < tiles.IndexOf(">Zie<", StringComparison.Ordinal));
+        Assert.True(tiles.IndexOf(">Mon<", StringComparison.Ordinal) < tiles.IndexOf(">Fik<", StringComparison.Ordinal));  // 18% → 50% → 60%
+        Assert.True(tiles.IndexOf(">Fik<", StringComparison.Ordinal) < tiles.IndexOf(">Zie<", StringComparison.Ordinal));
         Assert.Contains("color:#8c2f20\">18%<", tiles);                         // wilgotność poniżej progu – czerwona
         Assert.Contains(">! podlej</span>", tiles);
         Assert.Contains(">! bateria</span>", tiles);
@@ -483,7 +483,7 @@ public class MailTemplatesTests
     {
         var text = Lf(Report(Snapshot("Zielistka", 60), Snapshot("Monstera", 18, AlertKind.NeedsWater), Snapshot("Fikus", 50), Snapshot("Bazylia", null)).TextBody);
 
-        Assert.Contains("\nBaz –  Fik 50%  Mon 18%\nZie 60%\n", text);
+        Assert.Contains("\nMon 18%  Fik 50%  Zie 60%\nBaz –\n", text);       // od najsuchszej, bez odczytu na końcu
         Assert.True(text.IndexOf("Baz –", StringComparison.Ordinal) < text.IndexOf("Monstera – podlej", StringComparison.Ordinal));
     }
 

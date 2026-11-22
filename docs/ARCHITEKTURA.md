@@ -276,7 +276,7 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
    rośliny. `glebosaurus mail-preview` zapisuje przykładowe maile do obejrzenia; prawdziwy próbny mail wysyła nadawca na
    polecenie ze strony (`mail_test`).
    **Zestawienie kafelkami** (od 2026-11-22) pod paskiem podsumowania, przed wykresami: po trzy w rzędzie (tabela o
-   stałych kolumnach), w kolejności nazw – kod czujnika, wilgotność, pasek, bateria (mała ikona z dwóch ramek, bez SVG),
+   stałych kolumnach), od najsuchszej gleby (bez odczytu na końcu; jak na stronie) – kod czujnika, wilgotność, pasek, bateria (mała ikona z dwóch ramek, bez SVG),
    temperatura i pierwsza etykieta karty („! podlej”, „brak odczytów” – wtedy szare wartości, „! bateria”, „wyciszony”,
    przy kilku „+N”). Kody to `SensorCodes` (Core) – krok w krok to samo co `web/sensor-codes.js` (test porównuje oba);
    nadawca liczy je ze wszystkich czujników w konfiguracji z chmury, także wyłączonych (`CloudAgentConfig.SensorCodes`),
@@ -343,7 +343,8 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
       `conflict`), `ui.js` (formularze, potwierdzenia w miejscu zamiast okien przeglądarki), strony (`index.html` +
       `dashboard.js` – pulpit z alertami, wykresem 3 dób przy każdym czujniku i odczytem/raportem na żądanie; na
       ekranie węższym niż 700 px startuje widok skrócony (wybór przełącznikiem w `sessionStorage`): kafelki z kodem
-      czujnika, wilgotnością, baterią, temperaturą i pierwszym ostrzeżeniem, bez wykresów – sam `owner_dashboard`,
+      czujnika, wilgotnością, baterią, temperaturą i pierwszym ostrzeżeniem, od najsuchszej gleby (`tile-order.js`; bez
+      odczytu za nimi, wyłączone na końcu), bez wykresów – sam `owner_dashboard`,
       `charts.js` pobierany (`import()`) dopiero w widoku pełnym; kody liczy `sensor-codes.js` z nazw, bez pola w bazie
       (wielka litera = początek słowa, różne bez względu na wielkość liter i ogonki, przy kolizji kod podstawowy
       zostaje przy najmniejszym identyfikatorze – nowy czujnik przestawia tylko kody kolidujące; testy w silniku Jint),
