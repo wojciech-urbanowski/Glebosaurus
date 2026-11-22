@@ -431,6 +431,10 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   **Po wydaniu** (uwaga użytkownika ze zrzutem prawdziwej strony): pełny widok pulpitu był nadal alfabetyczny – teraz oba
   widoki strony i pulpit lokalnego panelu idą od najsuchszej gleby (`tile-order.js` wspólny z panelem); sprawdzone w
   podglądzie (pełny widok: 20% → 36% → 44% → 45% → 47%).
+  **Wydanie 0.2.10** (na prośbę użytkownika, z tą poprawką): CI zielone na 2264ea8, tag `v0.2.10` – „Wydanie” i
+  „Strona w chmurze” zielone, wydanie opublikowane o 19:16 jako najnowsze (bez APK). Porównanie wersji sprawdzone przed
+  wydaniem: usługa Windows (`System.Version`), skrypt Windows (`[Version]`) i `install-linux.sh` (`sort -V`) uznają
+  0.2.10 za nowszą od 0.2.9. bestia5 i rasp3 wezmą ją same (przy starcie usługi albo o 03:30).
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 
