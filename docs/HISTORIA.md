@@ -422,6 +422,12 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   4 → 3 kolumny) – pomiar na raportach z 10–40 czujnikami: wykresy zostają do 22 czujników (wcześniej do 17); 3 doby po
   4 godz. do 12. Temperatura na wykresach strony i panelu półprzezroczysta jak w mailu (pasek 35%, linia 50%) –
   obejrzana w podglądzie (strona czujnika, 7 dni i całość).
+  **Wydanie 0.2.9** (na prośbę użytkownika): CI zielone na eaa83bf, tag `v0.2.9` – „Wydanie” (build, próba instalacji
+  Windows i linux-arm64, publikacja) i „Strona w chmurze” zielone; wydanie opublikowane o 18:42 jako najnowsze (paczka
+  Windows, paczka linux-arm64, oba skrypty instalacji, SHA256SUMS; bez APK – repozytorium nie ma sekretów klucza), strona
+  na GitHub Pages z nowymi plikami. Bez nowej migracji (`config_conflict` jest na prawdziwym projekcie od 21.11).
+  bestia5 i rasp3 wezmą je same (przy starcie usługi albo o 03:30); mi11 zostaje na 0.2.7 (zmiany 0.2.9 nie dotyczą
+  zbieracza na telefonie).
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 
