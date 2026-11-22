@@ -106,7 +106,9 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
      tam, gdzie skończył poprzedni; raport z przerwy nadrabia `catchUpHours`.
    - **Strażnik:** sygnał do healthchecks.io (darmowy) wysyła tylko obecny nadawca i tylko, gdy wszystko działa
      (blokada, Supabase, SMTP), co 5 min; cisza ponad 30 min (sprawdzenie „Simple”: Period 5 min, Grace 25 min) → mail od
-     healthchecks.io (padł nadawca, nie ma sieci, Supabase uśpiony).
+     healthchecks.io (padł nadawca, nie ma sieci, Supabase uśpiony). Adres sygnału jest jeden na projekt (Vault), więc po
+     przejęciu blokady sygnał idzie dalej z tego samego sprawdzenia; kto go wysyła, widać w dzienniku pingów w nagłówku
+     `User-Agent: Glebosaurus/<wersja> (<agent>)` (adres IP bywa wspólny dla agentów w jednej sieci).
    Testy: zasady w Core na atrapie bazy z ręcznie sterowanym czasem; funkcje SQL na drugim, próbnym projekcie Supabase –
    dwóch agentów, uśpienie z dzierżawą, utrata sieci, restart w trakcie wysyłki. Testy na chmurze uruchamia się na
    żądanie (`GLEBOSAURUS_CLOUD_TESTS=1` i plik `local/cloud-admin.test.json`; bez nich są pomijane) i nigdy na prawdziwym

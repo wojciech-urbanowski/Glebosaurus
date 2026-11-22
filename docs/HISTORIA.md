@@ -435,6 +435,16 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   „Strona w chmurze” zielone, wydanie opublikowane o 19:16 jako najnowsze (bez APK). Porównanie wersji sprawdzone przed
   wydaniem: usługa Windows (`System.Version`), skrypt Windows (`[Version]`) i `install-linux.sh` (`sort -V`) uznają
   0.2.10 za nowszą od 0.2.9. bestia5 i rasp3 wezmą ją same (przy starcie usługi albo o 03:30).
+  **Strażnik – kto pinguje** (pytanie użytkownika, wieczór): sygnał do healthchecks.io wysyła tylko agent z blokadą
+  nadawcy; odczyt tylko do odczytu z prawdziwego projektu o 20:47 – blokadę trzymał rasp3 (epoka 11, przyznana
+  2026-11-21 14:18, odnowiona 60 s wcześniej), bestia5 od 2026-11-19 16:58 nie zalogowała ani jednego „mam blokadę”.
+  bestia5 i rasp3 stoją w jednej sieci lokalnej, więc adres IP w dzienniku pingów healthchecks.io jest wspólny, a
+  ping nie miał nagłówka User-Agent – nie dało się odróżnić, kto pinguje. **Na prośbę użytkownika** ping niesie teraz
+  `User-Agent: Glebosaurus/<wersja> (<agent>)` (`HealthchecksHeartbeat`, `IHeartbeat.PingAsync(url, agent, …)`; nazwa
+  agenta oczyszczona do liter, cyfr, „-”, „_”, „.”); testy w `HealthchecksHeartbeatTests` i `NotifierTests`. Wersja
+  niepodbita – nagłówek pojawi się po następnym wydaniu. Przy okazji: sprawdzenie w healthchecks.io ma na zrzucie
+  użytkownika Period 4 godz. i Grace 1 godz. (dokumentacja i strona zakładają 5 min / 25 min) – alarm po ok. 5 godz.
+  ciszy; zmiana ustawienia jest po stronie użytkownika.
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 

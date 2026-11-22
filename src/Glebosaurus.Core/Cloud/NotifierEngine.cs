@@ -15,7 +15,9 @@ namespace Glebosaurus.Core.Cloud;
 /// <summary>Sygnał „nadawca działa” dla strażnika (healthchecks.io).</summary>
 public interface IHeartbeat
 {
-    Task PingAsync(Uri url, CancellationToken cancellationToken);
+    /// <param name="agent">Nazwa agenta, który wysyła sygnał – trafia do nagłówka User-Agent, więc w dzienniku healthchecks.io
+    /// widać, kto pinguje także wtedy, gdy kilka agentów stoi za jednym adresem IP.</param>
+    Task PingAsync(Uri url, string agent, CancellationToken cancellationToken);
 }
 
 public sealed record NotifierOptions
@@ -227,7 +229,7 @@ public sealed class NotifierEngine(
             await SendTestMailsAsync(current, epoch, cancellationToken);
             await SendAdminLogsAsync(current, epoch, cancellationToken);
             await NotifySilentAgentsAsync(current, epoch, cancellationToken);
-            await HeartbeatAsync(cancellationToken);
+            await HeartbeatAsync(current.Agent.Name, cancellationToken);
         }
         catch (CloudApiException e) when (e.Kind == CloudErrorKind.NotNotifier)
         {
@@ -571,7 +573,7 @@ public sealed class NotifierEngine(
 
     /// <summary>Sygnał tylko, gdy działa wszystko: blokada, synchronizacja z chmurą (<see cref="NotifierOptions.HeartbeatSyncedWithin"/>) i SMTP.
     /// Cisza dłuższa niż ustawiona w healthchecks.io = mail stamtąd.</summary>
-    private async Task HeartbeatAsync(CancellationToken cancellationToken)
+    private async Task HeartbeatAsync(string agent, CancellationToken cancellationToken)
     {
         if (heartbeat is null || credentials?.HealthchecksPingUrl is not { Length: > 0 } address) return;
         var now = clock.GetUtcNow();
@@ -587,7 +589,7 @@ public sealed class NotifierEngine(
             return;
         }
         lastHeartbeat = now;
-        try { await heartbeat.PingAsync(url, cancellationToken); }
+        try { await heartbeat.PingAsync(url, agent, cancellationToken); }
         catch (Exception e) when (e is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
         {
             logger.LogWarning("Sygnał dla strażnika nie przeszedł: {Error}", e.Message);

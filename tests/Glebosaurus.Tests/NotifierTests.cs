@@ -477,6 +477,7 @@ public sealed class NotifierTests
         sync = sync with { ConsecutiveFailures = 0 };
         await engine.CycleAsync(Ct);
         Assert.Equal(2, heartbeat.Pings.Count);
+        Assert.All(heartbeat.Agents, agent => Assert.Equal("pi", agent));   // sygnał niesie nazwę agenta-nadawcy
         Assert.DoesNotContain(logger.Entries, e => e.Message.Contains("sekretny-adres"));
     }
 
@@ -522,9 +523,12 @@ public sealed class NotifierTests
     {
         public List<Uri> Pings { get; } = [];
 
-        public Task PingAsync(Uri url, CancellationToken cancellationToken)
+        public List<string> Agents { get; } = [];
+
+        public Task PingAsync(Uri url, string agent, CancellationToken cancellationToken)
         {
             Pings.Add(url);
+            Agents.Add(agent);
             return Task.CompletedTask;
         }
     }
