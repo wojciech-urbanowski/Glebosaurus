@@ -452,6 +452,15 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   (`AgentDevice.MayBeOff`, platforma z sygnału życia); telefon, Raspberry Pi i agent bez sygnału życia – jak dotąd.
   Testy w `NotifierTests`. Bez migracji i bez zmian w prawdziwym projekcie; nadawca rasp3 weźmie zmianę z następnym
   wydaniem (wersja niepodbita), do tego czasu maile o bestia5 jeszcze przychodzą.
+  **Wydanie 0.2.11** (na prośbę użytkownika; razem z nagłówkiem User-Agent pingu): testy całego rozwiązania lokalnie
+  zielone (693 zielone, 138 pominiętych – testy SQL chmury bez zmiennej), CI zielone na d3d90a1, tag `v0.2.11` –
+  „Wydanie” zielone, wydanie opublikowane o 21:11 jako najnowsze (paczka Windows, paczka linux-arm64, oba skrypty
+  instalacji, SHA256SUMS; bez APK). bestia5 i rasp3 wezmą je same (przy starcie usługi albo o 03:30); po aktualizacji
+  rasp3 przestaje mailować o bestia5, a ping do healthchecks.io niesie `User-Agent` z nazwą agenta. **Strona w chmurze**
+  (`web/` bez zmian od 0.2.10): przebieg z tagu padł w `deploy-pages` („No artifacts named github-pages”, choć
+  `upload-pages-artifact` się udał – chwilowe opóźnienie widoczności artefaktu po stronie GitHuba); `gh run rerun
+  --failed` nie pomaga, bo powtarza cały job i tworzy drugi artefakt o tej samej nazwie („Multiple artifacts named
+  github-pages”). Wdrożenie przeszło z nowego przebiegu: `gh workflow run pages.yml --ref v0.2.11`.
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 
