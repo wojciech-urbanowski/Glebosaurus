@@ -21,7 +21,8 @@ zbieracz, 9 czujników):
   odczytem i raportem na żądanie;
 - agent na Androida (tylko zbieranie) z rejestracją kodem QR i podglądem zasięgu; stan telefonu (bateria, temperatura,
   Wi-Fi) w panelu WWW komputera;
-- strona właściciela w chmurze (GitHub Pages, logowanie z TOTP; od 2026-11-21): pulpit z wykresami, historia czujnika,
+- strona właściciela w chmurze (GitHub Pages, logowanie z TOTP; od 2026-11-21): pulpit z wykresami (na telefonie widok
+  skrócony z kafelkami, od 2026-11-22), historia czujnika,
   alerty z potwierdzeniem i wyciszeniami, historia maili, edytor konfiguracji, parowanie zdalne;
 - CI na każdy push, wydania z tagu `v*`.
 

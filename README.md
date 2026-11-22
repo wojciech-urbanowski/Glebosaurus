@@ -292,6 +292,10 @@ chmurę wprost – bez komputera z agentem i spoza sieci domowej. Dziś:
 - **Pulpit** – otwarte alerty, czujniki z ostatnim odczytem, agentem, który je czyta, i wykresem ostatnich 3 dób,
   odczyt na żądanie (pojedynczo i wszystkie – stan polecenia widać na karcie), raport na żądanie (prawdziwy mail – strona
   pyta, pokazując odbiorców), agenci z ostatnim sygnałem życia (bateria i temperatura telefonu, procesor Pi), nadawca.
+  Na telefonie (okno węższe niż 700 px) pulpit startuje w **widoku skróconym**: małe kafelki z trzyznakowym kodem
+  czujnika (z nazwy: Laurowiśnia wejście → LWe, Zioła → Zio; pełna nazwa w dymku i na stronie czujnika), wilgotnością,
+  baterią, temperaturą i etykietą ostrzeżenia, agenci po jednym wierszu – bez wykresów, więc ładuje się tylko ostatni
+  stan. Przełącznik **Skrócony / Pełny** przy tytule; wybór trwa do zamknięcia karty.
 - **Strona czujnika** – stan teraz, przeglądalny wykres całej historii (3 doby … całość, przeciąganie, Ctrl + kółko, dwa
   palce, pasek przeglądu – jak w lokalnym panelu), otwarte alerty, ostatnie odczyty, kto czujnik czyta i słyszy (sygnał
   u każdego agenta), ustawienia z odnośnikiem do konfiguracji.

@@ -155,6 +155,34 @@ public sealed partial class OwnerWebTests
         }
     }
 
+    /// <summary>
+    /// Pulpit skrócony (telefon) nie pobiera wykresów: <c>charts.js</c> tylko przez <c>import()</c> w widoku pełnym, a
+    /// <c>owner_series</c> woła wyłącznie karta pełnego widoku.
+    /// </summary>
+    [Fact]
+    public void Dashboard_LoadsChartsOnlyInFullView()
+    {
+        var code = File.ReadAllText(Path.Combine(Web, "dashboard.js"));
+
+        Assert.DoesNotContain("from './charts.js'", code);
+        Assert.Contains("await import('./charts.js')", code);
+        Assert.Contains("if (TimeChart) {", code);
+        Assert.Contains("'(max-width: 699px)'", code);
+    }
+
+    /// <summary>Kafelki pulpitu skróconego: trzy w rzędzie już na telefonie 360 px (main ma po 16 px marginesu).</summary>
+    [Fact]
+    public void CompactTiles_FitThreeInARowOn360PxPhone()
+    {
+        var css = File.ReadAllText(Path.Combine(Web, "app.css")).ReplaceLineEndings("\n");
+        var tiles = CssRule(css, ".tiles");
+
+        var minWidth = int.Parse(Regex.Match(tiles, @"minmax\(min\(100%, (\d+)px\), 1fr\)").Groups[1].Value);
+        var gap = int.Parse(Regex.Match(tiles, @"gap: (\d+)px").Groups[1].Value);
+        Assert.True(3 * minWidth + 2 * gap <= 360 - 2 * 16, $"3 × {minWidth} px + 2 × {gap} px nie mieści się w 328 px.");
+        Assert.True(minWidth >= 100, "Węższy kafelek nie zmieści kodu i „100%” w jednym wierszu.");
+    }
+
     private static string CssRule(string css, string selector)
     {
         var match = Regex.Match(css, $@"(?m)^{Regex.Escape(selector)} \{{([^}}]*)\}}");

@@ -405,6 +405,12 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   **rasp3 na 0.2.8** – pierwsza samoaktualizacja Raspberry Pi z prawdziwego wydania (użytkownik uruchomił
   `systemctl start glebosaurus-update.service`; sygnał życia z wersją 0.2.8 o 14:12). Agenci: bestia5 i rasp3 – 0.2.8,
   mi11 – 0.2.7 (nowości 0.2.8 są dla nadawcy i zbieracza na Windows).
+- **2026-11-22** – **pulpit skrócony na telefon** (makieta zaakceptowana przez użytkownika: wilgotność obok kodu, kody
+  w rodzaju LWe/Zio): sprawdzony w podglądzie (`web-preview.cs`, dane pokazowe na próbnym projekcie) na 360 px, w
+  motywie jasnym i ciemnym. W widoku skróconym strona woła tylko `owner_dashboard` (bez `charts.js` i `owner_series`);
+  przełączenie na pełny pobiera `charts.js` i 5 serii; wybór przetrwał przeładowanie, bez zapisanego wyboru szerokie
+  okno (1024 px) startuje z pełnym. Najgorszy wiersz kafelka („WWe” i „100%”) mieści się w 360 px po zmniejszeniu wcięcia
+  do 5 px; bateria 100% razem z „−12,5 °C” zawija się do drugiego wiersza (bez wystawania poza kafelek).
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 

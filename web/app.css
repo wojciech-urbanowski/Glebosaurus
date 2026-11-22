@@ -286,6 +286,43 @@ svg.qr { width: 220px; max-width: 100%; height: auto; display: block; }
 .page-head .picker { margin: 4px 0 0; max-width: 100%; }
 .page-head .picker select { max-width: 100%; }
 a.sensor-name { color: var(--text); }
+.view-switch { display: inline-flex; margin-top: 4px; }
+.view-switch button + button { border-left: none; }
+
+/* Pulpit skrócony (domyślny na telefonie): kafelki min. 104 px – trzy w rzędzie już na ekranie 360 px. */
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 104px), 1fr)); gap: 6px; }
+a.tile { display: block; min-width: 0; padding: 5px 5px 6px; background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--grey-mid); color: var(--text); text-decoration: none; }
+a.tile.accent-red { border-left-color: var(--red-mid); }
+a.tile.accent-amber { border-left-color: var(--amber-mid); }
+a.tile.accent-green { border-left-color: var(--green-mid); }
+a.tile:hover .tile-code { text-decoration: underline; }
+.tile-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; column-gap: 4px; line-height: 1.2; }
+.tile-code { font-size: 15px; font-weight: 700; letter-spacing: 0.5px; }
+.tile-moisture { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.tile .bar { height: 4px; margin: 3px 0 4px; }
+.tile .bar > div { height: 4px; }
+.tile-meta { display: flex; flex-wrap: wrap; justify-content: space-between; column-gap: 4px; font-size: 12px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tile-meta .low { color: var(--amber-ink); font-weight: 600; }
+svg.battery { width: 16px; height: 9px; margin-right: 2px; vertical-align: -1px; }
+svg.battery .shell { fill: none; stroke: currentColor; }
+svg.battery .nub, svg.battery .level { fill: currentColor; }
+.tile .chip { display: inline-block; max-width: 100%; margin-top: 4px; padding: 0 5px; border: 1px solid; font-size: 11px; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
+svg.bell-off { width: 11px; height: 11px; margin-right: 3px; vertical-align: -1px; fill: none; stroke: currentColor; stroke-width: 1.2; }
+a.tile.stale .tile-moisture, a.tile.stale .tile-meta { color: var(--muted); }
+a.tile.stale .bar > div { background: var(--grey-mid); }
+a.tile.off .tile-code { color: var(--muted); }
+.banner.alerts-line { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; margin-top: 8px; font-size: 14px; }
+.banner.alerts-line a { color: inherit; }
+.agent-rows { max-width: 1000px; padding: 0 12px; background: var(--card); border: 1px solid var(--border); }
+.agent-row { display: grid; grid-template-columns: 8px max-content 1fr; gap: 2px 10px; align-items: baseline; padding: 7px 0; font-size: 14px; }
+.agent-row + .agent-row { border-top: 1px solid var(--border); }
+.agent-row .dot { width: 8px; height: 8px; align-self: center; background: var(--grey-mid); }
+.agent-row .dot-green { background: var(--green-mid); }
+.agent-row .dot-amber { background: var(--amber-mid); }
+.agent-rows + .report { margin-top: 10px; }
+@media (max-width: 380px) {
+  .tile-moisture { font-size: 18px; }
+}
 
 /* Alerty i historia maili (3b). */
 .muted-list { margin-top: 10px; }

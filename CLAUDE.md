@@ -86,7 +86,8 @@ bash deploy/test-install-linux.sh STARA NOWA [--systemd]   # próba install-linu
 - `web/` – **strona właściciela w chmurze** (faza 3, ARCHITEKTURA.md, zasady 4 i 10): zwykłe moduły ES bez budowania,
   GitHub Pages (`pages.yml`: tag `v*` i ręcznie); logowanie Supabase Auth hasłem i TOTP przez `fetch` (`supabase.js`,
   `shell.js`), dane tylko z funkcji `public.owner_*` (rola `authenticated`, `require_owner()`: konto z `owners` + `aal2`).
-  Strony: pulpit (`dashboard.js`), czujnik (`sensor.js`; wykresy z `owner_series` – uśrednianie w SQL jak
+  Strony: pulpit (`dashboard.js`; na telefonie widok skrócony – kafelki z kodami z `sensor-codes.js`, testy kodów w
+  silniku Jint `SensorCodesTests`; `charts.js` dopiero w widoku pełnym), czujnik (`sensor.js`; wykresy z `owner_series` – uśrednianie w SQL jak
   `ReadingSeriesBuilder`, pilnuje `SeriesContractTests`), edytor konfiguracji (`config.js`; zapisy z `config_version`,
   walidacja tylko w bazie – `ConfigContractTests`; parowanie zdalne – `owner_pair_start`, postęp co 2 s), alerty (`alerts.js`: potwierdzenie, zamknięcie, wyciszenia,
   historia maili) i podgląd maila (`mail.html` – jedyna strona z `style-src 'unsafe-inline'`, treść w ramce `sandbox`).
