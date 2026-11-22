@@ -86,14 +86,14 @@ bash deploy/test-install-linux.sh STARA NOWA [--systemd]   # próba install-linu
 - `web/` – **strona właściciela w chmurze** (faza 3, ARCHITEKTURA.md, zasady 4 i 10): zwykłe moduły ES bez budowania,
   GitHub Pages (`pages.yml`: tag `v*` i ręcznie); logowanie Supabase Auth hasłem i TOTP przez `fetch` (`supabase.js`,
   `shell.js`), dane tylko z funkcji `public.owner_*` (rola `authenticated`, `require_owner()`: konto z `owners` + `aal2`).
-  Strony: pulpit (`dashboard.js`; na telefonie widok skrócony – kafelki od najsuchszej gleby (`tile-order.js`, ta sama
-  kolejność w raporcie) z kodami z `sensor-codes.js` – zmiany razem z
+  Strony: pulpit (`dashboard.js`; czujniki od najsuchszej gleby w obu widokach i w panelu – `tile-order.js`, ta sama
+  kolejność kafelków w raporcie; na telefonie widok skrócony – kafelki z kodami z `sensor-codes.js` – zmiany razem z
   `Core/Config/SensorCodes.cs`, testy kodów i zgodności obu w silniku Jint `SensorCodesTests`; `charts.js` dopiero w widoku pełnym), czujnik (`sensor.js`; wykresy z `owner_series` – uśrednianie w SQL jak
   `ReadingSeriesBuilder`, pilnuje `SeriesContractTests`), edytor konfiguracji (`config.js`; zapisy z `config_version`,
   walidacja tylko w bazie – `ConfigContractTests`; parowanie zdalne – `owner_pair_start`, postęp co 2 s), alerty (`alerts.js`: potwierdzenie, zamknięcie, wyciszenia,
   historia maili) i podgląd maila (`mail.html` – jedyna strona z `style-src 'unsafe-inline'`, treść w ramce `sandbox`).
   `charts.js` – też kopia pliku panelu. `vendor/qrcode.js` – qrcode-generator 2.0.4 bez zmian (suma w teście).
-  Adres projektu z odnośnika `cloud web-link` (nie w repozytorium). `format.js`, `charts.js` i `favicon.svg` to kopie plików lokalnego
+  Adres projektu z odnośnika `cloud web-link` (nie w repozytorium). `format.js`, `charts.js`, `tile-order.js` i `favicon.svg` to kopie plików lokalnego
   panelu – zmiany w obu (pilnuje `OwnerWebTests`); nowa funkcja `owner_*` = podbicie `REQUIRED_MIGRATION` w `shell.js`.
   Podgląd: `tools/web-preview.cs` (`seed` – dane pokazowe na próbnym projekcie, `serve` – http://127.0.0.1:8472 z
   udawanym Auth i prawdziwymi funkcjami `owner_*` próbnej bazy, jak w PostgREST) – prawdziwego logowania (hasło, TOTP)

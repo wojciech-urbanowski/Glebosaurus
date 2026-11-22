@@ -1,9 +1,9 @@
 // Pulpit strony w chmurze (3a) w dwóch widokach. Pełny: otwarte alerty, czujniki z ostatnim odczytem, agentem, który je
 // czyta, i wykresem ostatnich 3 dób, odczyt na żądanie (pojedynczo i wszystkie) i raport na żądanie, agenci z sygnałem
 // życia, obecny nadawca. Skrócony (domyślny na telefonie): małe kafelki z kodem czujnika (sensor-codes.js),
-// wilgotnością, baterią, temperaturą i ostrzeżeniem, od najsuchszej gleby (tile-order.js), agenci po jednym wierszu –
+// wilgotnością, baterią, temperaturą i ostrzeżeniem, agenci po jednym wierszu –
 // bez wykresów, więc bez owner_series i bez pobierania charts.js. Dane z owner_dashboard co 60 s; wykresy z
-// owner_series – przy nowym odczycie albo co 10 min.
+// owner_series – przy nowym odczycie albo co 10 min. W obu widokach czujniki od najsuchszej gleby (tile-order.js).
 
 import { h, ago, when, now, percent, celsius, dbm, plural, badge, kv, syncClock, num1, dateFmt } from './format.js';
 import { start } from './shell.js';
@@ -443,7 +443,7 @@ function compactSections(sensors, readAll) {
   const sections = [];
   if (data.alerts.length > 0) sections.push(alertsLine());
   const tiles = h('div', 'tiles');
-  tiles.append(...tileOrder(sensors).map(sensorTile));      // od najsuchszej gleby – do podlania na początku
+  tiles.append(...sensors.map(sensorTile));
   if (sensors.length === 0) tiles.append(h('div', 'empty', 'W chmurze nie ma jeszcze czujników – dodasz je w Konfiguracji.'));
   const agents = h('div', 'agent-rows');
   agents.append(...data.agents.map(agentRow));
@@ -530,7 +530,7 @@ function render() {
   if (data.alertsMutedUntil) {
     children.push(h('div', 'banner tone-amber', `Alerty mailowe wyciszone do ${when(data.alertsMutedUntil)} (urlop) – raporty przychodzą dalej.`));
   }
-  const sensors = [...enabled, ...disabled];
+  const sensors = tileOrder(data.sensors);       // oba widoki: od najsuchszej gleby, wyłączone na końcu
   children.push(...(view === 'compact' ? compactSections(sensors, readAll) : fullSections(sensors, readAll)));
   main.replaceChildren(...children);
 }

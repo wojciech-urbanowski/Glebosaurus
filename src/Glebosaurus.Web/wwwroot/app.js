@@ -10,6 +10,7 @@ import {
   fetchSeries, showActionNote, requestRead, readButton, sensorAccent, sensorBadges, sensorMetrics, sensorLines, alertCard,
   buildLogDays, loadLog
 } from './common.js';
+import { tileOrder } from './tile-order.js';
 import { TimeChart } from './charts.js';
 
 const REFRESH_MS = 30000;
@@ -210,7 +211,8 @@ function updateCharts(status) {
 }
 
 function renderSensors(status) {
-  $('sensors').replaceChildren(...status.sensors.map(renderSensor));
+  // Od najsuchszej gleby – do podlania na początku (ta sama kolejność co strona w chmurze i raport).
+  $('sensors').replaceChildren(...tileOrder(status.sensors, (s) => s.latest?.moisturePercent).map(renderSensor));
   updateCharts(status);
 }
 

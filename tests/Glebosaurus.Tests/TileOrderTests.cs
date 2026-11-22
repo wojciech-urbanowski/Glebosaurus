@@ -22,11 +22,34 @@ public sealed class TileOrderTests
         Assert.Equal(["Trawa", "Laurowiśnia szafka", "Alpinarium", "Cisy", "Zioła", "Nowy", "Wyłączony"], order);
     }
 
-    private static string[] Order(params (string Name, int? Moisture, bool Enabled)[] sensors)
+    /// <summary>Lokalny panel podaje wilgotność z innego pola (<c>latest.moisturePercent</c>) i nie ma „enabled”.</summary>
+    [Fact]
+    public void PanelShape_UsesTheGivenMoistureField()
+    {
+        var engine = Engine();
+        var input = JsonSerializer.Serialize(new object[]
+        {
+            new { name = "Zioła", latest = new { moisturePercent = 92 } },
+            new { name = "Nowy", latest = (object?)null },
+            new { name = "Trawa", latest = new { moisturePercent = 21 } }
+        });
+
+        var output = engine.Evaluate($"JSON.stringify(tileOrder({input}, (s) => s.latest?.moisturePercent).map(s => s.name))").AsString();
+
+        Assert.Equal(["Trawa", "Zioła", "Nowy"], JsonSerializer.Deserialize<string[]>(output)!);
+    }
+
+    private static Engine Engine()
     {
         var engine = new Engine();
         engine.Modules.Add("tile-order", Script);
         engine.SetValue("tileOrder", engine.Modules.Import("tile-order").Get("tileOrder"));
+        return engine;
+    }
+
+    private static string[] Order(params (string Name, int? Moisture, bool Enabled)[] sensors)
+    {
+        var engine = Engine();
         var input = JsonSerializer.Serialize(sensors.Select(s => new
         {
             name = s.Name, enabled = s.Enabled, last = s.Moisture is null ? null : new { moisture = s.Moisture }

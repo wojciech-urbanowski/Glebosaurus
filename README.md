@@ -292,7 +292,7 @@ synchronizuje się z chmurą dłużej niż 30 min, daje mail „agent milczy”.
 Strona właściciela na GitHub Pages (`https://wojciech-urbanowski.github.io/Glebosaurus/`, katalog [web/](web/)) czyta
 chmurę wprost – bez komputera z agentem i spoza sieci domowej. Dziś:
 
-- **Pulpit** – otwarte alerty, czujniki z ostatnim odczytem, agentem, który je czyta, i wykresem ostatnich 3 dób,
+- **Pulpit** – otwarte alerty, czujniki (od najsuchszej gleby) z ostatnim odczytem, agentem, który je czyta, i wykresem ostatnich 3 dób,
   odczyt na żądanie (pojedynczo i wszystkie – stan polecenia widać na karcie), raport na żądanie (prawdziwy mail – strona
   pyta, pokazując odbiorców), agenci z ostatnim sygnałem życia (bateria i temperatura telefonu, procesor Pi), nadawca.
   Na telefonie (okno węższe niż 700 px) pulpit startuje w **widoku skróconym**: małe kafelki z trzyznakowym kodem
@@ -352,7 +352,7 @@ telefonie, a na szerokim ekranie kafle czujników i agentów wypełniają całą
 strony odświeżają się same.
 
 - **Pulpit:** karta każdego czujnika (alerty, wilgotność, temperatura, bateria, wiek odczytu, który agent go czyta, problem
-  z ostatnią próbą) z wykresem ostatnich 3 dób; otwarte alerty, chmura i agenci (synchronizacja, bufor, nadawca), poczta,
+  z ostatnią próbą) z wykresem ostatnich 3 dób – od najsuchszej gleby, jak na stronie w chmurze; otwarte alerty, chmura i agenci (synchronizacja, bufor, nadawca), poczta,
   najbliższy raport, końcówka dziennika, ustawienia.
 - **Stan telefonu i innych agentów:** w karcie każdego agenta wersja programu, a przy telefonie bateria, ładowarka,
   temperatura akumulatora i stan cieplny systemu, sieć i siła Wi-Fi – z jego ostatniej synchronizacji (telefon niczego

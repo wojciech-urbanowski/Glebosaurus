@@ -428,6 +428,9 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   na GitHub Pages z nowymi plikami. Bez nowej migracji (`config_conflict` jest na prawdziwym projekcie od 21.11).
   bestia5 i rasp3 wezmą je same (przy starcie usługi albo o 03:30); mi11 zostaje na 0.2.7 (zmiany 0.2.9 nie dotyczą
   zbieracza na telefonie).
+  **Po wydaniu** (uwaga użytkownika ze zrzutem prawdziwej strony): pełny widok pulpitu był nadal alfabetyczny – teraz oba
+  widoki strony i pulpit lokalnego panelu idą od najsuchszej gleby (`tile-order.js` wspólny z panelem); sprawdzone w
+  podglądzie (pełny widok: 20% → 36% → 44% → 45% → 47%).
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 

@@ -114,6 +114,7 @@ public sealed partial class OwnerWebTests
     [Theory]
     [InlineData("format.js")]
     [InlineData("charts.js")]
+    [InlineData("tile-order.js")]
     [InlineData("favicon.svg")]
     public void SharedFile_IsIdenticalToLocalPanel(string file)
     {
@@ -168,6 +169,19 @@ public sealed partial class OwnerWebTests
         Assert.Contains("await import('./charts.js')", code);
         Assert.Contains("if (TimeChart) {", code);
         Assert.Contains("'(max-width: 699px)'", code);
+    }
+
+    /// <summary>Oba widoki pulpitu strony i pulpit lokalnego panelu układają czujniki od najsuchszej gleby (<c>tile-order.js</c>).</summary>
+    [Fact]
+    public void Dashboards_OrderSensorsDriestFirst_InEveryView()
+    {
+        var web = File.ReadAllText(Path.Combine(Web, "dashboard.js"));
+        var panel = File.ReadAllText(Path.Combine(Root, "src", "Glebosaurus.Web", "wwwroot", "app.js"));
+
+        Assert.Contains("const sensors = tileOrder(data.sensors);", web);
+        Assert.Contains("fullSections(sensors, readAll)", web);
+        Assert.Contains("compactSections(sensors, readAll)", web);
+        Assert.Contains("tileOrder(status.sensors, (s) => s.latest?.moisturePercent).map(renderSensor)", panel);
     }
 
     /// <summary>

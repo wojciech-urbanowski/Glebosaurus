@@ -343,10 +343,11 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
       CSP. Pliki: `shell.js` (ramka, projekt z odnośnika, logowanie, TOTP, nagłówek, odświeżanie co 60 s przy widocznej
       karcie), `supabase.js` (Auth i RPC; błąd z funkcji – rodzaj `invalid` z polskim powodem, konflikt wersji –
       `conflict`), `ui.js` (formularze, potwierdzenia w miejscu zamiast okien przeglądarki), strony (`index.html` +
-      `dashboard.js` – pulpit z alertami, wykresem 3 dób przy każdym czujniku i odczytem/raportem na żądanie; na
+      `dashboard.js` – pulpit z alertami, wykresem 3 dób przy każdym czujniku i odczytem/raportem na żądanie; w obu
+      widokach czujniki od najsuchszej gleby (`tile-order.js` – ten sam plik ma lokalny panel; bez odczytu za nimi,
+      wyłączone na końcu); na
       ekranie węższym niż 700 px startuje widok skrócony (wybór przełącznikiem w `sessionStorage`): kafelki z kodem
-      czujnika, wilgotnością, baterią, temperaturą i pierwszym ostrzeżeniem, od najsuchszej gleby (`tile-order.js`; bez
-      odczytu za nimi, wyłączone na końcu), bez wykresów – sam `owner_dashboard`,
+      czujnika, wilgotnością, baterią, temperaturą i pierwszym ostrzeżeniem, bez wykresów – sam `owner_dashboard`,
       `charts.js` pobierany (`import()`) dopiero w widoku pełnym; kody liczy `sensor-codes.js` z nazw, bez pola w bazie
       (wielka litera = początek słowa, różne bez względu na wielkość liter i ogonki, przy kolizji kod podstawowy
       zostaje przy najmniejszym identyfikatorze – nowy czujnik przestawia tylko kody kolidujące; testy w silniku Jint),
