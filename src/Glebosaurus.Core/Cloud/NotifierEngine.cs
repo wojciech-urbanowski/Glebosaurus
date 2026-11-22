@@ -550,14 +550,16 @@ public sealed class NotifierEngine(
         }
     }
 
-    /// <summary>„Agent milczy” – raz na epizod ciszy (klucz z chwilą ostatniego kontaktu co do minuty).</summary>
+    /// <summary>„Agent milczy” – raz na epizod ciszy (klucz z chwilą ostatniego kontaktu co do minuty). Bez agentów z Windows:
+    /// komputer bywa wyłączony na noc, to nie awaria (<see cref="AgentDevice.MayBeOff"/>).</summary>
     private async Task NotifySilentAgentsAsync(CloudAgentConfig current, long epoch, CancellationToken cancellationToken)
     {
         if (lockPolicy.AgentsSnapshot is not { } snapshot || current.Mail is not { } mail) return;
         var recipients = mail.AdminRecipients.Count > 0 ? mail.AdminRecipients : mail.AlertRecipients;
         if (recipients.Count == 0) return;
         var now = clock.GetUtcNow();
-        foreach (var agent in snapshot.Agents.Where(a => a.Name != current.Agent.Name && a.LastSeenSecondsAgo is not null))
+        foreach (var agent in snapshot.Agents.Where(a => a.Name != current.Agent.Name && a.LastSeenSecondsAgo is not null
+                                                         && !AgentDevice.MayBeOff(a.Status)))
         {
             if (TimeSpan.FromSeconds(agent.LastSeenSecondsAgo!.Value) < settings.AgentSilentAfter) continue;
             var lastSeen = snapshot.ServerTime - TimeSpan.FromSeconds(Math.Round(agent.LastSeenSecondsAgo.Value));

@@ -445,6 +445,13 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   niepodbita – nagłówek pojawi się po następnym wydaniu. Przy okazji: sprawdzenie w healthchecks.io ma na zrzucie
   użytkownika Period 4 godz. i Grace 1 godz. (dokumentacja i strona zakładają 5 min / 25 min) – alarm po ok. 5 godz.
   ciszy; zmiana ustawienia jest po stronie użytkownika.
+  **Mail „Agent bestia5 milczy”** (21.11 o 07:35, ostatni kontakt 07:04) – pytanie użytkownika, czemu przychodzi o PC,
+  który nie działa non stop. Przyczyna: nadawca (rasp3) mailuje o każdym innym agencie bez synchronizacji ponad 30 min,
+  a baza nie ma flagi „ma działać non stop”; każde wyłączenie albo uśpienie bestia5 dawało nowy epizod ciszy (klucz z
+  minutą ostatniego kontaktu), czyli mail. **Na prośbę użytkownika** `NotifierEngine` pomija agentów z Windows
+  (`AgentDevice.MayBeOff`, platforma z sygnału życia); telefon, Raspberry Pi i agent bez sygnału życia – jak dotąd.
+  Testy w `NotifierTests`. Bez migracji i bez zmian w prawdziwym projekcie; nadawca rasp3 weźmie zmianę z następnym
+  wydaniem (wersja niepodbita), do tego czasu maile o bestia5 jeszcze przychodzą.
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 

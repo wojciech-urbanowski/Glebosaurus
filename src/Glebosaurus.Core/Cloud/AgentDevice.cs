@@ -109,6 +109,13 @@ public static class AgentDevice
             .Select(x => new DeviceSnapshot(x.Agent.Name, x.Agent.Status!, serverTime - x.Ago, x.Ago >= silentAfter))
     ];
 
+    /// <summary>
+    /// Agent na komputerze z Windows nie musi działać non stop (PC bywa wyłączony na noc albo uśpiony), więc jego cisza nie
+    /// jest awarią – nie ma maila „agent milczy”. Telefon i Raspberry Pi mają działać cały czas. Agent bez sygnału życia
+    /// (nieznana platforma) liczy się jak telefon: cisza zostaje zgłaszana.
+    /// </summary>
+    public static bool MayBeOff(AgentStatus? status) => status?.Platform == "windows";
+
     /// <summary>Rodzaj urządzenia w raporcie: telefon (Android) albo Raspberry Pi (agent linuksowy).</summary>
     public static string Kind(string platform) => platform switch
     {

@@ -49,7 +49,7 @@ bash deploy/test-install-linux.sh STARA NOWA [--systemd]   # próba install-linu
   dzierżawą z zapasem, nasłuch wszystkich czujników co 3 min, polecenia `read_now`/`release`/`send_log`, dziennik dnia
   poprzedniego do chmury), `NotifierEngine` (tylko z blokadą i hasłem na tę epokę; każdy mail: `mail_claim` → SMTP →
   `mail_sent`, pewna porażka SMTP oddaje rezerwację, niepewna nie – najwyżej raz; alerty, raporty, log administratora po
-  jednym mailu na agenta, „agent milczy”, strażnik healthchecks.io), `CloudPanel` (status lokalnego panelu z konfiguracji,
+  jednym mailu na agenta, „agent milczy” – bez agentów z Windows, `AgentDevice.MayBeOff` – strażnik healthchecks.io), `CloudPanel` (status lokalnego panelu z konfiguracji,
   migawki zbieracza, obrazu ostatniej synchronizacji i alertów z chmury; odczyt/raport na żądanie jako `command_create`;
   wspólna część statusu – `MonitorStatusBuilder`, pole po polu, bez sekretów) i `CloudReadingMirror` (kopia odczytów
   wszystkich agentów przez `readings_feed`, tabela `cloud_feed`, `sync_state` = 1). `CloudRuntime` spina części.

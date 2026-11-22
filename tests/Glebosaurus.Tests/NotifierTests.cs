@@ -458,6 +458,39 @@ public sealed class NotifierTests
     }
 
     [Fact]
+    public async Task SilentAgent_WindowsPcMayBeOff_ButPhoneAndPiAreReported()
+    {
+        Lock();
+        lockPolicy.Observe(new SyncResponse(1, Morning, 1, new("pi", true, 1))
+        {
+            Agents =
+            [
+                new("pi", true, 1, 0),
+                new("bestia5", true, 2, 8 * 3600) { Status = new("0.2.10", "windows") },   // PC wyłączony na noc – to nie awaria
+                new("mi11", false, null, 2000) { Status = new("0.2.10", "android") },
+                new("rasp2", false, null, 2500) { Status = new("0.2.10", "linux") }
+            ]
+        });
+        var engine = Engine();
+
+        await engine.CycleAsync(Ct);
+        Advance(Minute);
+        await engine.CycleAsync(Ct);
+
+        Assert.Equal(new[] { "Agent mi11 milczy", "Agent rasp2 milczy" }, mail.Sent.Select(m => m.Subject).Order(StringComparer.Ordinal).ToArray());
+        Assert.DoesNotContain(api.Outbox.Keys, k => k.StartsWith("agent-silent|bestia5|", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void MayBeOff_OnlyForWindows_AndUnknownPlatformCountsAsAlwaysOn()
+    {
+        Assert.True(AgentDevice.MayBeOff(new("0.2.10", "windows")));
+        Assert.False(AgentDevice.MayBeOff(new("0.2.10", "android")));
+        Assert.False(AgentDevice.MayBeOff(new("0.2.10", "linux")));
+        Assert.False(AgentDevice.MayBeOff(null));
+    }
+
+    [Fact]
     public async Task Heartbeat_OnlyWhenEverythingWorks_AndUrlNeverLogged()
     {
         api.Credentials = api.Credentials with { HealthchecksPingUrl = "https://hc-ping.com/sekretny-adres" };

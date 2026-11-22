@@ -284,8 +284,9 @@ milczy”). Wygląd obejrzysz bez wysyłania: `glebosaurus mail-preview` (w prze
 **Log techniczny dla administratora.** Agent trzyma dziennik w plikach dziennych `logs/glebosaurus-RRRRMMDD.log` obok pliku
 konfiguracji i usuwa starsze niż `logs.retentionDays`. Wczorajszy dziennik każdy agent wysyła do chmury, a nadawca po 01:00
 wysyła pod `mail.adminRecipients` osobny mail z dziennika każdego agenta: streszczenie (liczba wpisów, ostatnie ostrzeżenia i
-błędy) i pełny dziennik jako załącznik `.log`. Dziennik nie zawiera kluczy czujników ani hasła Gmaila. Agent, który nie
-synchronizuje się z chmurą dłużej niż 30 min, daje mail „agent milczy”.
+błędy) i pełny dziennik jako załącznik `.log`. Dziennik nie zawiera kluczy czujników ani hasła Gmaila. Telefon albo
+Raspberry Pi, który nie synchronizuje się z chmurą dłużej niż 30 min, daje mail „agent milczy”; komputer z Windows
+(wyłączany na noc) nie – jego czujniki i tak przejmują inni agenci, a bez nich przychodzą alerty „brak odczytów”.
 
 ## Strona w chmurze
 

@@ -298,7 +298,11 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
    `FileLoggerProvider`, retencja `logs.retentionDays`). Zbieracz wysyła wczorajszy dziennik do chmury w pierwszym cyklu
    dnia, a nadawca od 01:00 wysyła pod `mail.adminRecipients` osobny mail z dziennika każdego agenta: streszczenie
    (liczniki, ostatnie ostrzeżenia i błędy) i pełny plik jako załącznik (limit 5 mln znaków, obcinany od początku).
-   „**Agent milczy**”: agent bez synchronizacji ponad 30 min → mail do administratora, raz na epizod ciszy.
+   „**Agent milczy**”: agent bez synchronizacji ponad 30 min → mail do administratora, raz na epizod ciszy. Dotyczy
+   agentów, którzy mają działać non stop (telefon, Raspberry Pi; agent bez sygnału życia też). **Bez agentów z Windows**
+   (`AgentDevice.MayBeOff`): komputer bywa wyłączony na noc albo uśpiony, więc jego cisza nie jest awarią – bez flagi „ma
+   działać non stop” w chmurze decyduje platforma z sygnału życia. Gdyby takie agenty były potrzebne (Windows 24/7), trzeba
+   flagi per agent (migracja, `AgentView`, edytor agentów na stronie).
 10. **Chmura i UI.** **Supabase, darmowy plan**: Postgres z funkcjami SQL (operacje atomowe) i Vault; bez Edge Functions,
     bez Storage i bez własnego serwera. Własny serwer (VPS) i Azure odrzucone ze względu na koszt. Limity darmowego planu:
     - baza 500 MB, po przekroczeniu tylko do odczytu – odczyty to ok. 0,4 mln wierszy rocznie przy kilkunastu czujnikach,
