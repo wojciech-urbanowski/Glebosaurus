@@ -82,6 +82,25 @@ public sealed class CloudConfigTests : IDisposable
         Assert.All(mapped.Warnings, w => Assert.DoesNotContain(Key, w));
     }
 
+    /// <summary>Kody czujników do raportu liczone ze wszystkich czujników w chmurze – także wyłączonych i pominiętych – jak na stronie.</summary>
+    [Fact]
+    public void Map_SensorCodesCoverEverySensor_IncludingSkippedOnes()
+    {
+        var cloud = Config(sensors:
+        [
+            Sensor("dobry", "DC:23:51:CC:03:C9", Tuya("DC:23:51:CC:03:C9")),
+            Sensor("wylaczony", "DC:23:51:00:00:01", Tuya("DC:23:51:00:00:01", "aaaaaaaaaaaaaaaa"), enabled: false),
+            Sensor("bez-kluczy", "DC:23:51:00:00:02", null)
+        ]);
+
+        var mapped = CloudConfigMapper.Map(cloud, Local());
+
+        Assert.Equal(["dobry"], mapped.Config.Sensors.Select(s => s.Id));
+        Assert.Equal(SensorCodes.For(cloud.Sensors.Select(s => (s.Id, s.Name))).OrderBy(p => p.Key, StringComparer.Ordinal),
+            mapped.SensorCodes.OrderBy(p => p.Key, StringComparer.Ordinal));
+        Assert.Equal(3, mapped.SensorCodes.Count);
+    }
+
     [Fact]
     public void Map_MailRecipientsOnlyForSenders()
     {

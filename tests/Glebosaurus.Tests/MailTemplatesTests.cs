@@ -136,7 +136,9 @@ public class MailTemplatesTests
         Assert.DoesNotContain("0%", message.TextBody);
         Assert.Contains("brak danych", message.TextBody);      // a nie zielone „OK”
         Assert.Contains("Brak odczytu", message.HtmlBody);
-        Assert.DoesNotContain("<td width=", message.HtmlBody); // bez odczytu nie ma kafelków z liczbami
+        Assert.DoesNotContain("padding-right:6px", message.HtmlBody); // bez odczytu karta nie ma liczb
+        Assert.Contains(">Now<", message.HtmlBody);                     // kafelek jest – z kreskami i etykietą
+        Assert.Contains(">brak danych</span>", message.HtmlBody);
     }
 
     [Fact]
@@ -174,7 +176,7 @@ public class MailTemplatesTests
         foreach (var part in new[] { ">Bateria<", ">64%<", ">Temperatura<", ">18,5 °C<", ">Ładowarka<", ">nie<", ">Temp. procesora<", ">47,2 °C<",
                      ">zasilacz<", "Telefon · Glebosaurus 0.2.5 · kontakt 1 min temu", "Raspberry Pi · Glebosaurus 0.2.6 · kontakt przed chwilą" })
             Assert.Contains(part, html);
-        Assert.Equal(1 + 2, Regex.Count(html, "background:#fff;border:1px solid"));   // karta czujnika i dwie karty urządzeń
+        Assert.Equal(1 + 2, Regex.Count(html, "border-left:5px solid"));   // karta czujnika i dwie karty urządzeń (urządzenia bez kafelków)
     }
 
     [Fact]
@@ -252,8 +254,9 @@ public class MailTemplatesTests
         Assert.DoesNotContain("<th", html);                    // żadnej tabeli z nagłówkami kolumn
         Assert.DoesNotContain("min-width", html);              // nic, co wymusiłoby poziome przewijanie
         Assert.DoesNotMatch(@"(?<![-\w])width:\s*\d{3,}px", html); // żadnej sztywnej szerokości w pikselach (max-width jest dozwolone)
-        Assert.Equal(3 * 3, Regex.Count(html, "<td width=\"")); // 3 czujniki × 3 liczby
-        Assert.Equal(3, Regex.Count(html, "background:#fff;border:1px solid")); // jedna karta na czujnik
+        Assert.Equal(3 * 3, Regex.Count(html, "padding-right:6px")); // 3 czujniki × 3 liczby na kartach
+        Assert.Equal(3, Regex.Count(html, "border-left:5px solid")); // jedna karta na czujnik
+        Assert.Equal(3, Regex.Count(html, "border-left:4px solid")); // i jeden kafelek w zestawieniu
     }
 
     [Fact]
@@ -445,5 +448,82 @@ public class MailTemplatesTests
         var report = samples[2].HtmlBody;
         foreach (var label in new[] { "podlej", "słaba bateria", "brak odczytów", ">OK<", ">Urządzenia<", ">milczy<", ">uwaga<", ">Temp. procesora<" })
             Assert.Contains(label, report);
+    }
+
+    // ---- zestawienie kafelkami (2026-11-22) -------------------------------------------------------------------------
+
+    /// <summary>Kafelki: od pierwszego kafelka (akcent 4 px) do pierwszej karty czujnika (akcent 5 px).</summary>
+    private static string TilesSection(string html)
+    {
+        var start = html.IndexOf("border-left:4px solid", StringComparison.Ordinal);
+        var end = html.IndexOf("border-left:5px solid", StringComparison.Ordinal);
+        Assert.True(start > 0 && end > start, "kafelki stoją przed kartami czujników");
+        return html[start..end];
+    }
+
+    [Fact]
+    public void Report_TilesComeRightAfterTheBanner_InNameOrder_WithTheCardsLabels()
+    {
+        var html = Report(Snapshot("Zielistka", 60), Snapshot("Monstera", 18, AlertKind.NeedsWater), Snapshot("Fikus", 50, AlertKind.LowBattery)).HtmlBody;
+        var tiles = TilesSection(html);
+
+        Assert.True(html.IndexOf("Do podlania: 1", StringComparison.Ordinal) < html.IndexOf("border-left:4px solid", StringComparison.Ordinal));
+        Assert.True(tiles.IndexOf(">Fik<", StringComparison.Ordinal) < tiles.IndexOf(">Mon<", StringComparison.Ordinal));
+        Assert.True(tiles.IndexOf(">Mon<", StringComparison.Ordinal) < tiles.IndexOf(">Zie<", StringComparison.Ordinal));
+        Assert.Contains("color:#8c2f20\">18%<", tiles);                         // wilgotność poniżej progu – czerwona
+        Assert.Contains(">! podlej</span>", tiles);
+        Assert.Contains(">! bateria</span>", tiles);
+        Assert.Equal(2, Regex.Count(tiles, "</span></td></tr>"));             // etykiety tylko przy kłopotach („Zielistka” bez)…
+        Assert.True(html.IndexOf(">Monstera<", StringComparison.Ordinal) < html.IndexOf(">Fikus<", StringComparison.Ordinal)); // …karty w kolejności ważności
+        Assert.DoesNotContain("<svg", tiles);
+    }
+
+    [Fact]
+    public void Report_TextVersionStartsWithTheTileSummary_ThreePerLine()
+    {
+        var text = Lf(Report(Snapshot("Zielistka", 60), Snapshot("Monstera", 18, AlertKind.NeedsWater), Snapshot("Fikus", 50), Snapshot("Bazylia", null)).TextBody);
+
+        Assert.Contains("\nBaz –  Fik 50%  Mon 18%\nZie 60%\n", text);
+        Assert.True(text.IndexOf("Baz –", StringComparison.Ordinal) < text.IndexOf("Monstera – podlej", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Report_SilentSensorTileIsGrey_MutedIsMarked_FurtherLabelsAreCounted()
+    {
+        var silent = Snapshot("Trawa", 63, AlertKind.SensorSilent, AlertKind.LowBattery);
+        var muted = Snapshot("Hortensje niskie", 98);
+        muted.Sensor.AlertsMutedUntil = Now.AddDays(3);
+
+        var tiles = TilesSection(Report(silent, muted).HtmlBody);
+
+        Assert.Contains(">brak odczytów +1</span>", tiles);
+        Assert.Contains("color:#6b6b66\">63%<", tiles);                         // stary odczyt – szara liczba
+        Assert.Contains(">HNi<", tiles);
+        Assert.Contains(">wyciszony</span>", tiles);
+    }
+
+    [Fact]
+    public void Report_TileBatteryIsAmberWhenLow_DrawnWithoutSvg()
+    {
+        var low = Snapshot("Laurowiśnia szafka", 49);
+        low = low with { Latest = low.Latest! with { BatteryPercent = 12 } };   // próg słabej baterii 18%
+
+        var tiles = TilesSection(Report(low).HtmlBody);
+
+        Assert.Contains(">LSz<", tiles);
+        Assert.Contains("color:#74500a;font-weight:600\">", tiles);
+        Assert.Contains("width:1px;height:5px;background:#74500a", tiles);      // 12% z 10 px
+    }
+
+    [Fact]
+    public void Report_UsesTheGivenCodes_AndComputesThemWhenASensorIsMissing()
+    {
+        var trawnik = Snapshot("Trawnik", 50);
+
+        var given = MailTemplates.Report([trawnik], To, "Salon", Now, TimeZoneInfo.Utc, sensorCodes: new Dictionary<string, string> { [trawnik.Sensor.Id] = "Trw" });
+        var missing = MailTemplates.Report([trawnik], To, "Salon", Now, TimeZoneInfo.Utc, sensorCodes: new Dictionary<string, string> { ["inny"] = "Inn" });
+
+        Assert.Contains(">Trw<", given.HtmlBody);
+        Assert.Contains(">Tra<", missing.HtmlBody);
     }
 }

@@ -407,7 +407,7 @@ public sealed class NotifierEngine(
         {
             var outcome = await SendAsync(["report|" + report.Key],
                 _ => MailTemplates.Report(snapshots, recipients, settings.MonitorName, now, current.TimeZone, report.ScheduledAt, devices,
-                    current.Config.Alerts.MutedUntil),
+                    current.Config.Alerts.MutedUntil, current.SensorCodes),
                 epoch, cancellationToken);
             if (outcome is MailOutcome.Failed or MailOutcome.Postponed) return;
         }
@@ -435,7 +435,7 @@ public sealed class NotifierEngine(
             }
             var outcome = await SendAsync([string.Create(CultureInfo.InvariantCulture, $"report-request|{id}")],
                 _ => MailTemplates.Report(snapshots, recipients, settings.MonitorName, now, current.TimeZone, devices: devices,
-                    alertsMutedUntil: current.Config.Alerts.MutedUntil), epoch, cancellationToken);
+                    alertsMutedUntil: current.Config.Alerts.MutedUntil, sensorCodes: current.SensorCodes), epoch, cancellationToken);
             if (outcome is MailOutcome.Failed or MailOutcome.Postponed)
             {
                 lock (gate) reportRequests.Add(id);   // spróbuje po przerwie (polecenie w chmurze czeka do 10 min)

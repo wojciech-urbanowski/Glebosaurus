@@ -14,6 +14,9 @@ internal sealed record Tone(string Soft, string Mid, string Ink);
 /// <summary>Jedna liczba na karcie urządzenia; <paramref name="Warn"/> – wartość poza normą (żółty kolor).</summary>
 internal sealed record DeviceMetric(string Label, string Value, bool Warn);
 
+/// <summary>Kafelek zestawienia w raporcie; <paramref name="Stale"/> – stary odczyt (szare wartości).</summary>
+internal sealed record SensorTile(string Code, SensorConfig Sensor, StoredReading? Reading, Tone Accent, (string Text, Tone Tone)? Label, bool Stale);
+
 /// <summary>
 /// Klocki HTML maili projektowane pod wąski ekran telefonu: jedna kolumna o szerokości do <see cref="MaxWidth"/> px,
 /// karta na czujnik zamiast tabeli z wieloma kolumnami, duże liczby i odstępy, kwadratowe elementy (bez zaokrągleń) w
@@ -166,6 +169,67 @@ internal static class MailLayout
         html.Append($"<div style=\"font-size:13px;color:{MutedColor};padding-top:8px\">{Enc(footer)}</div>");
         html.Append("</div></td></tr>");
         return html.ToString();
+    }
+
+    private static readonly string[] TileWidths = ["33%", "34%", "33%"];
+    private static readonly string[] TilePaddings = ["0 3px 6px 0", "0 2px 6px 2px", "0 0 6px 3px"];
+    private const string Grid = "role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\"";
+
+    /// <summary>
+    /// Zestawienie czujników kafelkami, po trzy w rzędzie (tabela o stałych kolumnach – bez media queries): kod i
+    /// wilgotność, pasek, bateria i temperatura, etykieta, gdy coś wymaga uwagi. Kafelek to jedna tabela z krótkimi
+    /// stylami (ok. 0,8 KB) – zestawienie liczy się do budżetu wielkości maila i zabiera miejsce wykresom.
+    /// </summary>
+    public static string SensorTiles(IReadOnlyList<SensorTile> tiles)
+    {
+        var html = new StringBuilder($"<tr><td style=\"padding:0 0 8px\"><table {Grid} style=\"table-layout:fixed\">");
+        for (var row = 0; row < tiles.Count; row += 3)
+        {
+            html.Append("<tr>");
+            for (var column = 0; column < 3; column++)
+                html.Append($"<td width=\"{TileWidths[column]}\" valign=\"top\" style=\"padding:{TilePaddings[column]}\">")
+                    .Append(row + column < tiles.Count ? TileHtml(tiles[row + column]) : "")
+                    .Append("</td>");
+            html.Append("</tr>");
+        }
+        return html.Append("</table></td></tr>").ToString();
+    }
+
+    private static string TileHtml(SensorTile tile)
+    {
+        var reading = tile.Reading;
+        var moisture = reading?.MoisturePercent;
+        var tone = moisture is { } m ? MoistureTone(tile.Sensor, m) : null;
+        var battery = reading?.BatteryPercent;
+        var batteryLow = !tile.Stale && battery is { } b && tile.Sensor.IsBatteryLow(b);
+        var metaColor = batteryLow ? Amber.Ink : MutedColor;
+        var bottom = tile.Label is null ? 6 : 0;
+        var html = new StringBuilder();
+        html.Append($"<table {Grid} style=\"background:#fff;border:1px solid {BorderColor};border-left:4px solid {tile.Accent.Mid}\">");
+        html.Append($"<tr><td style=\"padding:5px 0 0 6px;font-size:15px;font-weight:700\">{Enc(tile.Code)}</td>");
+        html.Append($"<td align=\"right\" style=\"padding:5px 6px 0 0;font-size:20px;font-weight:700;color:{(tile.Stale ? MutedColor : tone?.Ink ?? TextColor)}\">{Enc(MailText.Percent(moisture))}</td></tr>");
+        var fill = moisture is { } level && tone is not null
+            ? $"<div style=\"width:{Math.Clamp(level, 0, 100)}%;height:4px;background:{(tile.Stale ? Grey.Mid : tone.Mid)}\">&nbsp;</div>"
+            : "&nbsp;";
+        html.Append($"<tr><td colspan=\"2\" style=\"padding:3px 6px 4px\"><div style=\"height:4px;font-size:0;line-height:0;background:{TrackColor}\">{fill}</div></td></tr>");
+        html.Append($"<tr><td style=\"padding:0 0 {bottom}px 6px;font-size:12px;white-space:nowrap;color:{metaColor}{(batteryLow ? ";font-weight:600" : "")}\">");
+        html.Append(BatteryIcon(battery, metaColor)).Append(Enc(MailText.Percent(battery))).Append("</td>");
+        html.Append($"<td align=\"right\" style=\"padding:0 6px {bottom}px 0;font-size:12px;color:{MutedColor}\">")
+            .Append(Enc(MailText.Temperature(reading?.SoilTemperatureCelsius)).Replace(" ", "&nbsp;", StringComparison.Ordinal)).Append("</td></tr>");
+        if (tile.Label is { } label)
+            html.Append($"<tr><td colspan=\"2\" style=\"padding:4px 6px 6px\"><span style=\"display:inline-block;background:{label.Tone.Soft};border:1px solid {label.Tone.Mid};color:{label.Tone.Ink};font-size:11px;font-weight:600;padding:0 5px\">{Enc(label.Text)}</span></td></tr>");
+        return html.Append("</table>").ToString();
+    }
+
+    /// <summary>
+    /// Mała bateria bez SVG (Gmail go nie pokazuje): obrys w kolorze tekstu obok, grubsza prawa krawędź jako bolec, w środku
+    /// wypełnienie według procentu.
+    /// </summary>
+    private static string BatteryIcon(int? percent, string color)
+    {
+        var fill = percent is int p && p > 0 ? Math.Max(1, (int)Math.Round(10 * Math.Min(100, p) / 100.0)) : 0;
+        return "<span style=\"display:inline-block;width:10px;height:5px;padding:1px;border:1px solid;border-right-width:3px;margin-right:3px;vertical-align:middle;font-size:0\">" +
+               $"<span style=\"display:block;width:{fill}px;height:5px;background:{color}\"></span></span>";
     }
 
     /// <summary>Wilgotność względem progów czujnika: poniżej progu podlania czerwień, w strefie histerezy żółć, wyżej zieleń.</summary>

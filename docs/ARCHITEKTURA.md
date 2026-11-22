@@ -275,12 +275,19 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
    „do podlania” zostaje na pierwszym miejscu. Komputer z Windows nie zgłasza baterii ani temperatury – nie ma karty. Ukryty tekst podglądu pokazuje wilgotność każdej
    rośliny. `glebosaurus mail-preview` zapisuje przykładowe maile do obejrzenia; prawdziwy próbny mail wysyła nadawca na
    polecenie ze strony (`mail_test`).
+   **Zestawienie kafelkami** (od 2026-11-22) pod paskiem podsumowania, przed wykresami: po trzy w rzędzie (tabela o
+   stałych kolumnach), w kolejności nazw – kod czujnika, wilgotność, pasek, bateria (mała ikona z dwóch ramek, bez SVG),
+   temperatura i pierwsza etykieta karty („! podlej”, „brak odczytów” – wtedy szare wartości, „! bateria”, „wyciszony”,
+   przy kilku „+N”). Kody to `SensorCodes` (Core) – krok w krok to samo co `web/sensor-codes.js` (test porównuje oba);
+   nadawca liczy je ze wszystkich czujników w konfiguracji z chmury, także wyłączonych (`CloudAgentConfig.SensorCodes`),
+   więc są te same co na pulpicie strony. Wersja tekstowa zaczyna się tym samym skrótem („Alp 89%  Cis 64%  Cyp 70%”).
    **Wykres w raporcie** z samego HTML (`MailChart`) – Gmail nie pokazuje SVG, a `data:` nie działa: tabela z kolumnami
-   po 2 godz. (czas lokalny), w kolumnie niebieska kreska na wysokości średniej wilgotności (skala 0–100%) i pod nią blady
+   po 4 godz. (czas lokalny; do 2026-11-22 po 2 godz. – zgrubniej na życzenie użytkownika przy kafelkach), w kolumnie niebieska kreska na wysokości średniej wilgotności (skala 0–100%) i pod nią blady
    pasek temperatury od najniższej do najwyższej, różowe tło = średnia poniżej progu podlania, pusta kolumna = brak
    odczytów. Położenie bez pozycjonowania (`valign=bottom`, dopełnienie od dołu, bloki o zadanej wysokości). Gmail
-   przycina HTML powyżej ok. 102 KB, więc raport ma budżet 90 KB: przedziały po 2 godz. mieszczą się do ok. 9 czujników,
-   przy większej liczbie rosną (3 → 4 → 6 → 8 → 12 godz.), a gdy nic się nie mieści – raport bez wykresów. Wersja
+   przycina HTML powyżej ok. 102 KB, więc raport ma budżet 90 KB, w który wchodzą też kafelki (ok. 1 KB na czujnik):
+   przedziały po 4 godz. mieszczą się do ok. 12 czujników, przy większej liczbie rosną (6 → 8 → 12 godz.), od ok. 18
+   czujników raport idzie bez wykresów (kafelki i karty zostają). Wersja
    tekstowa: linijka `▁…█` ze średnich z 6 godz. Stopka podaje wersję (`AppInfo.Version`, jedno źródło:
    `Directory.Build.props`).
    **Log administratora:** dziennik agenta to pliki dzienne `glebosaurus-RRRRMMDD.log` (`DailyLogFiles`,

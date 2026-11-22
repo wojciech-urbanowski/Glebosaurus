@@ -218,6 +218,21 @@ public sealed class NotifierTests
         Assert.True(api.Outbox["report|07:00|2026-11-17"].Sent);
     }
 
+    /// <summary>Kody na kafelkach raportu pochodzą z konfiguracji (wszystkie czujniki w chmurze) – jak na stronie.</summary>
+    [Fact]
+    public async Task ScheduledReport_TilesUseTheCodesFromCloudConfig()
+    {
+        config = config with { SensorCodes = new Dictionary<string, string> { ["s1"] = "Ab1", ["s2"] = "Ab2" } };
+        clock.Advance(TimeSpan.FromMinutes(60.5));   // 07:00:30
+        Lock();
+
+        await Engine().CycleAsync(Ct);
+
+        var html = Assert.Single(mail.Sent).HtmlBody;
+        Assert.Contains(">Ab1<", html);
+        Assert.Contains(">Ab2<", html);
+    }
+
     [Fact]
     public async Task SureSmtpFailure_IsRetriedAfterDelay()
     {

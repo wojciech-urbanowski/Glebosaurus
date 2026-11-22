@@ -34,7 +34,7 @@ bash deploy/test-install-linux.sh STARA NOWA [--systemd]   # próba install-linu
 - `src/Glebosaurus.Tuya` – protokół Tuya BLE 3.x (ramki, AES, DP), sesja (`TuyaSession`), lokalne parowanie, poświadczenia,
   profile czujników. **Nie zna biblioteki BLE** – rozmawia przez `IGattLink`.
 - `src/Glebosaurus.Core` – konfiguracja (`AgentConfig` + `AgentConfigLoader` – plik agenta; `SensorIds` – reguła
-  identyfikatora czujnika), reguły alertów (`AlertEvaluator`, `SilenceGrace`),
+  identyfikatora czujnika; `SensorCodes` – kody na kafelkach raportu, krok w krok jak `web/sensor-codes.js`), reguły alertów (`AlertEvaluator`, `SilenceGrace`),
   harmonogram raportów, szablony maili (`MailTemplates`, `MailChart`), dane do wykresów (`Core/Charts`), interfejsy brzegowe
   (`IMonitorStore`, `ISensorReader`/`ISensorRadio`/`ISensorListener`, `IMailGateway`, `ILogArchive`; pliki dzienne w
   `DailyLogFiles`). Kolejność radia „nasłuch → odczyt znalezionego → nasłuch po resztę” to `ListenThenReadSensorReader`.
@@ -86,8 +86,8 @@ bash deploy/test-install-linux.sh STARA NOWA [--systemd]   # próba install-linu
 - `web/` – **strona właściciela w chmurze** (faza 3, ARCHITEKTURA.md, zasady 4 i 10): zwykłe moduły ES bez budowania,
   GitHub Pages (`pages.yml`: tag `v*` i ręcznie); logowanie Supabase Auth hasłem i TOTP przez `fetch` (`supabase.js`,
   `shell.js`), dane tylko z funkcji `public.owner_*` (rola `authenticated`, `require_owner()`: konto z `owners` + `aal2`).
-  Strony: pulpit (`dashboard.js`; na telefonie widok skrócony – kafelki z kodami z `sensor-codes.js`, testy kodów w
-  silniku Jint `SensorCodesTests`; `charts.js` dopiero w widoku pełnym), czujnik (`sensor.js`; wykresy z `owner_series` – uśrednianie w SQL jak
+  Strony: pulpit (`dashboard.js`; na telefonie widok skrócony – kafelki z kodami z `sensor-codes.js` – zmiany razem z
+  `Core/Config/SensorCodes.cs`, testy kodów i zgodności obu w silniku Jint `SensorCodesTests`; `charts.js` dopiero w widoku pełnym), czujnik (`sensor.js`; wykresy z `owner_series` – uśrednianie w SQL jak
   `ReadingSeriesBuilder`, pilnuje `SeriesContractTests`), edytor konfiguracji (`config.js`; zapisy z `config_version`,
   walidacja tylko w bazie – `ConfigContractTests`; parowanie zdalne – `owner_pair_start`, postęp co 2 s), alerty (`alerts.js`: potwierdzenie, zamknięcie, wyciszenia,
   historia maili) i podgląd maila (`mail.html` – jedyna strona z `style-src 'unsafe-inline'`, treść w ramce `sandbox`).
@@ -209,6 +209,7 @@ bash deploy/test-install-linux.sh STARA NOWA [--systemd]   # próba install-linu
 Co działa, co zostało i w jakiej kolejności – [docs/ROADMAP.md](docs/ROADMAP.md), „Stan w skrócie”. Wdrożenie autora (która
 maszyna jest prawdziwym nadawcą, telefon, czujniki, prawdziwy projekt Supabase) – [docs/HISTORIA.md](docs/HISTORIA.md),
 „Wdrożenie autora”, i pamięć Claude. Zatwierdzone przez użytkownika – nie zmieniaj bez prośby: układ i kolorystyka maili
-(kwadratowe, pastelowe, pod telefon), wykres w raporcie (`MailChart`: kolumny po 2 godz., temperatura jako blady zakres),
+(kwadratowe, pastelowe, pod telefon), wykres w raporcie (`MailChart`: kolumny po 4 godz. – od 2026-11-22, wcześniej 2 godz.;
+temperatura jako blady zakres), zestawienie kafelkami nad wykresami (kody jak na pulpicie strony, `SensorCodes`),
 wyciszenia w raporcie (notka o urlopie pod paskiem, szara etykieta „alerty wyciszone do …” przy czujniku),
 panel WWW bez edycji konfiguracji (pełny edytor – faza 3c), log administratora jako osobny mail od każdego agenta.

@@ -1,7 +1,8 @@
 // Krótkie kody czujników do kafelków pulpitu skróconego (telefon): trzy znaki liczone w przeglądarce z nazw, bez pola w
 // bazie. Wielka litera = początek słowa nazwy (Laurowiśnia wejście → LWe, Zioła → Zio, Pomidor 2 → Po2). Kody są różne
 // bez względu na wielkość liter i polskie znaki; nowy czujnik albo zmiana nazwy przestawia kod tylko czujnikom o tym samym
-// kodzie podstawowym. Reguły pilnuje tests/Glebosaurus.Tests/SensorCodesTests.cs (ten plik w silniku Jint).
+// kodzie podstawowym. Ten sam algorytm, krok w krok, liczy kody do raportu mailowego (Glebosaurus.Core.Config.SensorCodes)
+// – zmiany rób w obu. Reguły i zgodność obu pilnuje tests/Glebosaurus.Tests/SensorCodesTests.cs (ten plik w silniku Jint).
 
 const LENGTH = 3;
 const MAX_SUFFIX = 2;      // liczba na końcu nazwy (Pomidor 2, Pomidor 12) zostaje na końcu kodu
@@ -47,7 +48,13 @@ function primaryPicks(chars, words) {
 }
 
 function display(parsed, picks) {
-  return picks.map((i) => parsed.chars[i]).map((c) => (c.initial ? c.char.toUpperCase() : c.char.toLowerCase())).join('');
+  return picks.map((i) => parsed.chars[i]).map((c) => letterCase(c.char, c.initial)).join('');
+}
+
+/** Wielka litera na początku słowa, reszta małe; znak, którego wielka/mała postać ma inną długość (np. „ß”), zostaje bez zmian – tak samo w C#. */
+function letterCase(char, upper) {
+  const changed = upper ? char.toUpperCase() : char.toLowerCase();
+  return changed.length === char.length ? changed : char;
 }
 
 /** Postać do porównań: bez wielkości liter i znaków diakrytycznych (Ś = S, Ł = L). */

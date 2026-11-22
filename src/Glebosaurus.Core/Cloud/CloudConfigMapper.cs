@@ -13,6 +13,12 @@ public sealed record CloudAgentConfig(AgentConfig Config, TimeZoneInfo TimeZone,
     CloudMailSettings? Mail, IReadOnlyList<string> Warnings, DateTimeOffset? CachedAt = null)
 {
     public bool FromCache => CachedAt is not null;
+
+    /// <summary>
+    /// Kody czujników do zestawienia w raporcie (<see cref="Glebosaurus.Core.Config.SensorCodes"/>), liczone ze wszystkich czujników spoza archiwum –
+    /// także wyłączonych i pominiętych przy mapowaniu – żeby były te same co na pulpicie strony w chmurze.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> SensorCodes { get; init; } = new Dictionary<string, string>();
 }
 
 public static class CloudConfigMapper
@@ -57,7 +63,10 @@ public static class CloudConfigMapper
             Web = local.Web,
             Bluetooth = local.Bluetooth
         };
-        return new(config, zone, cloud.ConfigVersion, cloud.Agent, cloud.Agent.CanSendMail ? cloud.Mail : null, warnings, cachedAt);
+        return new(config, zone, cloud.ConfigVersion, cloud.Agent, cloud.Agent.CanSendMail ? cloud.Mail : null, warnings, cachedAt)
+        {
+            SensorCodes = Glebosaurus.Core.Config.SensorCodes.For(cloud.Sensors.Select(s => (s.Id, s.Name)))
+        };
     }
 
     private static SensorConfig? Sensor(CloudSensor sensor, HashSet<string> uuids, out string problem)

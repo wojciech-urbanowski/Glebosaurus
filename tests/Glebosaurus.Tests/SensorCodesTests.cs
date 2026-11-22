@@ -99,6 +99,31 @@ public sealed class SensorCodesTests
         Assert.All(many.Values, code => Assert.StartsWith("P", code, StringComparison.Ordinal));
     }
 
+    public static TheoryData<string> NameSets() =>
+    [
+        string.Join("|", AuthorSensors.Select(s => $"{s.Id}={s.Name}")),
+        "trawa=Trawa|trawnik=Trawnik|a_trawnik=Trawnik|wiszacy_szafka_2=Wiszący szafka 2",
+        "slimak=Ślimak|slipy=Slipy|laurowisnia_wejscie=Laurowiśnia wejście|lwela=Lwela|lw=ŁWe",
+        "cis_1=Cis|cis_2=Cis|cis_3=Cis|cis_4=Cis|c=C|c2=C 2|c3=c3",
+        "p1=Pelargonie na balkonie|p2=Pomidor 2|p3=Pomidor 12|p4=Doniczka 123|p5=Grządka A|p6=Ul|p7=Mięta (balkon)",
+        "z1=Żurawka|z2=Łąka|z3=Źdźbło|z4=Ölbaum|z5=Straße|z6=Řeřicha|z7=İğde|z8=Œillet|z9=ǅemal",
+        "x1=★ ★|doniczka_3=★|x3=100|x4=2 pomidory|x5=Kaktus🌵 duży|x6=a-b-c-d|x7=ŁŁŁ|x8=lll|x9=ЁЛКА",
+        string.Join("|", Enumerable.Range(1, 30).Select(i => $"pomidor_{i:D2}=Pomidor"))
+    ];
+
+    /// <summary>Mail (C#) i strona (JS) dają te same kody – „LWe” w raporcie to ten sam czujnik co na pulpicie.</summary>
+    [Theory]
+    [MemberData(nameof(NameSets))]
+    public void CoreSensorCodes_MatchWebScript(string set)
+    {
+        var sensors = set.Split('|').Select(p => p.Split('=', 2)).Select(p => (Id: p[0], Name: p[1])).ToArray();
+
+        var web = Codes(sensors);
+        var core = Glebosaurus.Core.Config.SensorCodes.For(sensors);
+
+        Assert.Equal(web.OrderBy(p => p.Key, StringComparer.Ordinal), core.OrderBy(p => p.Key, StringComparer.Ordinal));
+    }
+
     private static Dictionary<string, string> Codes(params (string Id, string Name)[] sensors)
     {
         var engine = new Engine();

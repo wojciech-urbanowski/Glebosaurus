@@ -378,7 +378,7 @@ internal static class Cli
     {
         var directory = Path.GetFullPath(options.Output ?? "mail-preview");
         Directory.CreateDirectory(directory);
-        string[] names = ["probna", "alert", "raport", "log", "raport-20", "agent-milczy", "raport-wyciszenie"];
+        string[] names = ["probna", "alert", "raport", "log", "raport-16", "agent-milczy", "raport-wyciszenie"];
         var now = DateTimeOffset.UtcNow;
         var messages = MailSamples.Build(["ktos@example.com"], "Podgląd", now, TimeZoneInfo.Local)
             .Append(MailSamples.AdminLog(["admin@example.com"], "Podgląd", now, TimeZoneInfo.Local))

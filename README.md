@@ -267,8 +267,10 @@ czujników wymaga kalibracji – domyślne progi (25% / 35%) są tylko punktem w
 stanu, trzy duże liczby (wilgotność, temperatura gleby, bateria) i pasek wilgotności – a wersja tekstowa ma krótkie wiersze.
 Elementy są kwadratowe, w pastelowych kolorach (czerwień – podlej, żółć – słaba bateria, zieleń – OK, szarość – brak
 odczytów). Tytuł zaczyna się od tego, co ważne („Monstera – czas podlać”, „Poranny raport – do podlania: Monstera, Fikus
-+1”), a w podglądzie na liście wiadomości widać wilgotność wszystkich roślin. Każdy raport ma przy czujniku wykres ostatnich
-3 dób z samego HTML (kolumny po 2 godz.: niebieska kreska – średnia wilgotność, blady pasek – temperatura od najniższej do
++1”), a w podglądzie na liście wiadomości widać wilgotność wszystkich roślin. Raport zaczyna się **zestawieniem kafelkami**
+– po trzy w rzędzie, z tymi samymi kodami co pulpit strony w chmurze (LWe, Zio): wilgotność, bateria, temperatura i
+etykieta, gdy coś wymaga uwagi. Niżej każdy czujnik ma kartę z wykresem ostatnich
+3 dób z samego HTML (kolumny po 4 godz.: niebieska kreska – średnia wilgotność, blady pasek – temperatura od najniższej do
 najwyższej, różowe tło – poniżej progu podlania; przy wielu czujnikach kolumny są szersze, żeby Gmail nie przyciął maila),
 a wersja tekstowa linijkę `▁…█`. Pod czujnikami raport ma sekcję **„Urządzenia”**: kartę każdego telefonu (bateria,
 ładowarka, temperatura akumulatora) i Raspberry Pi (temperatura procesora) z ich ostatniej synchronizacji, z tymi samymi

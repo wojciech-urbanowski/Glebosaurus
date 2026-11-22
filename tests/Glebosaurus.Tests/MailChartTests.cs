@@ -7,7 +7,7 @@ namespace Glebosaurus.Tests;
 
 /// <summary>
 /// Wykres ostatnich 3 dób w raporcie mailowym (prototyp z 2026-11-14, poprawki użytkownika tego samego dnia: przedziały po
-/// 2 godz., temperatura jako blady zakres od najniższej do najwyższej): sam HTML (bez SVG i obrazków), elementy na właściwej
+/// 2 godz. – od 2026-11-22 po 4 godz., temperatura jako blady zakres od najniższej do najwyższej): sam HTML (bez SVG i obrazków), elementy na właściwej
 /// wysokości, puste kolumny przy braku odczytów, różowe tło poniżej progu, mieszczenie się w limicie Gmaila i linijka znaków
 /// w wersji tekstowej. Oś wilgotności zawsze 0–100% (życzenie użytkownika z 2026-11-15).
 /// </summary>
@@ -19,9 +19,9 @@ public class MailChartTests
     private const string TemperatureOnWhite = "background:#f8cab8";   // pomarańcz #eb6834 o kryciu 35% na białym
     private const string TemperatureOnPink = "background:#f2ad97";    // to samo na różowym tle „poniżej progu”
     private const string PinkBackground = "background:#f6d2cc";
-    private const int Columns = 36;                                     // 3 doby po 2 godz.
+    private const int Columns = 18;                                     // 3 doby po 4 godz.
 
-    /// <summary>Temperatura zmienia się co odczyt o 2 °C (18 / 20 / 22 / 20 …) – w każdym przedziale 2 godz. jest pełny zakres 18–22.</summary>
+    /// <summary>Temperatura zmienia się co odczyt o 2 °C (18 / 20 / 22 / 20 …) – w każdym przedziale 4 godz. jest pełny zakres 18–22.</summary>
     private static decimal Cycle(double hoursAgo) => TemperatureCycle[(int)Math.Round(hoursAgo * 4) % 4];
 
     private static readonly decimal[] TemperatureCycle = [18m, 20m, 22m, 20m];
@@ -60,8 +60,8 @@ public class MailChartTests
         var html = Report(Sensor("Monstera", h => 30 + (int)h / 10), Sensor("Fikus", _ => 50), withoutHistory).HtmlBody;
 
         Assert.Equal(2, ChartCount(html));
-        Assert.Single(Regex.Matches(html, "Wykresy: ostatnie 3 doby, przedziały po 2 godz\\."));
-        Assert.Equal(2 * Columns, DataCells(html).Count);                     // 12 kolumn na dobę, wszystkie z danymi
+        Assert.Single(Regex.Matches(html, "Wykresy: ostatnie 3 doby, przedziały po 4 godz\\."));
+        Assert.Equal(2 * Columns, DataCells(html).Count);                     // 6 kolumn na dobę, wszystkie z danymi
         Assert.All(DataCells(html), cell => Assert.Contains(Moisture, cell.Blocks));
         Assert.All(DataCells(html), cell => Assert.Contains(TemperatureOnWhite, cell.Blocks));
         Assert.DoesNotContain("<svg", html);
@@ -119,11 +119,11 @@ public class MailChartTests
     [Fact]
     public void MissingReadingsLeaveEmptyColumns()
     {
-        // Odczyty kończą się 12 h przed 19:00 (o 07:00) → puste przedziały 08–10, 10–12, …, 18–20.
+        // Odczyty kończą się 12 h przed 19:00 (o 07:00) → puste przedziały 08–12, 12–16, 16–20.
         var html = Report(Sensor("Cisy", _ => 50, stopHoursAgo: 12)).HtmlBody;
 
-        Assert.Equal(Columns - 6, DataCells(html).Count);
-        Assert.Equal(6 + 2, Regex.Count(html, "<td></td>"));                  // + puste rogi pod osiami
+        Assert.Equal(Columns - 3, DataCells(html).Count);
+        Assert.Equal(3 + 2, Regex.Count(html, "<td></td>"));                  // + puste rogi pod osiami
     }
 
     /// <summary>Wysokość kreski wilgotności w każdej kolumnie z danymi (dopełnienie komórki od dołu, px).</summary>
@@ -165,16 +165,19 @@ public class MailChartTests
         }
     }
 
+    /// <summary>Kafelki zestawienia (ok. 1 KB na czujnik) liczą się do budżetu – przy 16 czujnikach wykresy są jeszcze, szersze.</summary>
     [Fact]
     public void ManySensorsGetWiderColumnsToStayUnderGmailClipping()
     {
         var four = Report(Enumerable.Range(1, 4).Select(i => Sensor($"Roślina {i}", h => 40 + (int)(h % 20), h => 20 + (decimal)(h % 5))).ToArray()).HtmlBody;
-        var twenty = Report(Enumerable.Range(1, 20).Select(i => Sensor($"Roślina {i}", h => 40 + (int)(h % 20), h => 20 + (decimal)(h % 5))).ToArray()).HtmlBody;
+        var ten = Report(Enumerable.Range(1, 10).Select(i => Sensor($"Roślina {i}", h => 40 + (int)(h % 20), h => 20 + (decimal)(h % 5))).ToArray()).HtmlBody;
+        var sixteen = Report(Enumerable.Range(1, 16).Select(i => Sensor($"Roślina {i}", h => 40 + (int)(h % 20), h => 20 + (decimal)(h % 5))).ToArray()).HtmlBody;
 
-        Assert.Contains("przedziały po 2 godz.", four);
-        Assert.Equal(20, ChartCount(twenty));
-        Assert.DoesNotContain("przedziały po 2 godz.", twenty);
-        Assert.True(Encoding.UTF8.GetByteCount(twenty) <= 90_000, $"raport z 20 czujnikami ma {Encoding.UTF8.GetByteCount(twenty)} B");
+        Assert.Contains("przedziały po 4 godz.", four);
+        Assert.Contains("przedziały po 4 godz.", ten);                         // tyle czujników ma autor – wykres jak zwykle
+        Assert.Equal(16, ChartCount(sixteen));
+        Assert.DoesNotContain("przedziały po 4 godz.", sixteen);
+        Assert.True(Encoding.UTF8.GetByteCount(sixteen) <= 90_000, $"raport z 16 czujnikami ma {Encoding.UTF8.GetByteCount(sixteen)} B");
     }
 
     [Fact]
@@ -183,7 +186,8 @@ public class MailChartTests
         var html = Report(Enumerable.Range(1, 60).Select(i => Sensor($"Roślina {i}", h => 40 + (int)(h % 20))).ToArray()).HtmlBody;
 
         Assert.Equal(0, ChartCount(html));
-        Assert.Equal(60, Regex.Count(html, "background:#fff;border:1px solid"));    // karty są, tylko bez wykresów
+        Assert.Equal(60, Regex.Count(html, "border-left:5px solid"));             // karty są, tylko bez wykresów
+        Assert.Equal(60, Regex.Count(html, "border-left:4px solid"));             // i kafelki zestawienia
     }
 
     [Fact]
@@ -206,8 +210,8 @@ public class MailChartTests
         var large = MailSamples.LargeReport(To, "Salon", Now, TimeZoneInfo.Utc);
 
         Assert.Equal(4, ChartCount(report.HtmlBody));
-        Assert.Contains("przedziały po 2 godz.", report.HtmlBody);
-        Assert.Equal(20, ChartCount(large.HtmlBody));
+        Assert.Contains("przedziały po 4 godz.", report.HtmlBody);
+        Assert.Equal(16, ChartCount(large.HtmlBody));
         Assert.True(Encoding.UTF8.GetByteCount(large.HtmlBody) <= 90_000);
         Assert.StartsWith(MailSamples.SubjectPrefix, large.Subject);
     }

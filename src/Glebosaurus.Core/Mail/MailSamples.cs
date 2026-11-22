@@ -112,15 +112,16 @@ public static class MailSamples
         Mark(MailTemplates.AgentSilent("telefon-salon", now.AddMinutes(-47), to, $"{monitorName} (przykład)", now, zone));
 
     /// <summary>
-    /// Raport z 20 zmyślonymi czujnikami i pełną historią – do obejrzenia, jak wykresy zachowują się przy wielu czujnikach
-    /// (szersze przedziały, żeby mail zmieścił się w limicie Gmaila). Tylko podgląd (<c>mail-preview</c>).
+    /// Raport z 16 zmyślonymi czujnikami i pełną historią – do obejrzenia, jak wykresy zachowują się przy wielu czujnikach
+    /// (szersze przedziały, żeby mail z kafelkami zmieścił się w limicie Gmaila; od ok. 18 czujników raport idzie bez
+    /// wykresów). Tylko podgląd (<c>mail-preview</c>).
     /// </summary>
     public static MailMessage LargeReport(IReadOnlyList<string> to, string monitorName, DateTimeOffset now, TimeZoneInfo zone)
     {
         string[] names =
         [
             "Monstera", "Fikus", "Paproć", "Cisy", "Zioła", "Bazylia", "Lawenda", "Storczyk", "Kaktus", "Oliwka",
-            "Cyprysek", "Zielistka", "Sansewieria", "Skrzydłokwiat", "Begonia", "Pelargonia", "Rozmaryn", "Mięta", "Hortensja", "Bluszcz"
+            "Cyprysek", "Zielistka", "Sansewieria", "Skrzydłokwiat", "Begonia", "Pelargonia"
         ];
         var snapshots = names.Select((name, i) =>
         {
@@ -134,7 +135,7 @@ public static class MailSamples
             var alerts = latest?.MoisturePercent < sensor.WateringBelowPercent ? new[] { AlertKind.NeedsWater } : [];
             return new SensorSnapshot(sensor, latest, alerts) { History = history };
         }).ToList();
-        return Mark(MailTemplates.Report(snapshots, to, $"{monitorName} (przykład, 20 czujników)", now, zone));
+        return Mark(MailTemplates.Report(snapshots, to, $"{monitorName} (przykład, 16 czujników)", now, zone));
     }
 
     /// <summary>Zmyślone odczyty co 15 min z ostatnich 75 godzin: wilgotność według liczby godzin wstecz, temperatura z rytmem dobowym.</summary>

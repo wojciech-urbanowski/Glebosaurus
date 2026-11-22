@@ -9,7 +9,7 @@ namespace Glebosaurus.Core.Mail;
 
 /// <summary>
 /// Wykres ostatnich 3 dób w mailu, zbudowany z samego HTML – bez SVG (Gmail go nie pokazuje) i bez obrazków rastrowych.
-/// Tabela, w której każda kolumna to przedział czasu (domyślnie 2 godz., w czasie lokalnym, jak w panelu). W kolumnie:
+/// Tabela, w której każda kolumna to przedział czasu (domyślnie 4 godz., w czasie lokalnym, jak w panelu). W kolumnie:
 /// niebieska kreska na wysokości średniej wilgotności (skala po lewej, zawsze 0–100%) – na wierzchu, bo jest najważniejsza – a pod nią blady
 /// pomarańczowy pasek od najniższej do najwyższej temperatury z przedziału (skala po prawej). Elementy stoją na właściwej
 /// wysokości dzięki <c>valign=bottom</c>, dopełnieniu komórki od dołu i ułożonym jeden pod drugim blokom o zadanej wysokości –
@@ -21,10 +21,11 @@ internal static class MailChart
     public static readonly TimeSpan Window = TimeSpan.FromHours(72);
 
     /// <summary>
-    /// Długości przedziałów od najdrobniejszej (2 godz. = 12 kolumn na dobę, życzenie użytkownika z 2026-11-14). Raport bierze
-    /// pierwszą, przy której cały mail mieści się w <see cref="HtmlBudgetBytes"/> (przy wielu czujnikach kolumny są szersze).
+    /// Długości przedziałów od najdrobniejszej (4 godz. = 6 kolumn na dobę; do 2026-11-22 – 2 godz., zgrubniej na życzenie
+    /// użytkownika, gdy raport dostał kafelki z zestawieniem). Raport bierze pierwszą, przy której cały mail mieści się w
+    /// <see cref="HtmlBudgetBytes"/> (przy wielu czujnikach kolumny są szersze).
     /// </summary>
-    public static readonly IReadOnlyList<int> BucketLadder = [120, 180, 240, 360, 480, 720];
+    public static readonly IReadOnlyList<int> BucketLadder = [240, 360, 480, 720];
 
     /// <summary>Gmail przycina wiadomości, których HTML przekracza ok. 102 KB („Wyświetl całą wiadomość”) – zostawiamy zapas.</summary>
     public const int HtmlBudgetBytes = 90_000;

@@ -411,6 +411,12 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   przełączenie na pełny pobiera `charts.js` i 5 serii; wybór przetrwał przeładowanie, bez zapisanego wyboru szerokie
   okno (1024 px) startuje z pełnym. Najgorszy wiersz kafelka („WWe” i „100%”) mieści się w 360 px po zmniejszeniu wcięcia
   do 5 px; bateria 100% razem z „−12,5 °C” zawija się do drugiego wiersza (bez wystawania poza kafelek).
+  **Kafelki w raporcie mailowym** (makieta na porannym raporcie z 07:00 zaakceptowana): zestawienie pod paskiem, przed
+  wykresami; kody liczy `SensorCodes` w Core (te same co strona – test na tych samych nazwach, także „Straße”, „İğde”,
+  cyrylica). Pomiar wielkości: kafelek ok. 1 KB, więc przy przedziałach 2–3 godz. wykresy znikały już od 18 czujników
+  i szybciej robiły się szersze – użytkownik zgodził się na wykres po 4 godz. zamiast 2 godz.; przy 10 czujnikach raport
+  z kafelkami ma ok. 73 KB (poranny bez kafelków miał 72 KB po 3 godz.). `mail-preview` obejrzany w 360 px: przykład
+  z alertami, z wyciszeniem („! bateria +1”) i z 16 czujnikami (wykresy po 12 godz.).
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 
