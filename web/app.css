@@ -141,7 +141,7 @@ button:disabled { opacity: 0.6; cursor: default; }
 .legend-item { white-space: nowrap; }
 .key { display: inline-block; width: 14px; height: 0; border-top: 2px solid var(--grey-mid); vertical-align: middle; margin: -2px 5px 0 0; }
 .key.moisture { border-color: var(--moisture); }
-.key.temperature { border-color: var(--temperature); }
+.key.temperature { border-color: var(--temperature); opacity: 0.5; }
 .key.threshold { border-top: 1px solid var(--red-mid); }
 .plot { position: relative; touch-action: pan-y; -webkit-user-select: none; user-select: none; }
 .plot:focus { outline: none; }
@@ -155,11 +155,13 @@ button:disabled { opacity: 0.6; cursor: default; }
 .chart svg .line, .overview svg .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 .overview svg .line.thin { stroke-width: 1.25; }
 .chart svg .moisture.line, .chart svg .key-line.moisture, .overview svg .line.moisture { stroke: var(--moisture); }
-.chart svg .temperature.line, .chart svg .key-line.temperature, .overview svg .line.temperature { stroke: var(--temperature); }
+/* Temperatura półprzezroczysta, jak blady pasek w raporcie mailowym (krycie 35%): wilgotność – najważniejsza – zostaje
+   wyraźna na wierzchu; linia i kropki temperatury trochę mocniejsze niż pasek, żeby było je widać bez paska (krótkie okna). */
+.chart svg .temperature.line, .chart svg .key-line.temperature, .overview svg .line.temperature { stroke: var(--temperature); stroke-opacity: 0.5; }
 .chart svg .band.moisture { fill: var(--moisture); fill-opacity: 0.12; }
-.chart svg .band.temperature { fill: var(--temperature); fill-opacity: 0.12; }
+.chart svg .band.temperature { fill: var(--temperature); fill-opacity: 0.35; }
 .chart svg .point.moisture, .chart svg .dot.moisture { fill: var(--moisture); }
-.chart svg .point.temperature, .chart svg .dot.temperature { fill: var(--temperature); }
+.chart svg .point.temperature, .chart svg .dot.temperature { fill: var(--temperature); fill-opacity: 0.5; }
 .chart svg .dot { stroke: var(--card); stroke-width: 2; }
 .chart svg .threshold { stroke: var(--red-mid); stroke-width: 1; shape-rendering: crispEdges; }
 .chart svg .crosshair { stroke: var(--muted); stroke-width: 1; }

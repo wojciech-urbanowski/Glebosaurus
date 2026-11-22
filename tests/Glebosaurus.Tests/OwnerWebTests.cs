@@ -170,6 +170,23 @@ public sealed partial class OwnerWebTests
         Assert.Contains("'(max-width: 699px)'", code);
     }
 
+    /// <summary>
+    /// Temperatura na wykresach strony i panelu półprzezroczysta jak blady pasek w raporcie mailowym (krycie 35%,
+    /// <c>MailChart.TemperatureAlpha</c>) – w obu arkuszach, bo <c>charts.js</c> jest wspólny.
+    /// </summary>
+    [Fact]
+    public void ChartTemperature_IsSemiTransparentLikeTheMail_InBothStylesheets()
+    {
+        foreach (var file in new[] { Path.Combine(Web, "app.css"), Path.Combine(Root, "src", "Glebosaurus.Web", "wwwroot", "app.css") })
+        {
+            var css = File.ReadAllText(file).ReplaceLineEndings("\n");
+            Assert.Contains("fill-opacity: 0.35", CssRule(css, ".chart svg .band.temperature"));
+            Assert.Contains("stroke-opacity: 0.5", CssRule(css, ".chart svg .temperature.line, .chart svg .key-line.temperature, .overview svg .line.temperature"));
+            Assert.Contains("fill-opacity: 0.5", CssRule(css, ".chart svg .point.temperature, .chart svg .dot.temperature"));
+            Assert.Contains("fill-opacity: 0.12", CssRule(css, ".chart svg .band.moisture"));   // wilgotność bez zmian
+        }
+    }
+
     /// <summary>Kafelki pulpitu skróconego: trzy w rzędzie już na telefonie 360 px (main ma po 16 px marginesu).</summary>
     [Fact]
     public void CompactTiles_FitThreeInARowOn360PxPhone()

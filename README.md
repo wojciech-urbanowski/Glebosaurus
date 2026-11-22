@@ -271,7 +271,8 @@ odczytów). Tytuł zaczyna się od tego, co ważne („Monstera – czas podlać
 – po trzy w rzędzie, od najsuchszej gleby (do podlania na początku), z tymi samymi kodami co pulpit strony w chmurze (LWe, Zio): wilgotność, bateria, temperatura i
 etykieta, gdy coś wymaga uwagi. Niżej każdy czujnik ma kartę z wykresem ostatnich
 3 dób z samego HTML (kolumny po 4 godz.: niebieska kreska – średnia wilgotność, blady pasek – temperatura od najniższej do
-najwyższej, różowe tło – poniżej progu podlania; przy wielu czujnikach kolumny są szersze, żeby Gmail nie przyciął maila),
+najwyższej, różowe tło – poniżej progu podlania; przy wielu czujnikach wykres jest krótszy – 2 doby albo ostatnia doba – lub
+ma szersze kolumny, żeby Gmail nie przyciął maila),
 a wersja tekstowa linijkę `▁…█`. Pod czujnikami raport ma sekcję **„Urządzenia”**: kartę każdego telefonu (bateria,
 ładowarka, temperatura akumulatora) i Raspberry Pi (temperatura procesora) z ich ostatniej synchronizacji, z tymi samymi
 ostrzeżeniami co panel WWW (mróz, upał, słaba bateria bez ładowarki, gorący procesor od 75 °C); urządzenie z ostrzeżeniem

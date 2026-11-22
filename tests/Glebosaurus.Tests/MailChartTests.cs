@@ -165,19 +165,29 @@ public class MailChartTests
         }
     }
 
-    /// <summary>Kafelki zestawienia (ok. 1 KB na czujnik) liczą się do budżetu – przy 16 czujnikach wykresy są jeszcze, szersze.</summary>
-    [Fact]
-    public void ManySensorsGetWiderColumnsToStayUnderGmailClipping()
-    {
-        var four = Report(Enumerable.Range(1, 4).Select(i => Sensor($"Roślina {i}", h => 40 + (int)(h % 20), h => 20 + (decimal)(h % 5))).ToArray()).HtmlBody;
-        var ten = Report(Enumerable.Range(1, 10).Select(i => Sensor($"Roślina {i}", h => 40 + (int)(h % 20), h => 20 + (decimal)(h % 5))).ToArray()).HtmlBody;
-        var sixteen = Report(Enumerable.Range(1, 16).Select(i => Sensor($"Roślina {i}", h => 40 + (int)(h % 20), h => 20 + (decimal)(h % 5))).ToArray()).HtmlBody;
+    private static string ManyReport(int count) =>
+        Report(Enumerable.Range(1, count).Select(i => Sensor($"Roślina {i}", h => 40 + (int)(h % 20), h => 20 + (decimal)(h % 5))).ToArray()).HtmlBody;
 
-        Assert.Contains("przedziały po 4 godz.", four);
-        Assert.Contains("przedziały po 4 godz.", ten);                         // tyle czujników ma autor – wykres jak zwykle
+    /// <summary>
+    /// Kafelki zestawienia (ok. 1 KB na czujnik) liczą się do budżetu. Przy wielu czujnikach wykres się skraca (2 doby, potem
+    /// ostatnia doba) albo ma szersze przedziały – każdy szczebel ma mniej kolumn, a mail mieści się w limicie Gmaila.
+    /// </summary>
+    [Fact]
+    public void ManySensorsGetShorterOrCoarserChartsToStayUnderGmailClipping()
+    {
+        var four = ManyReport(4);
+        var ten = ManyReport(10);
+        var sixteen = ManyReport(16);
+        var twentyTwo = ManyReport(22);
+
+        Assert.Contains("Wykresy: ostatnie 3 doby, przedziały po 4 godz.", four);
+        Assert.Contains("Wykresy: ostatnie 3 doby, przedziały po 4 godz.", ten);     // tyle czujników ma autor – wykres jak zwykle
         Assert.Equal(16, ChartCount(sixteen));
-        Assert.DoesNotContain("przedziały po 4 godz.", sixteen);
-        Assert.True(Encoding.UTF8.GetByteCount(sixteen) <= 90_000, $"raport z 16 czujnikami ma {Encoding.UTF8.GetByteCount(sixteen)} B");
+        Assert.Contains("Wykresy: ostatnie 2 doby", sixteen);
+        Assert.Equal(22, ChartCount(twentyTwo));
+        Assert.Contains("Wykresy: ostatnia doba", twentyTwo);
+        foreach (var (html, count) in new[] { (sixteen, 16), (twentyTwo, 22) })
+            Assert.True(Encoding.UTF8.GetByteCount(html) <= 90_000, $"raport z {count} czujnikami ma {Encoding.UTF8.GetByteCount(html)} B");
     }
 
     [Fact]

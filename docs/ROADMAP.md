@@ -80,7 +80,7 @@ HISTORIA.md, „Tryb samodzielny i przejście na chmurę”.
 | 4 | **Baterie i interwał.** Wykres wskazania baterii w czasie, prognoza życia baterii. Rozważyć interwał adaptacyjny: częściej blisko progu podlania, rzadziej gdy gleba jest wilgotna i nocą. | ◐ domyślny odstęp 2 h 5 min (czujnik i tak zapisuje rekord co godzinę); dane o baterii zbierane, analiza ○ | S + czas |
 | 5 | **Kalibracja wilgotności.** Pomiary: powietrze, woda, mokra i sucha ziemia doniczkowa; kalibracja per czujnik (punkty „sucho”/„mokro” albo offset i skala) w konfiguracji chmury; sensowne progi domyślne i opis w README. | ○ | M |
 | 7 | **Operacje.** „Wyślij log teraz” w panelu (polecenie `send_log` jest w chmurze), `status --json`. | ○ | S |
-| 7b | **Raport przy wielu czujnikach:** budżet 90 KB (z kafelkami zestawienia od 2026-11-22) mieści wykresy po 4 godz. do ok. 12 czujników, potem szersze kolumny (do 12 godz. przy 17), od ok. 18 – raport bez wykresów; ewentualnie kilka maili. | ◐ | S |
+| 7b | **Raport przy wielu czujnikach:** budżet 90 KB (z kafelkami zestawienia od 2026-11-22) mieści wykresy 3 dób po 4 godz. do ok. 12 czujników, potem krótsze (2 doby, ostatnia doba) i szersze kolumny – do ok. 22 czujników, dalej raport bez wykresów; ewentualnie kilka maili. | ◐ | S |
 | 8 | **Higiena repozytorium:** ✔ 2026-11-19 licencja AGPL-3.0-or-later ([LICENSE](../LICENSE), [NOTICE.md](../NOTICE.md)); ○ analizatory. | ◐ | S |
 
 ---

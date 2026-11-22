@@ -8,7 +8,7 @@ using static Glebosaurus.Core.Mail.MailLayout;
 namespace Glebosaurus.Core.Mail;
 
 /// <summary>
-/// Wykres ostatnich 3 dób w mailu, zbudowany z samego HTML – bez SVG (Gmail go nie pokazuje) i bez obrazków rastrowych.
+/// Wykres ostatnich dób (3, przy wielu czujnikach 2 albo 1 – <see cref="Ladder"/>) w mailu, zbudowany z samego HTML – bez SVG (Gmail go nie pokazuje) i bez obrazków rastrowych.
 /// Tabela, w której każda kolumna to przedział czasu (domyślnie 4 godz., w czasie lokalnym, jak w panelu). W kolumnie:
 /// niebieska kreska na wysokości średniej wilgotności (skala po lewej, zawsze 0–100%) – na wierzchu, bo jest najważniejsza – a pod nią blady
 /// pomarańczowy pasek od najniższej do najwyższej temperatury z przedziału (skala po prawej). Elementy stoją na właściwej
@@ -16,16 +16,26 @@ namespace Glebosaurus.Core.Mail;
 /// Gmail nie obsługuje pozycjonowania ani ujemnych marginesów, ale wysokości, tła i dopełnienia tak. Różowe tło kolumny =
 /// średnia wilgotność poniżej progu podlania. Pusta kolumna = brak odczytów.
 /// </summary>
+/// <summary>Jeden szczebel wykresu: ile ostatnich dób i jak długie przedziały (kolumny).</summary>
+internal sealed record ChartStep(int Days, int BucketMinutes)
+{
+    public TimeSpan Window => TimeSpan.FromDays(Days);
+
+    public int ColumnCount => Days * 1440 / BucketMinutes;
+}
+
 internal static class MailChart
 {
+    /// <summary>Najdłuższe okno wykresu – i linijki znaków w wersji tekstowej (ta nie liczy się do budżetu HTML).</summary>
     public static readonly TimeSpan Window = TimeSpan.FromHours(72);
 
     /// <summary>
-    /// Długości przedziałów od najdrobniejszej (4 godz. = 6 kolumn na dobę; do 2026-11-22 – 2 godz., zgrubniej na życzenie
-    /// użytkownika, gdy raport dostał kafelki z zestawieniem). Raport bierze pierwszą, przy której cały mail mieści się w
-    /// <see cref="HtmlBudgetBytes"/> (przy wielu czujnikach kolumny są szersze).
+    /// Szczeble od najdokładniejszego: raport bierze pierwszy, przy którym cały mail mieści się w <see cref="HtmlBudgetBytes"/>.
+    /// Każdy ma mniej kolumn (18 → 12 → 8 → 6 → 4 → 3): przy wielu czujnikach wykres jest krótszy (2 doby, potem ostatnia
+    /// doba – życzenie użytkownika z 2026-11-22) albo ma szersze przedziały. Najdrobniejszy przedział to 4 godz. (do
+    /// 2026-11-22 – 2 godz., zgrubniej na życzenie użytkownika, gdy raport dostał kafelki z zestawieniem).
     /// </summary>
-    public static readonly IReadOnlyList<int> BucketLadder = [240, 360, 480, 720];
+    public static readonly IReadOnlyList<ChartStep> Ladder = [new(3, 240), new(2, 240), new(2, 360), new(1, 240), new(1, 360), new(1, 480)];
 
     /// <summary>Gmail przycina wiadomości, których HTML przekracza ok. 102 KB („Wyświetl całą wiadomość”) – zostawiamy zapas.</summary>
     public const int HtmlBudgetBytes = 90_000;
@@ -56,11 +66,11 @@ internal static class MailChart
 
     private sealed record Column(long LocalStart, double? Moisture, double? TemperatureMin, double? TemperatureMax);
 
-    /// <summary>Kolumny okna 3 dób: ostatnia zawiera „teraz”, granice jak w <see cref="ReadingSeriesBuilder.LocalBucketStart"/>.</summary>
-    private static List<Column> Columns(IReadOnlyList<StoredReading> history, DateTimeOffset now, TimeZoneInfo zone, int bucketMinutes)
+    /// <summary>Kolumny okna: ostatnia zawiera „teraz”, granice jak w <see cref="ReadingSeriesBuilder.LocalBucketStart"/>.</summary>
+    private static List<Column> Columns(IReadOnlyList<StoredReading> history, DateTimeOffset now, TimeZoneInfo zone, int bucketMinutes, TimeSpan window)
     {
         var bucketTicks = TimeSpan.FromMinutes(bucketMinutes).Ticks;
-        var count = (int)(Window.Ticks / bucketTicks);
+        var count = (int)(window.Ticks / bucketTicks);
         var last = ReadingSeriesBuilder.LocalBucketStart(now, bucketMinutes, zone);
         var first = last - (count - 1) * bucketTicks;
         var groups = history
@@ -100,9 +110,10 @@ internal static class MailChart
         (int)Math.Round((value - domain.Lo) / Math.Max(1e-9, domain.Hi - domain.Lo) * height);
 
     /// <summary>Wykres do karty czujnika; null, gdy w oknie nie ma żadnej wartości.</summary>
-    public static string? Html(SensorConfig sensor, IReadOnlyList<StoredReading> history, DateTimeOffset now, TimeZoneInfo zone, int bucketMinutes)
+    public static string? Html(SensorConfig sensor, IReadOnlyList<StoredReading> history, DateTimeOffset now, TimeZoneInfo zone, ChartStep step)
     {
-        var columns = Columns(history, now, zone, bucketMinutes);
+        var bucketMinutes = step.BucketMinutes;
+        var columns = Columns(history, now, zone, bucketMinutes, step.Window);
         var moistureValues = columns.Where(c => c.Moisture is not null).Select(c => c.Moisture!.Value).ToList();
         var temperatureValues = columns.Where(c => c.TemperatureMin is not null).SelectMany(c => new[] { c.TemperatureMin!.Value, c.TemperatureMax!.Value }).ToList();
         if (moistureValues.Count == 0 && temperatureValues.Count == 0) return null;
@@ -215,21 +226,22 @@ internal static class MailChart
     }
 
     /// <summary>Objaśnienie wykresów – raz na raport, nad kartami (każda karta z osobna nie powtarza go, żeby mail był lżejszy).</summary>
-    public static string Legend(int bucketMinutes, bool anyDry)
+    public static string Legend(ChartStep step, bool anyDry)
     {
-        var hours = (bucketMinutes / 60.0).ToString("0.#", CultureInfo.InvariantCulture).Replace('.', ',');
+        var hours = (step.BucketMinutes / 60.0).ToString("0.#", CultureInfo.InvariantCulture).Replace('.', ',');
+        var span = step.Days == 1 ? "ostatnia doba" : $"ostatnie {step.Days} doby";
         var moistureKey = $"<span style=\"display:inline-block;width:14px;height:0;border-top:{Mark}px solid {MoistureColor};vertical-align:middle\"></span>";
         var temperatureKey = $"<span style=\"display:inline-block;width:8px;height:12px;background:{TemperatureOnWhite};vertical-align:middle\"></span>";
         var dry = anyDry
             ? $" · <span style=\"display:inline-block;width:10px;height:10px;background:{Red.Soft};vertical-align:middle\"></span> poniżej progu podlania"
             : "";
-        return $"<tr><td style=\"padding:0 2px 10px;font-size:13px;line-height:1.6;color:{MutedColor}\">Wykresy: ostatnie 3 doby, przedziały po {hours} godz. · " +
+        return $"<tr><td style=\"padding:0 2px 10px;font-size:13px;line-height:1.6;color:{MutedColor}\">Wykresy: {span}, przedziały po {hours} godz. · " +
                $"{moistureKey} wilgotność, średnia (skala z lewej) · {temperatureKey} temperatura, od najniższej do najwyższej (z prawej){dry}</td></tr>";
     }
 
     /// <summary>Czy w oknie jest choć jedna kolumna z wilgotnością poniżej progu (wtedy objaśnienie mówi o różowym tle).</summary>
-    public static bool AnyDry(SensorConfig sensor, IReadOnlyList<StoredReading> history, DateTimeOffset now, TimeZoneInfo zone, int bucketMinutes) =>
-        Columns(history, now, zone, bucketMinutes).Any(c => c.Moisture is { } m && m < sensor.WateringBelowPercent);
+    public static bool AnyDry(SensorConfig sensor, IReadOnlyList<StoredReading> history, DateTimeOffset now, TimeZoneInfo zone, ChartStep step) =>
+        Columns(history, now, zone, step.BucketMinutes, step.Window).Any(c => c.Moisture is { } m && m < sensor.WateringBelowPercent);
 
     /// <summary>
     /// Wersja tekstowa: wilgotność z 3 dób jako 12 znaków (średnie z 6 godz.) i zmiana od pierwszej do ostatniej, np.
@@ -237,7 +249,7 @@ internal static class MailChart
     /// </summary>
     public static string? TextLine(IReadOnlyList<StoredReading> history, DateTimeOffset now, TimeZoneInfo zone)
     {
-        var values = Columns(history, now, zone, 360).Select(c => c.Moisture).ToList();
+        var values = Columns(history, now, zone, 360, Window).Select(c => c.Moisture).ToList();
         var present = values.Where(v => v is not null).Select(v => v!.Value).ToList();
         if (present.Count == 0) return null;
         // Ta sama skala co na wykresie: ▁ = 0%, █ = 100%.

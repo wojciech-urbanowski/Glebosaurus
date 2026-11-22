@@ -63,8 +63,8 @@ public static partial class MailTemplates
     /// pulpicie strony, <c>web/tile-order.js</c>); niżej karty w kolejności ważności.
     /// Czujniki z historią (<see cref="SensorSnapshot.History"/>) dostają wykres ostatnich 3 dób. Kolumny wykresu są tak
     /// wąskie, jak pozwala budżet wielkości maila (<see cref="MailChart.HtmlBudgetBytes"/>): przy wielu czujnikach przedziały
-    /// rosną (4 → 6 → 8 → 12 godz.; kafelki też zabierają budżet), a gdy nawet najszersze się nie mieszczą, raport idzie bez
-    /// wykresów (kafelki i karty zostają).
+    /// rosną albo wykres się skraca do 2 dób i do ostatniej doby (<see cref="MailChart.Ladder"/>; kafelki też zabierają
+    /// budżet), a gdy nawet najlżejszy się nie mieści, raport idzie bez wykresów (kafelki i karty zostają).
     /// </remarks>
     public static MailMessage Report(
         IReadOnlyList<SensorSnapshot> snapshots, IReadOnlyList<string> to, string monitorName, DateTimeOffset now, TimeZoneInfo zone,
@@ -76,9 +76,9 @@ public static partial class MailTemplates
             sensorCodes = SensorCodes.For(snapshots.Select(s => (s.Sensor.Id, s.Sensor.Name)));
         if (snapshots.Any(s => s.History.Count > 0))
         {
-            foreach (var bucket in MailChart.BucketLadder)
+            foreach (var step in MailChart.Ladder)
             {
-                var message = BuildReport(snapshots, devices, to, monitorName, now, zone, scheduledAt, bucket, alertsMutedUntil, sensorCodes);
+                var message = BuildReport(snapshots, devices, to, monitorName, now, zone, scheduledAt, step, alertsMutedUntil, sensorCodes);
                 if (Encoding.UTF8.GetByteCount(message.HtmlBody) <= MailChart.HtmlBudgetBytes) return message;
             }
         }
@@ -87,7 +87,7 @@ public static partial class MailTemplates
 
     private static MailMessage BuildReport(
         IReadOnlyList<SensorSnapshot> snapshots, IReadOnlyList<DeviceSnapshot> devices, IReadOnlyList<string> to, string monitorName,
-        DateTimeOffset now, TimeZoneInfo zone, DateTimeOffset? scheduledAt, int? chartBucketMinutes, DateTimeOffset? alertsMutedUntil,
+        DateTimeOffset now, TimeZoneInfo zone, DateTimeOffset? scheduledAt, ChartStep? chartStep, DateTimeOffset? alertsMutedUntil,
         IReadOnlyDictionary<string, string> sensorCodes)
     {
         var ordered = snapshots.OrderBy(Priority).ThenBy(s => s.Sensor.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
@@ -127,10 +127,12 @@ public static partial class MailTemplates
                 text.AppendLine(string.Join("  ", line.Select(t => $"{t.Code} {Percent(t.Reading?.MoisturePercent)}")));
         }
         var charts = new Dictionary<SensorSnapshot, string?>(ReferenceEqualityComparer.Instance);
-        if (chartBucketMinutes is { } bucket)
-            foreach (var s in ordered) charts[s] = s.History.Count > 0 ? MailChart.Html(s.Sensor, s.History, now, zone, bucket) : null;
-        if (chartBucketMinutes is { } legendBucket && charts.Values.Any(c => c is not null))
-            rows.Append(MailChart.Legend(legendBucket, ordered.Any(s => charts[s] is not null && MailChart.AnyDry(s.Sensor, s.History, now, zone, legendBucket))));
+        if (chartStep is { } step)
+        {
+            foreach (var s in ordered) charts[s] = s.History.Count > 0 ? MailChart.Html(s.Sensor, s.History, now, zone, step) : null;
+            if (charts.Values.Any(c => c is not null))
+                rows.Append(MailChart.Legend(step, ordered.Any(s => charts[s] is not null && MailChart.AnyDry(s.Sensor, s.History, now, zone, step))));
+        }
         foreach (var snapshot in ordered)
         {
             var (labels, accent) = Status(snapshot, now, zone);

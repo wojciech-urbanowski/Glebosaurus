@@ -210,7 +210,8 @@ bash deploy/test-install-linux.sh STARA NOWA [--systemd]   # próba install-linu
 Co działa, co zostało i w jakiej kolejności – [docs/ROADMAP.md](docs/ROADMAP.md), „Stan w skrócie”. Wdrożenie autora (która
 maszyna jest prawdziwym nadawcą, telefon, czujniki, prawdziwy projekt Supabase) – [docs/HISTORIA.md](docs/HISTORIA.md),
 „Wdrożenie autora”, i pamięć Claude. Zatwierdzone przez użytkownika – nie zmieniaj bez prośby: układ i kolorystyka maili
-(kwadratowe, pastelowe, pod telefon), wykres w raporcie (`MailChart`: kolumny po 4 godz. – od 2026-11-22, wcześniej 2 godz.;
-temperatura jako blady zakres), zestawienie kafelkami nad wykresami (od najsuchszej gleby, kody jak na pulpicie strony, `SensorCodes`),
+(kwadratowe, pastelowe, pod telefon), wykres w raporcie (`MailChart`: 3 doby po 4 godz. – od 2026-11-22, wcześniej 2 godz.;
+przy wielu czujnikach 2 doby albo ostatnia doba; temperatura jako blady zakres – półprzezroczysta też na wykresach strony
+i panelu), zestawienie kafelkami nad wykresami (od najsuchszej gleby, kody jak na pulpicie strony, `SensorCodes`),
 wyciszenia w raporcie (notka o urlopie pod paskiem, szara etykieta „alerty wyciszone do …” przy czujniku),
 panel WWW bez edycji konfiguracji (pełny edytor – faza 3c), log administratora jako osobny mail od każdego agenta.

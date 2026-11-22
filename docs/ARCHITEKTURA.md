@@ -286,8 +286,10 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
    pasek temperatury od najniższej do najwyższej, różowe tło = średnia poniżej progu podlania, pusta kolumna = brak
    odczytów. Położenie bez pozycjonowania (`valign=bottom`, dopełnienie od dołu, bloki o zadanej wysokości). Gmail
    przycina HTML powyżej ok. 102 KB, więc raport ma budżet 90 KB, w który wchodzą też kafelki (ok. 1 KB na czujnik):
-   przedziały po 4 godz. mieszczą się do ok. 12 czujników, przy większej liczbie rosną (6 → 8 → 12 godz.), od ok. 18
-   czujników raport idzie bez wykresów (kafelki i karty zostają). Wersja
+   szczeble `MailChart.Ladder`, każdy z mniejszą liczbą kolumn – 3 doby po 4 godz. (do ok. 12 czujników), 2 doby po 4
+   i po 6 godz. (do ok. 17), ostatnia doba po 4, 6 i 8 godz. (do ok. 22; skracanie okna – życzenie użytkownika z
+   2026-11-22); gdy nic się nie mieści – raport bez wykresów (kafelki i karty zostają). Objaśnienie nad kartami mówi,
+   ile dób i jakie przedziały. Wersja
    tekstowa: linijka `▁…█` ze średnich z 6 godz. Stopka podaje wersję (`AppInfo.Version`, jedno źródło:
    `Directory.Build.props`).
    **Log administratora:** dziennik agenta to pliki dzienne `glebosaurus-RRRRMMDD.log` (`DailyLogFiles`,
@@ -396,7 +398,9 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
     `GET /api/sensors/{id}/series?from&to&points` → `ReadingSeriesBuilder` (Core): dopóki odczytów jest nie więcej niż
     `points`, zwraca je wprost, inaczej uśrednia w przedziałach z drabinki 30 min … 28 dni (średnia, min, max, liczba) w
     czasie lokalnym; dziura = odstęp dłuższy niż przedział + 3 interwały odczytu. Rysowanie: `wwwroot/charts.js`, czysty
-    SVG, bez bibliotek; wilgotność `#2a78d6` (oś zawsze 0–100%), temperatura `#eb6834` (oś dopasowana, min. 2 °C).
+    SVG, bez bibliotek; wilgotność `#2a78d6` (oś zawsze 0–100%), temperatura `#eb6834` (oś dopasowana, min. 2 °C) –
+    półprzezroczysta jak blady pasek w raporcie (pasek min–max krycie 35%, linia i kropki 50%; od 2026-11-22), żeby
+    wilgotność była na wierzchu; to samo na stronie w chmurze (wspólny `charts.js`, reguły w obu `app.css`).
 12. **Agent na Androida** – tylko zbieranie, bez roli nadawcy; telefon na Wi-Fi. .NET for Android
     (`src/Glebosaurus.Android`, `net10.0-android`, Android 10+, bez MAUI – jedna aktywność i usługa) z `Glebosaurus.Tuya`,
     częściami agenta z Core i buforem SQLite (`Glebosaurus.Data`) – protokół nie powstaje drugi raz. Projekt jest poza

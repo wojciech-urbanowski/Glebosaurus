@@ -417,7 +417,11 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   i szybciej robiły się szersze – użytkownik zgodził się na wykres po 4 godz. zamiast 2 godz.; przy 10 czujnikach raport
   z kafelkami ma ok. 73 KB (poranny bez kafelków miał 72 KB po 3 godz.). `mail-preview` obejrzany w 360 px: przykład
   z alertami, z wyciszeniem („! bateria +1”) i z 16 czujnikami (wykresy po 12 godz.). Na życzenie użytkownika kafelki
-  na stronie i w mailu idą od najsuchszej gleby (wcześniej alfabetycznie) – do podlania widać od razu.
+  na stronie i w mailu idą od najsuchszej gleby (wcześniej alfabetycznie) – do podlania widać od razu. Też na życzenie
+  użytkownika: wykres w mailu przy wielu czujnikach skraca się do 2 dób i do ostatniej doby (szczeble 18 → 12 → 8 → 6 →
+  4 → 3 kolumny) – pomiar na raportach z 10–40 czujnikami: wykresy zostają do 22 czujników (wcześniej do 17); 3 doby po
+  4 godz. do 12. Temperatura na wykresach strony i panelu półprzezroczysta jak w mailu (pasek 35%, linia 50%) –
+  obejrzana w podglądzie (strona czujnika, 7 dni i całość).
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 
