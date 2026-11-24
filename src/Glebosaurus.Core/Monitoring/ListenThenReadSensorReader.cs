@@ -19,7 +19,8 @@ public interface ISensorRadio<TFound>
     Task<IReadOnlyList<(SensorConfig Sensor, TFound Found)>> ListenAsync(IReadOnlyList<SensorConfig> wanted, TimeSpan limit, CancellationToken cancellationToken);
 
     /// <summary>Łączy się z czujnikiem, odczytuje go i rozłącza; porażki zwraca jako wynik, nie wyjątek.</summary>
-    Task<SensorReadOutcome> ReadAsync(SensorConfig sensor, TFound found, CancellationToken cancellationToken);
+    /// <param name="historySince">Ostatni znany odczyt czujnika (<see cref="ISensorReader.ReadAsync"/>); null – brak.</param>
+    Task<SensorReadOutcome> ReadAsync(SensorConfig sensor, TFound found, DateTimeOffset? historySince, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -48,8 +49,8 @@ public sealed class ListenThenReadSensorReader<TFound>(
 
     private readonly TimeSpan retryPause = listenRetryPause ?? DefaultListenRetryPause;
 
-    public async IAsyncEnumerable<SensorReadOutcome> ReadAsync(
-        IReadOnlyList<SensorConfig> sensors, TimeSpan scanWindow, [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async IAsyncEnumerable<SensorReadOutcome> ReadAsync(IReadOnlyList<SensorConfig> sensors, TimeSpan scanWindow,
+        IReadOnlyDictionary<string, DateTimeOffset> historySince, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var order = sensors.Select((sensor, index) => (sensor, index)).ToDictionary(p => p.sensor, p => p.index);
         var waiting = sensors.ToList();
@@ -93,7 +94,7 @@ public sealed class ListenThenReadSensorReader<TFound>(
             foreach (var (sensor, seen) in found.OrderBy(f => order.GetValueOrDefault(f.Sensor, int.MaxValue)))
             {
                 if (!waiting.Remove(sensor)) continue;
-                yield return await radio.ReadAsync(sensor, seen, cancellationToken);
+                yield return await radio.ReadAsync(sensor, seen, historySince.TryGetValue(sensor.Id, out var since) ? since : null, cancellationToken);
             }
         }
         foreach (var sensor in waiting)

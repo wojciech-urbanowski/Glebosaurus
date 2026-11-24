@@ -84,6 +84,7 @@ public sealed class CollectorEngine(
     private readonly CollectorOptions settings = options ?? new();
     private readonly Dictionary<string, Attempt> attempts = new(StringComparer.Ordinal);
     private readonly Dictionary<string, (long Epoch, DateTimeOffset? LatestAt)> cloudChecked = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, (long Epoch, DateTimeOffset? LatestAt)> historyChecked = new(StringComparer.Ordinal);
     private readonly Lock gate = new();
     private readonly Dictionary<string, List<long>> requested = new(StringComparer.Ordinal);
     private readonly List<(long Id, JsonObject Result)> unreported = [];
@@ -414,7 +415,8 @@ public sealed class CollectorEngine(
         Publish(agent);
         var reported = new HashSet<string>(StringComparer.Ordinal);
         var stored = false;
-        await foreach (var outcome in reader!.ReadAsync(due, TimeSpan.FromSeconds(agent.ScanWindowSeconds), cancellationToken))
+        var historySince = await HistorySinceAsync(due, cancellationToken);
+        await foreach (var outcome in reader!.ReadAsync(due, TimeSpan.FromSeconds(agent.ScanWindowSeconds), historySince, cancellationToken))
         {
             var sensor = outcome.Sensor;
             reported.Add(sensor.Id);
@@ -436,24 +438,28 @@ public sealed class CollectorEngine(
                 logger.LogInformation("{Sensor}: {Message} (sygnał {Signal}).", sensor.Name, incomplete, SignalStats.Format(outcome.SignalDbm));
                 result = Failure(incomplete);
             }
-            else if (outcome is { Failure: SensorReadFailure.None, Reading: { } reading } && (reading.MoisturePercent is not null || reading.SoilTemperatureCelsius is not null))
+            else if (outcome is { Failure: SensorReadFailure.None, Reading: { HasSoilData: true } reading })
             {
-                await StoreEarlierAsync(sensor, outcome, now, cancellationToken);
-                await store.AddReadingAsync(new(sensor.Id, now, reading.MoisturePercent, reading.SoilTemperatureCelsius,
-                    reading.BatteryPercent, reading.BatteryState), cancellationToken);
+                var earlier = await StoreEarlierAsync(sensor, outcome, now, cancellationToken);
+                await store.AddReadingAsync(reading.ToStored(sensor.Id, now), cancellationToken);
                 stored = true;
                 attempts.Remove(sensor.Id);
                 lastOutcome[sensor.Id] = (now, SensorReadFailure.None, null);
                 hearing.RecordAttempt(sensor.Id, success: true);
-                logger.LogInformation("{Sensor}: wilgotność {Moisture}%, temperatura {Temperature} °C, bateria {Battery}%, sygnał {Signal}.",
+                var extra = reading.LightLux is null && reading.ConductivityMicroSiemens is null ? ""
+                    : string.Create(CultureInfo.InvariantCulture, $", światło {reading.LightLux?.ToString() ?? "–"} lx, żyzność {reading.ConductivityMicroSiemens?.ToString() ?? "–"} µS/cm");
+                var history = sensor.Model == SensorModel.FlowerCare ? $", z historii czujnika {earlier}" : "";
+                logger.LogInformation("{Sensor}: wilgotność {Moisture}%, temperatura {Temperature} °C, bateria {Battery}%{Extra}{History}, sygnał {Signal}.",
                     sensor.Name, reading.MoisturePercent?.ToString(CultureInfo.InvariantCulture) ?? "–",
-                    reading.SoilTemperatureCelsius?.ToString("0.0", CultureInfo.InvariantCulture) ?? "–",
-                    reading.BatteryPercent?.ToString(CultureInfo.InvariantCulture) ?? "–", SignalStats.Format(outcome.SignalDbm));
+                    reading.TemperatureCelsius?.ToString("0.0", CultureInfo.InvariantCulture) ?? "–",
+                    reading.BatteryPercent?.ToString(CultureInfo.InvariantCulture) ?? "–", extra, history, SignalStats.Format(outcome.SignalDbm));
                 result = new JsonObject
                 {
                     ["ok"] = true, ["at"] = now.ToString("O", CultureInfo.InvariantCulture), ["moisture"] = reading.MoisturePercent,
                     ["battery"] = reading.BatteryPercent
                 };
+                if (reading.LightLux is { } light) result["light"] = light;
+                if (reading.ConductivityMicroSiemens is { } conductivity) result["conductivity"] = conductivity;
             }
             else
             {
@@ -499,11 +505,56 @@ public sealed class CollectorEngine(
         var count = 0;
         foreach (var earlier in outcome.Earlier.Where(e => e.At < now))
         {
-            await store.AddReadingAsync(new(sensor.Id, earlier.At, earlier.MoisturePercent, earlier.SoilTemperatureCelsius,
-                earlier.BatteryPercent, earlier.BatteryState), cancellationToken);
+            await store.AddReadingAsync(earlier.ToStored(sensor.Id, earlier.At), cancellationToken);
             count++;
         }
         return count;
+    }
+
+    /// <summary>
+    /// Ostatni znany odczyt czujników Flower Care: nowszy z lokalnej bazy (własne odczyty, kopia odczytów innych agentów) i
+    /// z chmury (<see cref="CloudHistoryBoundAsync"/>). Czujnik nie kasuje historii, więc sesja bierze tylko rekordy nowsze –
+    /// inaczej te same godziny wracałyby przy każdym połączeniu, a po przejęciu czujnika od innego agenta – jego odczyty
+    /// drugi raz (czas rekordu liczony w każdej sesji od nowa różni się o ułamki sekundy, więc klucz bazy go nie odrzuci).
+    /// </summary>
+    private async Task<IReadOnlyDictionary<string, DateTimeOffset>> HistorySinceAsync(IReadOnlyList<SensorConfig> due, CancellationToken cancellationToken)
+    {
+        var result = new Dictionary<string, DateTimeOffset>(StringComparer.Ordinal);
+        var now = clock.GetUtcNow();
+        foreach (var sensor in due.Where(s => s.Model == SensorModel.FlowerCare))
+        {
+            var since = (await store.GetLatestAsync(sensor.Id, cancellationToken))?.At;
+            if (await CloudHistoryBoundAsync(sensor, now, cancellationToken) is { } cloud && (since is null || cloud > since)) since = cloud;
+            if (since is { } value) result[sensor.Id] = value;
+        }
+        return result;
+    }
+
+    /// <summary>Tyle wstecz chmura szuka ostatniego odczytu czujnika Flower Care – dłużej niż sięga historia z jednej sesji
+    /// (<see cref="Glebosaurus.FlowerCare.FlowerCareHistoryOptions.Default"/>: 240 rekordów godzinnych).</summary>
+    public static readonly TimeSpan HistoryLookback = TimeSpan.FromDays(11);
+
+    /// <summary>
+    /// Ostatni odczyt czujnika Flower Care w chmurze z <see cref="HistoryLookback"/> – raz na epokę dzierżawy (w czasie
+    /// dzierżawy czyta tylko ten agent, więc dalej wystarcza lokalna baza). Bez sieci – null (nie zapamiętane, spróbuje znowu).
+    /// </summary>
+    private async Task<DateTimeOffset?> CloudHistoryBoundAsync(SensorConfig sensor, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        if (leases.Epoch(sensor.Id) is not { } epoch) return null;
+        if (historyChecked.TryGetValue(sensor.Id, out var known) && known.Epoch == epoch) return known.LatestAt;
+        try
+        {
+            var recent = await api.ReadingsRangeAsync([sensor.Id], now - HistoryLookback, now + TimeSpan.FromMinutes(10), cancellationToken);
+            DateTimeOffset? latest = recent.Count > 0 ? recent.Max(r => r.At) : null;
+            historyChecked[sensor.Id] = (epoch, latest);
+            return latest;
+        }
+        catch (CloudApiException e)
+        {
+            logger.LogWarning("{Sensor}: nie udało się sprawdzić w chmurze ostatniego odczytu ({Error}) – historię czujnika biorę od ostatniego odczytu w lokalnej bazie.",
+                sensor.Name, e.Message);
+            return null;
+        }
     }
 
     /// <summary>Odstęp ponowień z <see cref="CollectorOptions.RetryDelays"/> (2, 5, 10 min), nigdy dłuższy niż zwykły odstęp odczytów.</summary>

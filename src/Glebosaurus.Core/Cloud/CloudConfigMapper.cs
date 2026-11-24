@@ -25,7 +25,8 @@ public static class CloudConfigMapper
 {
     /// <summary>
     /// Składa konfigurację z chmury i lokalnych ustawień urządzenia (<paramref name="local"/>: <c>database</c>,
-    /// <c>retentionDays</c>, <c>web</c>). Czujnik wyłączony, bez danych Tuya, z błędnymi danymi albo nieznanego typu jest
+    /// <c>retentionDays</c>, <c>web</c>). Czujnik Flower Care potrzebuje tylko adresu MAC. Czujnik wyłączony, Tuya bez danych
+    /// Tuya, z błędnymi danymi albo nieznanego rodzaju (nowszy niż agent) jest
     /// pomijany z ostrzeżeniem – jeden zły wpis w chmurze nie zatrzymuje agenta. Nieznana strefa czasowa → strefa systemu
     /// z ostrzeżeniem. Inna wersja protokołu → <see cref="InvalidDataException"/>.
     /// </summary>
@@ -72,6 +73,19 @@ public static class CloudConfigMapper
     private static SensorConfig? Sensor(CloudSensor sensor, HashSet<string> uuids, out string problem)
     {
         problem = "";
+        var model = SensorModels.Parse(sensor.Model);
+        if (model is null)
+        {
+            problem = $"nieznany rodzaj czujnika „{sensor.Model}” – zaktualizuj agenta";
+            return null;
+        }
+        if (model == SensorModel.FlowerCare)
+        {
+            if (BleAddress.TryParse(sensor.Mac, out var address))
+                return Settings(sensor, new() { Model = SensorModel.FlowerCare, Mac = BleAddress.Format(address) });
+            problem = "zły adres MAC";
+            return null;
+        }
         if (sensor.Tuya is not { } tuya)
         {
             problem = "brak danych Tuya w chmurze (sparuj czujnik albo zaimportuj klucze)";
@@ -103,13 +117,22 @@ public static class CloudConfigMapper
             problem = "ten sam UUID Tuya co inny czujnik";
             return null;
         }
-        return new()
-        {
-            Id = sensor.Id, Name = sensor.Name, Tuya = credentials, ReadIntervalMinutes = sensor.ReadIntervalMinutes,
-            WateringBelowPercent = sensor.WateringBelowPercent, WateringClearAbovePercent = sensor.WateringClearAbovePercent,
-            ConsecutiveReadings = sensor.ConsecutiveReadings, LowBatteryPercent = sensor.LowBatteryPercent, SilentAfterHours = sensor.SilentAfterHours,
-            AlertsMutedUntil = sensor.AlertsMutedUntil
-        };
+        return Settings(sensor, new() { Tuya = credentials });
+    }
+
+    /// <summary>Wspólne ustawienia czujnika z chmury (nazwa, odstęp, progi, wyciszenie).</summary>
+    private static SensorConfig Settings(CloudSensor sensor, SensorConfig config)
+    {
+        config.Id = sensor.Id;
+        config.Name = sensor.Name;
+        config.ReadIntervalMinutes = sensor.ReadIntervalMinutes;
+        config.WateringBelowPercent = sensor.WateringBelowPercent;
+        config.WateringClearAbovePercent = sensor.WateringClearAbovePercent;
+        config.ConsecutiveReadings = sensor.ConsecutiveReadings;
+        config.LowBatteryPercent = sensor.LowBatteryPercent;
+        config.SilentAfterHours = sensor.SilentAfterHours;
+        config.AlertsMutedUntil = sensor.AlertsMutedUntil;
+        return config;
     }
 }
 

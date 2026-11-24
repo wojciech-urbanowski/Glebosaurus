@@ -1,9 +1,9 @@
 // Strona jednego czujnika w chmurze (sensor.html?id=…): stan teraz z odczytem na żądanie, przeglądalny wykres całej
-// historii z paskiem przeglądu (jak w lokalnym panelu – wspólny charts.js), otwarte alerty, kto go słyszy, ustawienia i
-// ostatnie odczyty. Stan z owner_sensor co 60 s; wykres dociąga dane okna z zapasem po bokach przez owner_series.
+// historii z paskiem przeglądu (jak w lokalnym panelu – wspólny charts.js; czujnik Flower Care ma pod nim drugi wykres,
+// światła i żyzności, z tym samym oknem), otwarte alerty, kto go słyszy, ustawienia i ostatnie odczyty. Stan z owner_sensor co 60 s; wykres dociąga dane okna z zapasem po bokach przez owner_series.
 
-import { h, now, syncClock, when, ago, percent, celsius, dbm, plural, kv, dateFmt, num1 } from './format.js';
-import { TimeChart, OverviewStrip, resolutionText } from './charts.js';
+import { h, now, syncClock, when, ago, percent, celsius, dbm, plural, kv, dateFmt, num1, lux, microSiemens, whole, isFlowerCare, temperatureLabel } from './format.js';
+import { TimeChart, OverviewStrip, resolutionText, soilSeries, LIGHT_SERIES } from './charts.js';
 import { start } from './shell.js';
 import { command, describe, follow } from './commands.js';
 import { button, note } from './ui.js';
@@ -32,6 +32,8 @@ let readingsCount = READINGS_PAGE;
 let readState = null;
 
 const chart = new TimeChart({ interactive: true, onView: (v, settled) => changeView(v.from, v.to, settled) });
+/** Światło i żyzność – tylko czujnik Flower Care; te same dane z owner_series i to samo okno co wykres wyżej. */
+const lightChart = new TimeChart({ interactive: true, series: LIGHT_SERIES, onView: (v, settled) => changeView(v.from, v.to, settled) });
 const overview = new OverviewStrip({ onView: (v, settled) => changeView(v.from, v.to, settled) });
 const el = {};
 
@@ -66,6 +68,7 @@ function changeView(from, to, settled) {
   view = clampView(from, to);
   following = view.to >= now().getTime() - 60e3;
   chart.setView(view.from, view.to);
+  lightChart.setView(view.from, view.to);
   overview.setView(view.from, view.to);
   renderViewInfo();
   if (settled && needsLoad()) loadChart();
@@ -83,6 +86,7 @@ async function loadChart() {
   const to = Math.min(now().getTime(), view.to + span);
   const seq = ++loadSeq;
   chart.setLoading(true);
+  lightChart.setLoading(true);
   try {
     const data = await series(from, to, ((chart.plotWidth / 2) * (to - from)) / span);
     if (seq !== loadSeq) return;
@@ -91,12 +95,16 @@ async function loadChart() {
     const firstChanged = firstAt !== first;
     first = firstAt;
     chart.setData(data);
+    lightChart.setData(data);
     renderViewInfo();
     if (firstChanged || Date.now() - overviewAt > OVERVIEW_REFETCH_MS) loadOverview();
   } catch (error) {
     if (seq === loadSeq) el.viewInfo.textContent = `Nie udało się wczytać danych wykresu: ${error.message}`;
   } finally {
-    if (seq === loadSeq) chart.setLoading(false);
+    if (seq === loadSeq) {
+      chart.setLoading(false);
+      lightChart.setLoading(false);
+    }
   }
 }
 
@@ -175,13 +183,14 @@ function renderNow() {
     ? (last.moisture < sensor.wateringBelowPercent ? 'red' : last.moisture < sensor.wateringClearAbovePercent ? 'amber' : 'green') : null;
   const card = h('article', `card accent-${page.alerts.length > 0 ? 'red' : last ? 'green' : 'grey'}`);
   if (last) {
-    card.append(h('div', 'metrics', metric('Wilgotność', percent(last.moisture), tone), metric('Temp. gleby', celsius(last.temperature)),
+    card.append(h('div', 'metrics', metric('Wilgotność', percent(last.moisture), tone), metric(temperatureLabel(sensor), celsius(last.temperature)),
       metric('Bateria', percent(last.battery), last.battery !== null && last.battery <= sensor.lowBatteryPercent ? 'amber' : null)));
     if (last.moisture !== null && last.moisture !== undefined) {
       const fill = h('div', tone ? `fill-${tone}` : null);
       fill.style.width = `${Math.min(100, Math.max(0, last.moisture))}%`;
       card.append(h('div', 'bar', fill));
     }
+    if (isFlowerCare(sensor)) card.append(h('div', 'metrics', metric('Światło, lx', whole(last.light)), metric('Żyzność, µS/cm', whole(last.conductivity))));
   }
   card.append(h('div', 'lines',
     h('div', 'muted', last ? `Odczyt ${ago(last.at)} (${when(last.at)})${last.agent ? `, agent ${last.agent}` : ''}` : 'Brak odczytów w chmurze'),
@@ -257,8 +266,9 @@ function renderSettings() {
     ['Alert wygasa od', `${s.wateringClearAbovePercent}%`],
     ['Słaba bateria przy', `${s.lowBatteryPercent}% lub mniej`],
     ['Brak odczytów po', `${num1.format(s.silentAfterHours).replace(',0', '')} godz.`],
+    ['Rodzaj', isFlowerCare(s) ? 'Xiaomi Flower Care (bez klucza, po adresie MAC)' : 'Tuya BLE'],
     ['Adres MAC', s.mac],
-    ['Produkt Tuya', s.productId || '–'],
+    ['Produkt Tuya', isFlowerCare(s) ? null : s.productId || '–'],
     ['Identyfikator', s.id]
   ]));
   const link = h('a', 'button-link small', 'Zmień w konfiguracji');
@@ -274,11 +284,14 @@ async function loadReadings() {
       el.readings.replaceChildren(h('div', 'empty', 'Brak odczytów w chmurze.'));
       return;
     }
+    const extra = isFlowerCare(page.sensor);
     const table = h('table', 'readings');
-    table.append(h('thead', null, h('tr', null, h('th', null, 'Czas'), h('th', null, 'Wilgotność'), h('th', null, 'Temperatura'), h('th', null, 'Bateria'))));
+    table.append(h('thead', null, h('tr', null, h('th', null, 'Czas'), h('th', null, 'Wilgotność'), h('th', null, 'Temperatura'), h('th', null, 'Bateria'),
+      extra ? h('th', null, 'Światło') : null, extra ? h('th', null, 'Żyzność') : null)));
     const body = h('tbody');
     for (const r of readings) {
-      body.append(h('tr', null, h('td', null, when(r.at)), h('td', null, percent(r.moisture)), h('td', null, celsius(r.temperature)), h('td', null, percent(r.battery))));
+      body.append(h('tr', null, h('td', null, when(r.at)), h('td', null, percent(r.moisture)), h('td', null, celsius(r.temperature)), h('td', null, percent(r.battery)),
+        extra ? h('td', null, lux(r.light)) : null, extra ? h('td', null, microSiemens(r.conductivity)) : null));
     }
     table.append(body);
     const parts = [h('div', 'muted small', `Ostatnie ${readings.length} ${plural(readings.length, 'odczyt', 'odczyty', 'odczytów')}, od najnowszego:`), h('div', 'table-wrap', table)];
@@ -317,11 +330,15 @@ start(async (client, main) => {
   el.diagnostics = h('div');
   el.settings = h('div');
   el.readings = h('div');
+  el.light = section('Światło i żyzność', lightChart.element,
+    h('div', 'muted small hint', 'Światło w luksach (pełne słońce to kilkadziesiąt tysięcy, mieszkanie zwykle kilkaset–kilka tysięcy); żyzność to przewodność gleby w µS/cm – spada, gdy gleba wysycha albo brakuje nawozu.'));
+  el.light.hidden = true;
   main.append(
     h('div', 'page-head', h('div', 'page-title', el.name, el.line), h('div', 'picker', el.picker)),
     section('Teraz', el.now),
     section('Wilgotność i temperatura', controls(), chart.element, el.viewInfo, overview.element,
       h('div', 'muted small hint', 'Przeciągnij wykres albo prostokąt na pasku pod nim, żeby przesunąć okres; powiększenie: Ctrl + kółko myszy, dwa palce albo przyciski.')),
+    el.light,
     section('Otwarte alerty', el.alerts),
     section('Odczyty', el.readings),
     section('Kto go czyta i słyszy', el.diagnostics),
@@ -343,6 +360,10 @@ start(async (client, main) => {
     }
     el.picker.value = sensorId;
     chart.setThreshold(sensor.wateringBelowPercent);
+    if (isFlowerCare(sensor) && el.light.hidden) {
+      el.light.hidden = false;
+      chart.setSeries(soilSeries(true));
+    }
     renderNow();
     renderAlerts();
     renderDiagnostics();

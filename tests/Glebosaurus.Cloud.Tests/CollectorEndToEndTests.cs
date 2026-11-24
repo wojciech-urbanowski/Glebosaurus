@@ -81,12 +81,12 @@ public sealed class CollectorEndToEndTests(CloudDatabase db) : IDisposable
     private sealed class OkReader : ISensorReader
     {
         public async IAsyncEnumerable<SensorReadOutcome> ReadAsync(IReadOnlyList<SensorConfig> sensors, TimeSpan scanWindow,
-            [EnumeratorCancellation] CancellationToken cancellationToken)
+            IReadOnlyDictionary<string, DateTimeOffset> historySince, [EnumeratorCancellation] CancellationToken cancellationToken)
         {
             foreach (var sensor in sensors)
             {
                 await Task.Yield();
-                var reading = new SoilReading(DateTimeOffset.UtcNow, SoilSensorProfiles.Sgs01, 44, 19.5m, 77, 2, new Dictionary<int, string>());
+                var reading = new SensorReading(DateTimeOffset.UtcNow, 44, 19.5m, 77, 2);
                 yield return new(sensor, reading, SensorReadFailure.None) { SignalDbm = -61 };
             }
         }

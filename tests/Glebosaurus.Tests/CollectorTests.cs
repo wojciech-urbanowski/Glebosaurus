@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Text;
 using Glebosaurus.Core.Cloud;
+using Glebosaurus.Core.Domain;
 using Glebosaurus.Core.Monitoring;
 using Glebosaurus.Core.Pairing;
 using Microsoft.Extensions.Logging;
@@ -83,6 +84,49 @@ public sealed class CollectorTests : IDisposable
         Assert.Equal((SensorReadFailure.None, 0, -77), (s1.LastResult!.Value, s1.Failures, s1.LastSignalDbm!.Value));
         var s2 = state.Sensors["s2"];
         Assert.Equal((SensorReadFailure.NotFound, 1, Fixtures.T0 + 2 * Minute), (s2.LastResult!.Value, s2.Failures, s2.RetryAt!.Value));
+    }
+
+    [Fact]
+    public async Task FlowerCare_StoresLightConductivityAndHistory_AndBoundsHistoryByTheLatestKnownReading()
+    {
+        var fikus = Fixtures.FlowerCare();
+        var config = new CloudAgentConfig(Fixtures.Config(fikus), TimeZoneInfo.Utc, 1, new("bestia5", false, null), null, []);
+        var engine = new CollectorEngine(() => config, db.Store, reader, listener, leases, hearing, api, logs, clock, NullLogger.Instance);
+        // Inny agent czytał czujnik 5 h temu (odczyt w chmurze, lokalnie go nie ma); lokalnie – starszy odczyt.
+        api.CloudReadings.Add(Fixtures.Reading("fc", Fixtures.T0.AddHours(-5)));
+        await db.Store.AddReadingAsync(Fixtures.Reading("fc", Fixtures.T0.AddDays(-2)), Ct);
+        Grant("fc");
+        reader.Script = sensor => new SensorReadOutcome(sensor,
+            new SensorReading(Fixtures.T0, 41, 21.3m, 99) { LightLux = 1200, ConductivityMicroSiemens = 640 }, SensorReadFailure.None)
+        {
+            Earlier = [new SensorReading(Fixtures.T0.AddHours(-1), 43, 20.1m, null) { LightLux = 900, ConductivityMicroSiemens = 650 }]
+        };
+
+        await engine.CycleAsync(Ct);
+
+        Assert.Equal(Fixtures.T0.AddHours(-5), reader.HistorySince.Single()["fc"]);
+        var stored = await db.Store.GetRangeAsync("fc", Fixtures.T0.AddHours(-2), Fixtures.T0, Ct);
+        Assert.Equal([(900, 650, (int?)null), (1200, 640, 99)], stored.Select(r => (r.LightLux!.Value, r.ConductivityMicroSiemens!.Value, r.BatteryPercent)));
+
+        // W tej samej epoce dzierżawy chmura nie jest pytana drugi raz – granicą jest już lokalny odczyt.
+        var rangeCalls = api.RangeCalls.Count;
+        clock.Advance(TimeSpan.FromMinutes(20));
+        await engine.HandleCommandAsync(Command(9, "read_now", "fc"), Ct);
+        await engine.CycleAsync(Ct);
+        Assert.Equal(2, reader.HistorySince.Count);
+        Assert.Equal(Fixtures.T0, reader.HistorySince[^1]["fc"]);
+        Assert.Equal(rangeCalls, api.RangeCalls.Count);
+    }
+
+    [Fact]
+    public async Task TuyaSensorsGetNoHistoryBound()
+    {
+        Grant("s1");
+        await db.Store.AddReadingAsync(Fixtures.Reading("s1", Fixtures.T0.AddDays(-1)), Ct);
+
+        await collector.CycleAsync(Ct);
+
+        Assert.Empty(reader.HistorySince.Single());
     }
 
     [Fact]

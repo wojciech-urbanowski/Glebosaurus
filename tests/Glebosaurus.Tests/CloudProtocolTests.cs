@@ -167,6 +167,27 @@ public sealed class CloudProtocolTests
     }
 
     [Fact]
+    public void FlowerCareValuesTravelAsLightAndConductivity_AndOnlyWhenPresent()
+    {
+        var flowerCare = new StoredReading("fikus", Fixtures.T0, 41, 21.4m, 100, null) { LightLux = 82_386, ConductivityMicroSiemens = 1607 };
+        var json = JsonSerializer.SerializeToNode(new SyncRequest(new AgentStatus("0.4.0", "windows"))
+        {
+            Readings = [ReadingReport.From(flowerCare), ReadingReport.From(new("cisy", Fixtures.T0, 41, 21.4m, 80, 2))]
+        }, CloudJsonContext.Default.SyncRequest)!;
+
+        Assert.Equal((82_386, 1607), ((int)json["readings"]![0]!["light"]!, (int)json["readings"]![0]!["conductivity"]!));
+        Assert.False(json["readings"]![1]!.AsObject().ContainsKey("light"));
+        Assert.Equal(flowerCare, ReadingReport.From(flowerCare).ToStored());
+
+        var feed = JsonSerializer.Deserialize("""
+            {"readings": [{"sensor": "fikus", "at": "2026-11-17T10:00:00+00:00", "moisture": 41, "tempTenths": 214, "battery": 100,
+                           "batteryState": null, "light": 82386, "conductivity": 1607}], "last": 1, "more": false}
+            """, CloudJsonContext.Default.ReadingsFeed)!;
+        var stored = feed.Readings[0].ToStored();
+        Assert.Equal((82_386, 1607), (stored.LightLux, stored.ConductivityMicroSiemens));
+    }
+
+    [Fact]
     public void Reading_RoundTripsThroughCloudForm()
     {
         var stored = new StoredReading("cisy", Fixtures.T0, 41, -3.5m, null, 0);

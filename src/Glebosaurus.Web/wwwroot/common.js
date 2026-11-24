@@ -2,7 +2,7 @@
 // składanie elementów są w format.js (ten sam plik ma strona w chmurze). Wszystkie dane trafiają na stronę jako tekst
 // (textContent / append(string)), nigdy jako HTML – nazwy czujników i wpisy dziennika nie mogą wstrzyknąć kodu.
 
-import { $, now, h, when, ago, until, percent, celsius, dbm, plural, badge, dateFmt } from './format.js';
+import { $, now, h, when, ago, until, percent, celsius, dbm, plural, badge, dateFmt, whole, isFlowerCare, temperatureLabel } from './format.js';
 
 export * from './format.js';
 
@@ -118,18 +118,24 @@ export function sensorBadges(sensor) {
   return badges.childElementCount > 0 ? badges : null;
 }
 
-/** Trzy liczby (wilgotność, temperatura, bateria) i pasek wilgotności w kolorze progu; null bez odczytu. */
+/**
+ * Trzy liczby (wilgotność, temperatura, bateria) i pasek wilgotności w kolorze progu – czujnik Flower Care także światło i
+ * żyzność; null bez odczytu.
+ */
 export function sensorMetrics(sensor) {
   const latest = sensor.latest;
   if (!latest) return null;
   const box = h('div', null, h('div', 'metrics',
     metric('Wilgotność', percent(latest.moisturePercent), sensor.moistureTone),
-    metric('Temp. gleby', celsius(latest.soilTemperatureCelsius)),
+    metric(temperatureLabel(sensor), celsius(latest.soilTemperatureCelsius)),
     metric('Bateria', percent(latest.batteryPercent), sensor.batteryLow ? 'amber' : null)));
   if (latest.moisturePercent !== null && latest.moisturePercent !== undefined) {
     const fill = h('div', sensor.moistureTone ? `fill-${sensor.moistureTone}` : null);
     fill.style.width = `${Math.min(100, Math.max(0, latest.moisturePercent))}%`;
     box.append(h('div', 'bar', fill));
+  }
+  if (isFlowerCare(sensor)) {
+    box.append(h('div', 'metrics', metric('Światło, lx', whole(latest.lightLux)), metric('Żyzność, µS/cm', whole(latest.conductivityMicroSiemens))));
   }
   return box;
 }

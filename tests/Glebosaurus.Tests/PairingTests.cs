@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using Glebosaurus.Core.Cloud;
 using Glebosaurus.Core.Config;
+using Glebosaurus.Core.Domain;
 using Glebosaurus.Core.Monitoring;
 using Glebosaurus.Core.Pairing;
 using Glebosaurus.Tuya;
@@ -44,7 +45,7 @@ public sealed class PairingTests
         public Task<SensorReadOutcome> VerifyAsync(SensorConfig sensor, TimeSpan timeout, CancellationToken cancellationToken)
         {
             steps.Add("verify");
-            var reading = new SoilReading(DateTimeOffset.UtcNow, SoilSensorProfiles.Sgs01, 41, 21.5m, 88, 2, new Dictionary<int, string>());
+            var reading = new SensorReading(DateTimeOffset.UtcNow, 41, 21.5m, 88, 2);
             return Task.FromResult(VerifyFailure == SensorReadFailure.None
                 ? new SensorReadOutcome(sensor, reading, SensorReadFailure.None)
                 : new SensorReadOutcome(sensor, null, VerifyFailure, "brak odpowiedzi"));

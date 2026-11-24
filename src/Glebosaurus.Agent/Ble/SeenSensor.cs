@@ -1,4 +1,5 @@
 using System.Globalization;
+using Glebosaurus.Core.Config;
 using Glebosaurus.Core.Monitoring;
 using Glebosaurus.FlowerCare;
 using Glebosaurus.Tuya;
@@ -50,6 +51,12 @@ internal sealed class SeenSensor(IPeripheral peripheral)
 
     public TuyaIdentity? Identity =>
         ServiceData is null || ManufacturerData is null ? null : TuyaIdentity.TryParse(ServiceData, ManufacturerData);
+
+    /// <summary>Czy to ten czujnik: Flower Care po adresie MAC, Tuya – <see cref="Matches(TuyaCredentials)"/>.</summary>
+    public bool Matches(SensorConfig sensor) => sensor.Model == SensorModel.FlowerCare
+        ? IsConnectable != false && BleAddress.TryParse(sensor.Mac, out var wanted)
+            && BleAddress.TryExtract(Peripheral.Uuid, out var address) && address == wanted
+        : Matches(sensor.Tuya);
 
     /// <summary>
     /// Czy to czujnik opisany tymi poświadczeniami: po adresie MAC (działa od pierwszego pakietu) albo po UUID Tuya

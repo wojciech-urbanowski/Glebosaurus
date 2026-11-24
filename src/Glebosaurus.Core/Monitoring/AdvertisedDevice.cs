@@ -1,3 +1,5 @@
+using Glebosaurus.Core.Config;
+using Glebosaurus.FlowerCare;
 using Glebosaurus.Tuya;
 
 namespace Glebosaurus.Core.Monitoring;
@@ -41,13 +43,22 @@ public sealed class AdvertisedDevice
 
     public bool IsTuyaLike => ServiceData is not null || ManufacturerData is not null;
 
+    /// <summary>Ostatnia reklama MiBeacon (dane usługi 0xFE95) – czujnik Xiaomi Flower Care.</summary>
+    public MiBeacon? Beacon { get; private set; }
+
+    /// <summary>Czujnik Xiaomi Flower Care: model 0x0098 w reklamie MiBeacon albo nazwa „Flower care”.</summary>
+    public bool IsFlowerCare => Beacon?.IsFlowerCare == true || FlowerCareAdvertising.IsFlowerCareName(Name);
+
     public TuyaIdentity? Identity =>
         ServiceData is null || ManufacturerData is null ? null : TuyaIdentity.TryParse(ServiceData, ManufacturerData);
 
     /// <param name="serviceData">Dane usługi 0xA201 (z UUID 01 A2 na początku albo bez) – null, gdy pakiet ich nie miał.</param>
     /// <param name="manufacturerData">Dane producenta 0x07D0 (z ID firmy D0 07 na początku albo bez) – null, gdy pakiet ich nie miał.</param>
-    public void Add(DateTimeOffset at, int rssi, string? name, bool? connectable, byte[]? serviceData, byte[]? manufacturerData)
+    /// <param name="miBeacon">Dane usługi 0xFE95 (MiBeacon, czujnik Flower Care) – null, gdy pakiet ich nie miał.</param>
+    public void Add(DateTimeOffset at, int rssi, string? name, bool? connectable, byte[]? serviceData, byte[]? manufacturerData,
+        byte[]? miBeacon = null)
     {
+        if (miBeacon is { Length: > 0 } && MiBeacon.TryParse(miBeacon) is { } beacon) Beacon = beacon;
         Packets++;
         FirstSeenAt ??= at;
         LastSeenAt = at;
@@ -60,6 +71,11 @@ public sealed class AdvertisedDevice
         if (manufacturerData is { Length: > 0 })
             ManufacturerData = manufacturerData.Length == 24 && manufacturerData[0] == 0xD0 && manufacturerData[1] == 0x07 ? manufacturerData[2..] : manufacturerData;
     }
+
+    /// <summary>Czy to ten czujnik: Flower Care po adresie MAC, Tuya – <see cref="Matches(TuyaCredentials)"/>.</summary>
+    public bool Matches(SensorConfig sensor) => sensor.Model == SensorModel.FlowerCare
+        ? IsConnectable != false && Value is { } address && BleAddress.TryParse(sensor.Mac, out var wanted) && address == wanted
+        : Matches(sensor.Tuya);
 
     /// <summary>
     /// Czy to czujnik opisany tymi poświadczeniami: po adresie MAC (od pierwszego pakietu) albo po UUID Tuya z pełnej

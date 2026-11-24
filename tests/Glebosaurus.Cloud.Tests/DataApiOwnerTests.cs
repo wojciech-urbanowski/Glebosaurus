@@ -85,6 +85,15 @@ public sealed class DataApiOwnerTests(CloudDatabase db)
         await Rpc("owner_sensor_delete", ("p_version", version), ("p_id", added));
         Assert.DoesNotContain((await api.RpcAsync("owner_config")).GetProperty("sensors").EnumerateArray(), x => x.Text("id") == added);
 
+        // Czujnik Flower Care: dodanie po samym MAC i nowy adres (bez klucza – nic w Vault), potem usunięcie.
+        var flower = Scenario.Unique("api-fc");
+        version = (await Rpc("owner_sensor_add_flower_care", ("p_version", await ConfigVersionAsync(api)), ("p_id", flower),
+            ("p_name", "Fikus " + flower), ("p_mac", Scenario.RandomMac()), ("p_options", new JsonObject()))).GetProperty("configVersion").GetInt64();
+        var flowerMac = Scenario.RandomMac();
+        var moved = await Rpc("owner_sensor_mac", ("p_version", version), ("p_id", flower), ("p_mac", flowerMac));
+        Assert.Equal(flowerMac, moved.Text("mac"));
+        await Rpc("owner_sensor_delete", ("p_version", moved.GetProperty("configVersion").GetInt64()), ("p_id", flower));
+
         // Sekret (Vault): ustawienie i wyczyszczenie; hasło innych testów wraca na miejsce.
         var before = await db.AdminAsync("select coalesce(to_jsonb(glebosaurus.secret_get('glebosaurus:gmail-app-password')), 'null')::text", null);
         try

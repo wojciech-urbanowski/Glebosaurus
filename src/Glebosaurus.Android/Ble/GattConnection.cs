@@ -1,5 +1,6 @@
 using Android.Bluetooth;
 using Android.Content;
+using Glebosaurus.FlowerCare;
 using Glebosaurus.Tuya;
 using Java.Util;
 using Microsoft.Extensions.Logging;
@@ -14,12 +15,13 @@ internal sealed class GattStatusException(GattStatus status, string operation)
 }
 
 /// <summary>
-/// Kanał GATT Tuya (usługa 0x1910: powiadomienia 0x2B10, zapis bez odpowiedzi 0x2B11) nad <see cref="BluetoothGatt"/>. Android
-/// przyjmuje jedną operację GATT naraz i odpowiada asynchronicznie (wywołania zwrotne na wątku stosu), więc każda operacja
-/// czeka tu na swoje potwierdzenie. Zamknięcie: <c>disconnect()</c>, krótkie czekanie na rozłączenie i zawsze <c>close()</c>
-/// – inaczej stos trzyma uchwyt i kolejne połączenia kończą się błędem 133.
+/// Połączenie GATT nad <see cref="BluetoothGatt"/>: kanał Tuya (<see cref="IGattLink"/> – usługa 0x1910: powiadomienia 0x2B10,
+/// zapis bez odpowiedzi 0x2B11) albo odczyt i zapis charakterystyk (<see cref="IGattClient"/> – Flower Care). Android przyjmuje
+/// jedną operację GATT naraz i odpowiada asynchronicznie (wywołania zwrotne na wątku stosu), więc każda operacja czeka tu na
+/// swoje potwierdzenie. Zamknięcie: <c>disconnect()</c>, krótkie czekanie na rozłączenie i zawsze <c>close()</c> – inaczej stos
+/// trzyma uchwyt i kolejne połączenia kończą się błędem 133.
 /// </summary>
-internal sealed class GattConnection : BluetoothGattCallback, IGattLink, IAsyncDisposable
+internal sealed class GattConnection : BluetoothGattCallback, IGattLink, IGattClient, IAsyncDisposable
 {
     private static readonly UUID ServiceUuid = UUID.FromString("00001910-0000-1000-8000-00805f9b34fb")!;
     private static readonly UUID NotifyUuid = UUID.FromString("00002b10-0000-1000-8000-00805f9b34fb")!;
@@ -33,6 +35,7 @@ internal sealed class GattConnection : BluetoothGattCallback, IGattLink, IAsyncD
     private static readonly TimeSpan SubscribeTimeout = TimeSpan.FromSeconds(12);
 
     private static readonly TimeSpan WriteTimeout = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan ReadTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan DisconnectTimeout = TimeSpan.FromSeconds(3);
     private const int ConnectAttempts = 3;
 
@@ -46,6 +49,7 @@ internal sealed class GattConnection : BluetoothGattCallback, IGattLink, IAsyncD
     private TaskCompletionSource? servicesDiscovered;
     private TaskCompletionSource? descriptorWritten;
     private TaskCompletionSource? characteristicWritten;
+    private TaskCompletionSource<byte[]>? characteristicRead;
     private Action<byte[]>? onPacket;
     private BluetoothGatt? gatt;
     private BluetoothGattCharacteristic? notify;
@@ -54,7 +58,7 @@ internal sealed class GattConnection : BluetoothGattCallback, IGattLink, IAsyncD
 
     private GattConnection() { }
 
-    /// <summary>Łączy się (tylko LE, bez automatycznego ponawiania przez system), odkrywa usługę Tuya i zwraca gotowy kanał.</summary>
+    /// <summary>Łączy się (tylko LE, bez automatycznego ponawiania przez system), odkrywa usługi i zwraca gotowe połączenie.</summary>
     public static async Task<GattConnection> ConnectAsync(Context context, BluetoothDevice device, ILogger logger, CancellationToken cancellationToken)
     {
         for (var attempt = 1; ; attempt++)
@@ -90,14 +94,82 @@ internal sealed class GattConnection : BluetoothGattCallback, IGattLink, IAsyncD
         var discovered = Begin(ref servicesDiscovered);
         if (gatt?.DiscoverServices() != true) throw new IOException("Android nie rozpoczął odkrywania usług GATT.");
         await Await(discovered, DiscoverTimeout, "Czujnik nie podał listy usług", cancellationToken);
-        var service = gatt.GetService(ServiceUuid) ?? throw new IOException("Czujnik nie ma usługi Tuya 0x1910.");
-        notify = service.GetCharacteristic(NotifyUuid) ?? throw new IOException("Brak charakterystyki 0x2B10.");
-        write = service.GetCharacteristic(WriteUuid) ?? throw new IOException("Brak charakterystyki 0x2B11.");
+        // Kanał Tuya – tylko gdy czujnik go ma (Flower Care nie ma); sesja Tuya bez niego kończy się czytelnym błędem.
+        if (gatt.GetService(ServiceUuid) is { } service)
+        {
+            notify = service.GetCharacteristic(NotifyUuid);
+            write = service.GetCharacteristic(WriteUuid);
+        }
+    }
+
+    private (BluetoothGatt Gatt, BluetoothGattCharacteristic Characteristic) Tuya(BluetoothGattCharacteristic? characteristic, string name) =>
+        (gatt!, characteristic ?? throw new IOException($"Czujnik nie ma usługi Tuya 0x1910 (charakterystyka {name})."));
+
+    private BluetoothGattCharacteristic Characteristic(string service, string characteristic) =>
+        gatt?.GetService(UUID.FromString(service))?.GetCharacteristic(UUID.FromString(characteristic))
+        ?? throw new IOException($"Czujnik nie ma charakterystyki {characteristic} w usłudze {service}.");
+
+    /// <summary>Odczyt charakterystyki (Flower Care) – czeka na odpowiedź czujnika.</summary>
+    public async Task<byte[]> ReadAsync(string service, string characteristic, CancellationToken cancellationToken)
+    {
+        var target = Characteristic(service, characteristic);
+        await writes.WaitAsync(cancellationToken);
+        try
+        {
+            for (var attempt = 1; ; attempt++)
+            {
+                var read = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+                lock (gate) characteristicRead = read;
+                if (!gatt!.ReadCharacteristic(target))
+                {
+                    if (attempt >= 5) throw new IOException($"Android odrzucił odczyt {characteristic} (stos Bluetooth zajęty).");
+                    await Task.Delay(TimeSpan.FromMilliseconds(50 * attempt), cancellationToken);
+                    continue;
+                }
+                try { return await read.Task.WaitAsync(ReadTimeout, cancellationToken); }
+                catch (TimeoutException) { throw new TimeoutException($"Odczyt {characteristic}: brak odpowiedzi w {ReadTimeout.TotalSeconds:0} s."); }
+            }
+        }
+        finally { writes.Release(); }
+    }
+
+    /// <summary>Zapis z potwierdzeniem (Flower Care) – brak potwierdzenia jest błędem.</summary>
+    async Task IGattClient.WriteAsync(string service, string characteristic, byte[] value, CancellationToken cancellationToken)
+    {
+        var target = Characteristic(service, characteristic);
+        await writes.WaitAsync(cancellationToken);
+        try
+        {
+            for (var attempt = 1; ; attempt++)
+            {
+                var written = Begin(ref characteristicWritten);
+                if (!Write(gatt!, target, value, GattWriteType.Default))
+                {
+                    if (attempt >= 5) throw new IOException($"Android odrzucił zapis do {characteristic} (stos Bluetooth zajęty).");
+                    await Task.Delay(TimeSpan.FromMilliseconds(50 * attempt), cancellationToken);
+                    continue;
+                }
+                await Await(written, WriteTimeout, $"Zapis do {characteristic}", cancellationToken);
+                return;
+            }
+        }
+        finally { writes.Release(); }
+    }
+
+    private static bool Write(BluetoothGatt connection, BluetoothGattCharacteristic characteristic, byte[] value, GattWriteType type)
+    {
+        if (OperatingSystem.IsAndroidVersionAtLeast(33))
+            return connection.WriteCharacteristic(characteristic, value, (int)type) == StatusSuccess;
+#pragma warning disable CS0618, CA1422 // na Androidzie < 13 jedyna droga
+        characteristic.WriteType = type;
+        characteristic.SetValue(value);
+        return connection.WriteCharacteristic(characteristic);
+#pragma warning restore CS0618, CA1422
     }
 
     public async Task<IAsyncDisposable> SubscribeAsync(Action<byte[]> handler, CancellationToken cancellationToken)
     {
-        var (connection, characteristic) = (gatt!, notify!);
+        var (connection, characteristic) = Tuya(notify, "0x2B10");
         lock (gate) onPacket = handler;
         if (!connection.SetCharacteristicNotification(characteristic, true))
             throw new IOException("Android nie włączył powiadomień charakterystyki 0x2B10.");
@@ -134,24 +206,14 @@ internal sealed class GattConnection : BluetoothGattCallback, IGattLink, IAsyncD
 
     public async Task WriteAsync(byte[] packet, CancellationToken cancellationToken)
     {
-        var (connection, characteristic) = (gatt!, write!);
+        var (connection, characteristic) = Tuya(write, "0x2B11");
         await writes.WaitAsync(cancellationToken);
         try
         {
             for (var attempt = 1; ; attempt++)
             {
                 var written = Begin(ref characteristicWritten);
-                bool accepted;
-                if (OperatingSystem.IsAndroidVersionAtLeast(33))
-                    accepted = connection.WriteCharacteristic(characteristic, packet, (int)GattWriteType.NoResponse) == StatusSuccess;
-                else
-                {
-#pragma warning disable CS0618, CA1422 // na Androidzie < 13 jedyna droga
-                    characteristic.WriteType = GattWriteType.NoResponse;
-                    characteristic.SetValue(packet);
-                    accepted = connection.WriteCharacteristic(characteristic);
-#pragma warning restore CS0618, CA1422
-                }
+                var accepted = Write(connection, characteristic, packet, GattWriteType.NoResponse);
                 if (!accepted)
                 {
                     // Stos zajęty poprzednim pakietem – krótka przerwa i jeszcze raz.
@@ -211,6 +273,7 @@ internal sealed class GattConnection : BluetoothGattCallback, IGattLink, IAsyncD
             servicesDiscovered?.TrySetException(error);
             descriptorWritten?.TrySetException(error);
             characteristicWritten?.TrySetException(error);
+            characteristicRead?.TrySetException(error);
         }
     }
 
@@ -220,7 +283,28 @@ internal sealed class GattConnection : BluetoothGattCallback, IGattLink, IAsyncD
         Complete(descriptorWritten, status, "Włączenie powiadomień");
 
     public override void OnCharacteristicWrite(BluetoothGatt? g, BluetoothGattCharacteristic? characteristic, GattStatus status) =>
-        Complete(characteristicWritten, status, "Zapis do 0x2B11");
+        Complete(characteristicWritten, status, "Zapis charakterystyki");
+
+    /// <summary>Android 13+: wartość przychodzi w parametrze (domyślna implementacja woła starą wersję – tu jej nie wołamy).</summary>
+    public override void OnCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, byte[] value, GattStatus status) =>
+        CompleteRead(value, status);
+
+#pragma warning disable CS0672, CS0618, CA1422 // Android < 13: jedyna wersja; na 13+ system woła tę wyżej
+    public override void OnCharacteristicRead(BluetoothGatt? g, BluetoothGattCharacteristic? characteristic, GattStatus status)
+    {
+        if (OperatingSystem.IsAndroidVersionAtLeast(33)) return;
+        CompleteRead(characteristic?.GetValue() ?? [], status);
+    }
+#pragma warning restore CS0672, CS0618, CA1422
+
+    private void CompleteRead(byte[] value, GattStatus status)
+    {
+        TaskCompletionSource<byte[]>? read;
+        lock (gate) read = characteristicRead;
+        if (read is null) return;
+        if (status == GattStatus.Success) read.TrySetResult(value);
+        else read.TrySetException(new GattStatusException(status, "Odczyt charakterystyki"));
+    }
 
     /// <summary>Android 13+: wartość przychodzi w parametrze (domyślna implementacja woła starą wersję – tu jej nie wołamy).</summary>
     public override void OnCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, byte[] value) => Deliver(value);

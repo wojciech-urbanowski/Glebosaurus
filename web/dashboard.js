@@ -5,7 +5,7 @@
 // bez wykresów, więc bez owner_series i bez pobierania charts.js. Dane z owner_dashboard co 60 s; wykresy z
 // owner_series – przy nowym odczycie albo co 10 min. W obu widokach czujniki od najsuchszej gleby (tile-order.js).
 
-import { h, ago, when, now, percent, celsius, dbm, plural, badge, kv, syncClock, num1, dateFmt } from './format.js';
+import { h, ago, when, now, percent, celsius, dbm, plural, badge, kv, syncClock, num1, dateFmt, whole, isFlowerCare, temperatureLabel } from './format.js';
 import { start } from './shell.js';
 import { command, describe, follow } from './commands.js';
 import { button, confirmBox, note, PLATFORMS } from './ui.js';
@@ -204,13 +204,15 @@ function sensorCard(sensor) {
     const tone = moistureTone(sensor);
     card.append(h('div', 'metrics',
       metric('Wilgotność', percent(last.moisture), tone),
-      metric('Temp. gleby', celsius(last.temperature)),
+      metric(temperatureLabel(sensor), celsius(last.temperature)),
       metric('Bateria', percent(last.battery))));
     if (last.moisture !== null && last.moisture !== undefined) {
       const fill = h('div', tone ? `fill-${tone}` : null);
       fill.style.width = `${Math.min(100, Math.max(0, last.moisture))}%`;
       card.append(h('div', 'bar', fill));
     }
+    // Flower Care: światło i żyzność pod paskiem wilgotności (wykres obu – na stronie czujnika).
+    if (isFlowerCare(sensor)) card.append(h('div', 'metrics', metric('Światło, lx', whole(last.light)), metric('Żyzność, µS/cm', whole(last.conductivity))));
   }
   const lines = h('div', 'lines');
   lines.append(h('div', 'muted', last

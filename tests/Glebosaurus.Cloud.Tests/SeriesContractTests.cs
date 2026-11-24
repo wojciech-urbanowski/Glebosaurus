@@ -65,6 +65,11 @@ public sealed class SeriesContractTests(CloudDatabase db)
             Near(expected.TemperatureMin, actual, "temperatureMin", i);
             Near(expected.TemperatureMax, actual, "temperatureMax", i);
             Assert.True(expected.GapBefore == actual.GetProperty("gapBefore").GetBoolean(), $"punkt {i}: gapBefore");
+            // Światło i żyzność (Flower Care) – baza pomija klucze, gdy w punkcie nie ma takich odczytów.
+            foreach (var (value, property) in new[] { (expected.Light, "light"), (expected.LightMin, "lightMin"), (expected.LightMax, "lightMax"),
+                         (expected.Conductivity, "conductivity"), (expected.ConductivityMin, "conductivityMin"), (expected.ConductivityMax, "conductivityMax") })
+                if (value is null) Assert.False(actual.TryGetProperty(property, out _), $"punkt {i}: {property} powinno być pominięte");
+                else Near(value, actual, property, i);
         }
         Assert.Equal(readings.Min(r => r.At), DateTimeOffset.Parse(cloud.GetProperty("firstAt").GetString()!, CultureInfo.InvariantCulture));
     }
@@ -92,7 +97,10 @@ public sealed class SeriesContractTests(CloudDatabase db)
             var jittered = at.AddMilliseconds(random.Next(-90_000, 90_000));
             int? moisture = random.Next(20) == 0 ? null : 20 + random.Next(60);
             decimal? temperature = random.Next(25) == 0 ? null : (150 + random.Next(120)) / 10m;
-            readings.Add(new(sensor, jittered, moisture, temperature, 80, 2));
+            // Co trzeci odczyt jak z Flower Care (światło, żyzność), część z samym światłem – reszta jak z Tuya.
+            int? light = random.Next(3) == 0 ? random.Next(120_000) : null;
+            int? conductivity = light is not null && random.Next(5) > 0 ? random.Next(3000) : null;
+            readings.Add(new(sensor, jittered, moisture, temperature, 80, 2) { LightLux = light, ConductivityMicroSiemens = conductivity });
         }
         return readings;
     }
@@ -105,13 +113,14 @@ public sealed class SeriesContractTests(CloudDatabase db)
             {
                 ["sensor_id"] = r.SensorId, ["at"] = r.At.UtcDateTime.ToString("O", CultureInfo.InvariantCulture),
                 ["moisture"] = r.MoisturePercent, ["temp_tenths"] = r.SoilTemperatureCelsius is { } t ? (int)(t * 10) : null,
-                ["battery"] = r.BatteryPercent, ["battery_state"] = r.BatteryState
+                ["battery"] = r.BatteryPercent, ["battery_state"] = r.BatteryState,
+                ["light_lux"] = r.LightLux, ["conductivity"] = r.ConductivityMicroSiemens
             })]);
             await db.AdminAsync("""
-                insert into glebosaurus.readings (sensor_id, at, moisture, temp_tenths, battery, battery_state)
-                select sensor_id, at, moisture, temp_tenths, battery, battery_state
+                insert into glebosaurus.readings (sensor_id, at, moisture, temp_tenths, battery, battery_state, light_lux, conductivity)
+                select sensor_id, at, moisture, temp_tenths, battery, battery_state, light_lux, conductivity
                   from jsonb_to_recordset(@rows) as x(sensor_id text, at timestamptz, moisture smallint, temp_tenths smallint,
-                                                      battery smallint, battery_state smallint)
+                                                      battery smallint, battery_state smallint, light_lux int, conductivity smallint)
                 returning '{}'::text
                 """, null, ("rows", rows));
         }

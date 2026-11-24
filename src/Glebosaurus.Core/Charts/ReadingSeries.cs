@@ -16,7 +16,18 @@ public sealed record SeriesPoint(
     DateTimeOffset At, int Count,
     double? Moisture, double? MoistureMin, double? MoistureMax,
     double? Temperature, double? TemperatureMin, double? TemperatureMax,
-    bool GapBefore);
+    bool GapBefore)
+{
+    /// <summary>Światło w luksach (Flower Care): średnia zaokrąglona do całości, min, max.</summary>
+    public double? Light { get; init; }
+    public double? LightMin { get; init; }
+    public double? LightMax { get; init; }
+
+    /// <summary>Przewodność gleby – żyzność – w µS/cm (Flower Care): średnia zaokrąglona do całości, min, max.</summary>
+    public double? Conductivity { get; init; }
+    public double? ConductivityMin { get; init; }
+    public double? ConductivityMax { get; init; }
+}
 
 /// <summary>Odczyty czujnika z okna czasu, przygotowane do wykresu (panel WWW; w przyszłości także raport mailowy).</summary>
 /// <param name="BucketMinutes">Długość przedziału uśredniania; 0 = punkty to pojedyncze odczyty.</param>
@@ -83,10 +94,17 @@ public static class ReadingSeriesBuilder
             var at = group[0].At + TimeSpan.FromTicks((long)Math.Round(group.Average(r => (double)(r.At - group[0].At).Ticks)));
             var moisture = group.Where(r => r.MoisturePercent is not null).Select(r => (double)r.MoisturePercent!.Value).ToList();
             var temperature = group.Where(r => r.SoilTemperatureCelsius is not null).Select(r => (double)r.SoilTemperatureCelsius!.Value).ToList();
+            var light = group.Where(r => r.LightLux is not null).Select(r => (double)r.LightLux!.Value).ToList();
+            var conductivity = group.Where(r => r.ConductivityMicroSiemens is not null).Select(r => (double)r.ConductivityMicroSiemens!.Value).ToList();
             points.Add(new(at, group.Count,
                 Average(moisture, 1), moisture.Count > 0 ? moisture.Min() : null, moisture.Count > 0 ? moisture.Max() : null,
                 Average(temperature, 2), temperature.Count > 0 ? temperature.Min() : null, temperature.Count > 0 ? temperature.Max() : null,
-                previous is { } p && at - p > gapAfter));
+                previous is { } p && at - p > gapAfter)
+            {
+                Light = Average(light, 0), LightMin = light.Count > 0 ? light.Min() : null, LightMax = light.Count > 0 ? light.Max() : null,
+                Conductivity = Average(conductivity, 0), ConductivityMin = conductivity.Count > 0 ? conductivity.Min() : null,
+                ConductivityMax = conductivity.Count > 0 ? conductivity.Max() : null
+            });
             previous = at;
         }
         return (bucket, points);

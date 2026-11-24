@@ -130,6 +130,48 @@ public class SqliteMonitorStoreTests
         finally { Fixtures.DeleteDatabase(path); }
     }
 
+    [Fact]
+    public async Task FlowerCareValuesRoundTripInEveryPath()
+    {
+        using var db = new TempStore();
+        var flowerCare = new StoredReading("fc", Fixtures.T0, 41, 29.4m, 100, null) { LightLux = 82_386, ConductivityMicroSiemens = 1607 };
+        await db.Store.AddReadingAsync(flowerCare, Ct);
+        await db.Store.AddFromCloudAsync("projekt", [flowerCare with { At = Fixtures.T0.AddHours(1) }], 7, Ct);
+
+        Assert.Equal(flowerCare, Assert.Single(await db.Store.GetUnsentAsync(10, Ct)));
+        Assert.Equal([flowerCare, flowerCare with { At = Fixtures.T0.AddHours(1) }],
+            await db.Store.GetRangeAsync("fc", Fixtures.T0, Fixtures.T0.AddHours(2), Ct));
+        Assert.Equal(82_386, (await db.Store.GetLatestAsync("fc", Ct))!.LightLux);
+    }
+
+    [Fact]
+    public async Task DatabaseFromBeforeFlowerCare_GetsLightAndConductivityWithoutNewSchemaVersion()
+    {
+        var path = Fixtures.TempDatabase();
+        try
+        {
+            // Baza jak w wersji 0.2.11 (z chmurą, bez kolumn Flower Care). Wersja schematu zostaje 1: poprzednia wersja programu
+            // (powrót po nieudanej aktualizacji) musi ją dalej otworzyć.
+            await ExecuteAsync(path, """
+                CREATE TABLE readings (sensor_id TEXT NOT NULL, at INTEGER NOT NULL, moisture INTEGER NULL, temp_tenths INTEGER NULL,
+                    battery INTEGER NULL, battery_state INTEGER NULL, sync_state INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (sensor_id, at)) WITHOUT ROWID;
+                CREATE TABLE cloud_feed (source TEXT PRIMARY KEY, last_seq INTEGER NOT NULL);
+                INSERT INTO readings (sensor_id, at, moisture, temp_tenths, battery, battery_state, sync_state) VALUES ('s1', 1000, 40, 215, 80, 2, 1);
+                PRAGMA user_version = 1;
+                """);
+
+            var store = new SqliteMonitorStore(path);
+            await store.InitializeAsync(Ct);
+            await store.InitializeAsync(Ct);
+            await store.AddReadingAsync(new StoredReading("fc", Fixtures.T0, 41, 29.4m, 100, null) { LightLux = 500, ConductivityMicroSiemens = 20 }, Ct);
+
+            Assert.Equal(500, (await store.GetLatestAsync("fc", Ct))!.LightLux);
+            Assert.Null((await store.GetLatestAsync("s1", Ct))!.LightLux);
+            Assert.Equal(1L, await ScalarAsync(path, "PRAGMA user_version;"));
+        }
+        finally { Fixtures.DeleteDatabase(path); }
+    }
+
     private static async Task ExecuteAsync(string path, string sql)
     {
         await using var connection = new SqliteConnection($"Data Source={path};Pooling=False");

@@ -108,7 +108,7 @@ public sealed class RemotePairing(ISensorPairer pairer, ICloudApi api, RadioGate
     {
         ["ok"] = true,
         ["moisture"] = result.Reading?.MoisturePercent,
-        ["temperature"] = result.Reading?.SoilTemperatureCelsius is { } t ? JsonValue.Create(Math.Round((double)t, 1)) : null,
+        ["temperature"] = result.Reading?.TemperatureCelsius is { } t ? JsonValue.Create(Math.Round((double)t, 1)) : null,
         ["battery"] = result.Reading?.BatteryPercent
     };
 

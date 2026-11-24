@@ -68,6 +68,6 @@ internal sealed class ShinySensorPairer(BleHost ble, int responseTimeoutSeconds 
             return true;
         }, cancellationToken);
         if (target is null) return new(sensor, null, SensorReadFailure.NotFound, "czujnik nie pojawił się w reklamach po przypisaniu");
-        return await ShinySensorRadio.ReadOneAsync(sensor, target, cancellationToken);
+        return await ShinySensorRadio.ReadOneAsync(sensor, target, null, cancellationToken);
     }
 }

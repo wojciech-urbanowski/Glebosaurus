@@ -3,7 +3,7 @@
 // zapis niesie config_version: gdy ktoś zmienił konfigurację w międzyczasie, strona mówi to zamiast nadpisać.
 // Reguły pól sprawdza baza (jedyne źródło prawdy, ConfigContractTests) – tu tylko liczby z przecinkiem i czytelne komunikaty.
 
-import { h, when, ago, plural, badge, kv, syncClock, num1 } from './format.js';
+import { h, when, ago, plural, badge, kv, syncClock, num1, isFlowerCare } from './format.js';
 import { start, banner } from './shell.js';
 import { CloudError } from './supabase.js';
 import { qrSvg, enrollmentLink } from './qr.js';
@@ -289,11 +289,13 @@ function sensorCard(sensor, flash) {
   const badges = h('div', 'badges');
   if (archived) badges.append(badge(`archiwum od ${when(sensor.archivedAt)}`, 'grey'));
   else if (!sensor.enabled) badges.append(badge('wyłączony', 'amber'));
-  if (!sensor.keySetAt) badges.append(badge('brak klucza', 'red'));
+  const flowerCare = isFlowerCare(sensor);
+  if (!flowerCare && !sensor.keySetAt) badges.append(badge('brak klucza', 'red'));
   card.append(flashBox(flash, key), h('div', 'sensor-name', sensor.name), h('div', 'muted small', `${sensor.id} · MAC ${sensor.mac}`));
   if (badges.childElementCount > 0) card.append(badges);
   card.append(h('div', 'lines small', sensorSummary(sensor)),
-    h('div', 'muted small', sensor.keySetAt ? `Klucz Tuya ustawiony ${stamp(sensor.keySetAt)}.` : 'Klucz Tuya nie jest ustawiony – agenci pominą czujnik.'));
+    h('div', 'muted small', flowerCare ? 'Xiaomi Flower Care – bez klucza, agenci rozpoznają go po adresie MAC.'
+      : sensor.keySetAt ? `Klucz Tuya ustawiony ${stamp(sensor.keySetAt)}.` : 'Klucz Tuya nie jest ustawiony – agenci pominą czujnik.'));
 
   const actions = h('div', 'card-actions');
   const extra = h('div');
@@ -308,15 +310,24 @@ function sensorCard(sensor, flash) {
     }));
 
     const keyEdit = h('details', 'editor');
-    const file = keyFileInput();
-    keyEdit.append(h('summary', null, 'Nowy klucz z pliku'), form([
-      field('Plik klucza', file, `Po resecie czujnika i „glebosaurus pair --id ${sensor.id}”. MAC z pliku zastąpi obecny.`)
-    ], submitButton('Wgraj klucz'), async () => {
-      const { data } = await readKeyFile(file);
-      await write('owner_sensor_credentials', { p_id: sensor.id, p_credentials: data }, { key, text: 'Nowy klucz zapisany w chmurze (Vault).' });
-    }));
+    if (flowerCare) {
+      const mac = macInput(sensor.mac);
+      keyEdit.append(h('summary', null, 'Nowy adres MAC'), form([
+        field('Adres MAC', mac, 'Inny czujnik Flower Care przy tej samej roślinie – historia zostaje pod tym samym id.')
+      ], submitButton('Zapisz adres'), async () => {
+        await write('owner_sensor_mac', { p_id: sensor.id, p_mac: mac.value.trim() }, { key, text: 'Nowy adres zapisany. Agenci przejmą go przy najbliższej synchronizacji.' });
+      }));
+    } else {
+      const file = keyFileInput();
+      keyEdit.append(h('summary', null, 'Nowy klucz z pliku'), form([
+        field('Plik klucza', file, `Po resecie czujnika i „glebosaurus pair --id ${sensor.id}”. MAC z pliku zastąpi obecny.`)
+      ], submitButton('Wgraj klucz'), async () => {
+        const { data } = await readKeyFile(file);
+        await write('owner_sensor_credentials', { p_id: sensor.id, p_credentials: data }, { key, text: 'Nowy klucz zapisany w chmurze (Vault).' });
+      }));
+    }
     actions.append(button('Do archiwum…', 'quiet small', () => {
-      extra.replaceChildren(confirmBox(`Przenieść „${sensor.name}” do archiwum? Zniknie z pulpitu, maili i agentów (otwarte alerty zostaną zamknięte); historia odczytów i klucz zostają, a przywrócić go można w każdej chwili.`,
+      extra.replaceChildren(confirmBox(`Przenieść „${sensor.name}” do archiwum? Zniknie z pulpitu, maili i agentów (otwarte alerty zostaną zamknięte); historia odczytów${flowerCare ? '' : ' i klucz'} zostają, a przywrócić go można w każdej chwili.`,
         'Tak, do archiwum', async () => {
           await write('owner_sensor_archive', { p_id: sensor.id, p_archive: true }, { key, text: 'Czujnik w archiwum.' });
         }, () => extra.replaceChildren()));
@@ -334,7 +345,7 @@ function sensorCard(sensor, flash) {
     }));
     if (!sensor.hasReadings) {
       actions.append(button('Usuń na dobre…', 'quiet small', () => {
-        extra.replaceChildren(confirmBox(`Usunąć „${sensor.name}” na dobre, razem z kluczem? (Czujnik nie ma żadnych odczytów w chmurze.)`,
+        extra.replaceChildren(confirmBox(`Usunąć „${sensor.name}” na dobre${flowerCare ? '' : ', razem z kluczem'}? (Czujnik nie ma żadnych odczytów w chmurze.)`,
           'Tak, usuń', async () => {
             await write('owner_sensor_delete', { p_id: sensor.id }, { key: 'sensors', text: `Czujnik ${sensor.id} usunięty.` });
           }, () => extra.replaceChildren()));
@@ -370,6 +381,32 @@ function addSensorForm(flash) {
       field('Nazwa', name, 'Puste – jak id.'), ...options.fields], submitButton('Dodaj czujnik'), async () => {
       const { data } = await readKeyFile(file);
       await write('owner_sensor_add', { p_id: id.value.trim(), p_name: name.value, p_credentials: data, p_options: options.read() }, {
+        key: `sensor:${id.value.trim()}`, text: 'Czujnik dodany. Agenci zaczną go słuchać przy najbliższej synchronizacji.'
+      });
+    }));
+  return details;
+}
+
+/** Pole adresu MAC czujnika (bez klucza – Flower Care); baza ujednolica zapis (wielkie litery, dwukropki). */
+function macInput(value) {
+  return input('text', 'off', { value: value || '', pattern: '([0-9A-Fa-f]{2}[:\\-]?){5}[0-9A-Fa-f]{2}', placeholder: 'np. 5C:85:7E:14:78:3C', maxLength: 17 });
+}
+
+function addFlowerCareForm(flash) {
+  const details = h('details', 'editor add');
+  if (flash && flash.key === 'sensor-add-flower-care') details.open = true;
+  const mac = macInput('');
+  const id = input('text', 'off', { pattern: '[a-z0-9][a-z0-9_\\-]{0,39}', placeholder: 'np. fikus' });
+  const name = input('text', 'off', { required: false, maxLength: 80, placeholder: 'np. Fikus w salonie' });
+  const options = sensorOptionFields(null);
+  details.append(h('summary', null, 'Dodaj czujnik Xiaomi Flower Care (po adresie MAC)'),
+    h('p', 'muted small', 'Czujnik Xiaomi / HHCC Flower Care (HHCCJCY01) nie wymaga parowania ani klucza – wystarczy jego adres MAC. ' +
+      'Pokaże go „glebosaurus scan” na komputerze w zasięgu (sekcja Xiaomi Flower Care) albo podgląd zasięgu w aplikacji na telefonie. ' +
+      'Poza wilgotnością mierzy światło i żyzność (przewodność gleby); temperaturę – w główce nad ziemią. Jego skala wilgotności różni się ' +
+      'od czujników Tuya, więc próg podlania najlepiej ustawić po kilku dniach obserwacji.'),
+    form([field('Adres MAC', mac), field('Id (stałe, w adresach i kluczach maili)', id, 'Małe litery, cyfry, „_” i „-”, do 40 znaków.'),
+      field('Nazwa', name, 'Puste – jak id.'), ...options.fields], submitButton('Dodaj czujnik'), async () => {
+      await write('owner_sensor_add_flower_care', { p_id: id.value.trim(), p_name: name.value, p_mac: mac.value.trim(), p_options: options.read() }, {
         key: `sensor:${id.value.trim()}`, text: 'Czujnik dodany. Agenci zaczną go słuchać przy najbliższej synchronizacji.'
       });
     }));
@@ -508,7 +545,7 @@ function sensorsSection(flash) {
   const list = h('div', 'cards');
   list.append(...active.map((s) => sensorCard(s, flash)));
   if (active.length === 0) list.append(h('div', 'empty', 'Nie ma jeszcze czujników.'));
-  const children = [flashBox(flash, 'sensors'), list, remotePairForm(), addSensorForm(flash)];
+  const children = [flashBox(flash, 'sensors'), list, remotePairForm(), addSensorForm(flash), addFlowerCareForm(flash)];
   if (archived.length > 0) {
     const box = h('details', 'archive');
     if (flash && archived.some((s) => flash.key === `sensor:${s.id}`)) box.open = true;

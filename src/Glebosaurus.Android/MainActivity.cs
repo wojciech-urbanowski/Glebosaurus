@@ -48,7 +48,8 @@ public sealed class MainActivity : Activity
     private readonly ConcurrentDictionary<string, SurveyEntry> surveyed = new(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyList<KnownSensor> surveySensors = [];
 
-    private sealed record SurveyEntry(string Address, int? LastRssi, int? Average, int Packets, DateTimeOffset LastSeenAt, string? Uuid, bool? Bound);
+    private sealed record SurveyEntry(string Address, int? LastRssi, int? Average, int Packets, DateTimeOffset LastSeenAt, string? Uuid, bool? Bound,
+        bool FlowerCare = false);
 
     protected override void OnCreate(Bundle? savedInstanceState)
     {
@@ -471,7 +472,7 @@ public sealed class MainActivity : Activity
             await host.Radio.SurveyAsync(SurveyDuration, device => surveyed[device.Address] = new SurveyEntry(device.Address, device.LastRssi,
                 device.Signal.Average, device.Packets, device.LastSeenAt ?? DateTimeOffset.UtcNow,
                 surveyed.TryGetValue(device.Address, out var known) && known.Uuid is not null ? known.Uuid : device.Identity?.Uuid,
-                device.Identity?.IsBound ?? known?.Bound), cancel.Token);
+                device.Identity?.IsBound ?? known?.Bound, device.IsFlowerCare), cancel.Token);
         }
         catch (OperationCanceledException) { }
         catch (Exception e) { RunOnUiThread(() => ShowMessage($"Podgląd zasięgu przerwany: {e.Message}")); }
@@ -517,8 +518,8 @@ public sealed class MainActivity : Activity
         if (surveySensors.Count == 0) lines.Add("(nazwy czujników będą po pierwszym uruchomieniu agenta)");
         AddSection("Zasięg czujników", lines);
         if (others.Count > 0)
-            AddSection("Inne urządzenia Tuya w pobliżu", others.Take(15).Select(e =>
-                $"{e.Address}{(e.Bound == false ? " NIESPAROWANY" : "")}: {Describe(e, now)}"));
+            AddSection("Inne czujniki w pobliżu (Tuya, Xiaomi Flower Care)", others.Take(15).Select(e =>
+                $"{e.Address}{(e.FlowerCare ? " Flower Care" : e.Bound == false ? " NIESPAROWANY" : "")}: {Describe(e, now)}"));
     }
 
     private static bool SameMac(string address, string mac) =>

@@ -1,4 +1,5 @@
 using Glebosaurus.Core.Config;
+using Glebosaurus.Core.Domain;
 using Glebosaurus.Core.Monitoring;
 using Glebosaurus.Tuya;
 
@@ -46,7 +47,7 @@ public enum PairStage
 public sealed record PairProgress(PairStage Stage, string Text, DateTimeOffset? Until = null, string? Address = null);
 
 /// <param name="Candidates">Przy kilku kandydatach – ich adresy (właściciel wskazuje MAC).</param>
-public sealed record PairResult(bool Ok, string? Error, string? Mac, SoilReading? Reading, IReadOnlyList<string> Candidates)
+public sealed record PairResult(bool Ok, string? Error, string? Mac, SensorReading? Reading, IReadOnlyList<string> Candidates)
 {
     public static PairResult Fail(string error, IReadOnlyList<string>? candidates = null) => new(false, error, null, null, candidates ?? []);
 }

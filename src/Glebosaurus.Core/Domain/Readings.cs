@@ -1,8 +1,44 @@
+using Glebosaurus.Tuya;
+
 namespace Glebosaurus.Core.Domain;
 
 /// <summary>Jeden udany odczyt czujnika. Brak wartości (null) oznacza, że czujnik jej nie zgłosił – nie zero.</summary>
+/// <param name="SoilTemperatureCelsius">Temperatura z czujnika: gleby (Tuya) albo przy roślinie – w główce nad ziemią (Flower Care).</param>
 public sealed record StoredReading(
-    string SensorId, DateTimeOffset At, int? MoisturePercent, decimal? SoilTemperatureCelsius, int? BatteryPercent, int? BatteryState);
+    string SensorId, DateTimeOffset At, int? MoisturePercent, decimal? SoilTemperatureCelsius, int? BatteryPercent, int? BatteryState)
+{
+    /// <summary>Natężenie światła w luksach (Flower Care).</summary>
+    public int? LightLux { get; init; }
+
+    /// <summary>Przewodność gleby – „żyzność” – w µS/cm (Flower Care).</summary>
+    public int? ConductivityMicroSiemens { get; init; }
+}
+
+/// <summary>
+/// Pomiar z sesji z czujnikiem, niezależny od jego rodzaju (Tuya – <see cref="SoilReading"/>, Flower Care). Czas to chwila
+/// pomiaru według czujnika (zaległe pomiary) albo chwila połączenia (stan bieżący).
+/// </summary>
+/// <param name="TemperatureCelsius">Temperatura gleby (Tuya) albo przy roślinie (Flower Care).</param>
+/// <param name="BatteryState">Stan baterii z DP14 czujnika Tuya (0 niski, 1 średni, 2 wysoki).</param>
+public sealed record SensorReading(DateTimeOffset At, int? MoisturePercent, decimal? TemperatureCelsius, int? BatteryPercent, int? BatteryState = null)
+{
+    /// <summary>Natężenie światła w luksach (Flower Care).</summary>
+    public int? LightLux { get; init; }
+
+    /// <summary>Przewodność gleby – „żyzność” – w µS/cm (Flower Care).</summary>
+    public int? ConductivityMicroSiemens { get; init; }
+
+    public bool HasSoilData => MoisturePercent is not null || TemperatureCelsius is not null;
+
+    public static SensorReading From(SoilReading reading) =>
+        new(reading.At, reading.MoisturePercent, reading.SoilTemperatureCelsius, reading.BatteryPercent, reading.BatteryState);
+
+    public StoredReading ToStored(string sensorId, DateTimeOffset at) =>
+        new(sensorId, at, MoisturePercent, TemperatureCelsius, BatteryPercent, BatteryState)
+        {
+            LightLux = LightLux, ConductivityMicroSiemens = ConductivityMicroSiemens
+        };
+}
 
 public enum AlertKind
 {

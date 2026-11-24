@@ -36,11 +36,17 @@ internal static class Fixtures
     public static StoredReading Reading(string sensorId, DateTimeOffset at, int? moisture = 50, int? battery = 80, decimal? temperature = 22.5m, int? state = 2) =>
         new(sensorId, at, moisture, temperature, battery, state);
 
-    public static SensorReadOutcome Ok(SensorConfig sensor, int? moisture, int? battery = 80, decimal? temperature = 22.5m, params SoilReading[] earlier) =>
+    public static SensorReadOutcome Ok(SensorConfig sensor, int? moisture, int? battery = 80, decimal? temperature = 22.5m, params SensorReading[] earlier) =>
         new(sensor, Soil(T0, moisture, battery, temperature), SensorReadFailure.None) { Earlier = earlier };
 
-    public static SoilReading Soil(DateTimeOffset at, int? moisture, int? battery = 80, decimal? temperature = 22.5m) =>
-        new(at, SoilSensorProfiles.Sgs01, moisture, temperature, battery, 2, new Dictionary<int, string>());
+    public static SensorReading Soil(DateTimeOffset at, int? moisture, int? battery = 80, decimal? temperature = 22.5m) =>
+        new(at, moisture, temperature, battery, 2);
+
+    /// <summary>Czujnik Xiaomi Flower Care (bez klucza, po MAC).</summary>
+    public static SensorConfig FlowerCare(string id = "fc", string name = "Fikus", string mac = "5C:85:7E:14:78:3C") => new()
+    {
+        Id = id, Name = name, Model = SensorModel.FlowerCare, Mac = mac
+    };
 
     public static string TempDatabase() => Path.Combine(Path.GetTempPath(), $"glebosaurus-test-{Guid.NewGuid():N}.db");
 
@@ -69,10 +75,14 @@ internal sealed class FakeSensorReader : ISensorReader
     public Func<SensorConfig, SensorReadOutcome> Script { get; set; } = sensor => Fixtures.Ok(sensor, 50);
     public List<string[]> Calls { get; } = [];
 
-    public async IAsyncEnumerable<SensorReadOutcome> ReadAsync(
-        IReadOnlyList<SensorConfig> sensors, TimeSpan scanWindow, [EnumeratorCancellation] CancellationToken cancellationToken)
+    /// <summary>Granice historii z każdego wywołania (ostatni znany odczyt czujników Flower Care).</summary>
+    public List<IReadOnlyDictionary<string, DateTimeOffset>> HistorySince { get; } = [];
+
+    public async IAsyncEnumerable<SensorReadOutcome> ReadAsync(IReadOnlyList<SensorConfig> sensors, TimeSpan scanWindow,
+        IReadOnlyDictionary<string, DateTimeOffset> historySince, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         Calls.Add(sensors.Select(s => s.Id).ToArray());
+        HistorySince.Add(historySince);
         foreach (var sensor in sensors)
         {
             await Task.Yield();

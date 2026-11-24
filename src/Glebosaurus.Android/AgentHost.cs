@@ -154,7 +154,7 @@ internal sealed class AgentHost
     public async Task<IReadOnlyList<KnownSensor>> KnownSensorsAsync(CancellationToken cancellationToken)
     {
         if (current?.Config.Current is { } config)
-            return [.. config.Config.Sensors.Select(s => new KnownSensor(s.Name, s.Tuya.Mac, s.Tuya.Uuid))];
+            return [.. config.Config.Sensors.Select(s => new KnownSensor(s.Name, s.Address, s.Model == SensorModel.Tuya ? s.Tuya.Uuid : ""))];
         try
         {
             if (await Storage.ConfigCache.LoadAsync(cancellationToken) is { } cached)

@@ -87,7 +87,7 @@ static class Demo
 static class Seed
 {
     private sealed record Plant(string Id, string Name, bool Outdoor, double Start, double DryPerDay, int Battery, bool Phone,
-        int WateringBelow = 25, double DryDays = 0);
+        int WateringBelow = 25, double DryDays = 0, bool FlowerCare = false);
 
     private sealed record Agent(string Name, string Token);
 
@@ -97,7 +97,8 @@ static class Seed
         new("ziola", "Zioła na parapecie", false, 60, 8.5, 64, false, DryDays: 4.5),
         new("cisy", "Cisy przy tarasie", true, 52, 2.2, 71, true, WateringBelow: 30),
         new("hortensje", "Hortensje niskie", true, 44, 1.8, 12, false),
-        new("trawa", "Trawa ozdobna", true, 40, 2.5, 55, true)
+        new("trawa", "Trawa ozdobna", true, 40, 2.5, 55, true),
+        new("fikus", "Fikus przy oknie", false, 50, 3.0, 90, false, WateringBelow: 20, FlowerCare: true)
     ];
 
     private static readonly string[] Recipients = ["ja@example.com", "druga.osoba@example.com"];
@@ -123,6 +124,12 @@ static class Seed
             var mac = $"AA:00:00:00:00:0{i + 1}";
             await ExecAsync(data, "select glebosaurus.admin_sensor_upsert(@id, @name, @mac, @o::jsonb)", ("id", plant.Id), ("name", plant.Name),
                 ("mac", mac), ("o", new JsonObject { ["enabled"] = true, ["wateringBelowPercent"] = plant.WateringBelow }.ToJsonString()));
+            if (plant.FlowerCare)
+            {
+                // Xiaomi Flower Care: bez klucza, tylko rodzaj czujnika.
+                await ExecAsync(data, "update glebosaurus.sensors set model = 'flower_care' where id = @id", ("id", plant.Id));
+                continue;
+            }
             await ExecAsync(data, "select glebosaurus.admin_sensor_credentials(@id, @c::jsonb)", ("id", plant.Id), ("c", new JsonObject
             {
                 ["mac"] = mac, ["uuid"] = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8)),
@@ -166,12 +173,21 @@ static class Seed
                     : 21.0 + 0.8 * Math.Sin((hour - 10) / 24 * 2 * Math.PI) + random.NextDouble() * 0.3;
                 battery -= 6.0 / (14 * 24);
                 var shown = (int)Math.Round(battery - (random.NextDouble() < 0.1 ? 3 : 0)); // spadki pod obciążeniem radia
-                readings.Add(new JsonObject
+                var reading = new JsonObject
                 {
                     ["sensor"] = plant.Id, ["at"] = at.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss.fffZ", CultureInfo.InvariantCulture),
                     ["moisture"] = (int)Math.Round(moisture), ["tempTenths"] = (int)Math.Round(temperature * 10), ["battery"] = shown,
                     ["batteryState"] = shown < 20 ? 0 : shown < 50 ? 1 : 2
-                });
+                };
+                if (plant.FlowerCare)
+                {
+                    // Światło przy oknie: zero nocą, w dzień do kilku tysięcy lx (chmury); żyzność rośnie z wilgotnością gleby.
+                    var daylight = Math.Max(0, Math.Sin((hour - 7.5) / 9 * Math.PI));
+                    reading["light"] = (int)Math.Round(daylight * (1500 + random.NextDouble() * 4500) + (hour is > 18 and < 23 ? 180 : 0));
+                    reading["conductivity"] = (int)Math.Round(Math.Max(0, (moisture - 8) * 22 + random.NextDouble() * 60));
+                    reading.Remove("batteryState");
+                }
+                readings.Add(reading);
             }
             var agent = plant.Phone ? phone : computer;
             var result = await AgentCallAsync(data, "agent_sync", null, ("p_token", agent.Token),

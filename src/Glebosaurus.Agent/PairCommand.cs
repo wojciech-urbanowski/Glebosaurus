@@ -126,7 +126,7 @@ internal static class PairCommand
         Console.WriteLine();
         Console.WriteLine("Sparowano i zweryfikowano.");
         Console.WriteLine($"  Wilgotność gleby : {reading.MoisturePercent?.ToString() ?? "brak"} %");
-        Console.WriteLine($"  Temperatura gleby: {reading.SoilTemperatureCelsius?.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) ?? "brak"} °C");
+        Console.WriteLine($"  Temperatura gleby: {reading.TemperatureCelsius?.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) ?? "brak"} °C");
         Console.WriteLine($"  Bateria          : {reading.BatteryPercent?.ToString() ?? "brak"} %");
         Console.WriteLine();
         Console.WriteLine($"Teraz strona w chmurze: Konfiguracja → Czujniki → „Dodaj czujnik z pliku klucza” – id {id}, plik {path}.");

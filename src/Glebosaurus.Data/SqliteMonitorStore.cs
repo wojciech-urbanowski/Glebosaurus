@@ -37,7 +37,7 @@ public sealed class SqliteMonitorStore(string databasePath) : IMonitorStore, IRe
         if (version > SchemaVersion)
             throw new InvalidOperationException($"Baza {databasePath} pochodzi z nowszej wersji programu (schemat {version}).");
         if (version < SchemaVersion) await CreateSchemaAsync(connection, cancellationToken);
-        else await UpgradeAsync(connection, cancellationToken);
+        await UpgradeAsync(connection, cancellationToken);
     }
 
     private static async Task CreateSchemaAsync(SqliteConnection connection, CancellationToken cancellationToken)
@@ -52,6 +52,8 @@ public sealed class SqliteMonitorStore(string databasePath) : IMonitorStore, IRe
                 battery       INTEGER NULL,
                 battery_state INTEGER NULL,
                 sync_state    INTEGER NOT NULL DEFAULT 0,
+                light_lux     INTEGER NULL,
+                conductivity  INTEGER NULL,
                 PRIMARY KEY (sensor_id, at)
             ) WITHOUT ROWID;
             CREATE INDEX IF NOT EXISTS ix_readings_unsent ON readings (at) WHERE sync_state = 0;
@@ -63,7 +65,9 @@ public sealed class SqliteMonitorStore(string databasePath) : IMonitorStore, IRe
     /// <summary>
     /// Bazy z wersji sprzed 0.2.0 (bez chmury) dostają kolumnę <c>sync_state</c> – ich odczyty są „do wysłania”, więc historia
     /// trafia do chmury tą samą drogą – i tabelę <c>cloud_feed</c>. Ich tabele <c>alerts</c> i <c>report_runs</c> zostają
-    /// nieużywane (stan alertów i raportów jest w chmurze).
+    /// nieużywane (stan alertów i raportów jest w chmurze). Bazy sprzed 0.4.0 dostają kolumny <c>light_lux</c> i
+    /// <c>conductivity</c> (czujnik Flower Care) – bez zmiany <c>user_version</c>, bo poprzednia wersja programu (powrót po
+    /// nieudanej aktualizacji) czyta i zapisuje wymienione kolumny, więc dodatkowe jej nie przeszkadzają.
     /// </summary>
     private static async Task UpgradeAsync(SqliteConnection connection, CancellationToken cancellationToken)
     {
@@ -76,17 +80,21 @@ public sealed class SqliteMonitorStore(string databasePath) : IMonitorStore, IRe
                 """, cancellationToken);
         await ExecuteAsync(connection, "CREATE TABLE IF NOT EXISTS cloud_feed (source TEXT PRIMARY KEY, last_seq INTEGER NOT NULL);",
             cancellationToken);
+        foreach (var column in new[] { "light_lux", "conductivity" })
+            if (Convert.ToInt64(await ScalarAsync(connection, $"SELECT COUNT(*) FROM pragma_table_info('readings') WHERE name = '{column}';", cancellationToken),
+                    CultureInfo.InvariantCulture) == 0)
+                await ExecuteAsync(connection, $"ALTER TABLE readings ADD COLUMN {column} INTEGER NULL;", cancellationToken);
     }
 
     public async Task AddReadingAsync(StoredReading reading, CancellationToken cancellationToken)
     {
         await using var connection = await OpenAsync(cancellationToken);
         await ExecuteAsync(connection,
-            "INSERT OR IGNORE INTO readings (sensor_id, at, moisture, temp_tenths, battery, battery_state) VALUES ($s, $at, $m, $t, $b, $bs);",
+            "INSERT OR IGNORE INTO readings (sensor_id, at, moisture, temp_tenths, battery, battery_state, light_lux, conductivity) VALUES ($s, $at, $m, $t, $b, $bs, $l, $c);",
             cancellationToken,
             ("$s", reading.SensorId), ("$at", reading.At.ToUnixTimeMilliseconds()), ("$m", reading.MoisturePercent),
             ("$t", reading.SoilTemperatureCelsius is { } t ? (int)Math.Round(t * 10m, MidpointRounding.AwayFromZero) : null),
-            ("$b", reading.BatteryPercent), ("$bs", reading.BatteryState));
+            ("$b", reading.BatteryPercent), ("$bs", reading.BatteryState), ("$l", reading.LightLux), ("$c", reading.ConductivityMicroSiemens));
     }
 
     public async Task<StoredReading?> GetLatestAsync(string sensorId, CancellationToken cancellationToken) =>
@@ -96,7 +104,7 @@ public sealed class SqliteMonitorStore(string databasePath) : IMonitorStore, IRe
     {
         await using var connection = await OpenAsync(cancellationToken);
         await using var command = Command(connection,
-            "SELECT at, moisture, temp_tenths, battery, battery_state FROM readings WHERE sensor_id = $s ORDER BY at DESC LIMIT $n;",
+            "SELECT at, moisture, temp_tenths, battery, battery_state, light_lux, conductivity FROM readings WHERE sensor_id = $s ORDER BY at DESC LIMIT $n;",
             ("$s", sensorId), ("$n", count));
         return await ReadReadingsAsync(command, sensorId, cancellationToken);
     }
@@ -105,7 +113,7 @@ public sealed class SqliteMonitorStore(string databasePath) : IMonitorStore, IRe
     {
         await using var connection = await OpenAsync(cancellationToken);
         await using var command = Command(connection,
-            "SELECT at, moisture, temp_tenths, battery, battery_state FROM readings WHERE sensor_id = $s AND at BETWEEN $from AND $to ORDER BY at;",
+            "SELECT at, moisture, temp_tenths, battery, battery_state, light_lux, conductivity FROM readings WHERE sensor_id = $s AND at BETWEEN $from AND $to ORDER BY at;",
             ("$s", sensorId), ("$from", from.ToUnixTimeMilliseconds()), ("$to", to.ToUnixTimeMilliseconds()));
         return await ReadReadingsAsync(command, sensorId, cancellationToken);
     }
@@ -125,7 +133,10 @@ public sealed class SqliteMonitorStore(string databasePath) : IMonitorStore, IRe
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
             result.Add(new(sensorId, DateTimeOffset.FromUnixTimeMilliseconds(reader.GetInt64(0)),
-                Nullable(reader, 1), reader.IsDBNull(2) ? null : reader.GetInt32(2) / 10m, Nullable(reader, 3), Nullable(reader, 4)));
+                Nullable(reader, 1), reader.IsDBNull(2) ? null : reader.GetInt32(2) / 10m, Nullable(reader, 3), Nullable(reader, 4))
+            {
+                LightLux = Nullable(reader, 5), ConductivityMicroSiemens = Nullable(reader, 6)
+            });
         return result;
     }
 
@@ -133,14 +144,17 @@ public sealed class SqliteMonitorStore(string databasePath) : IMonitorStore, IRe
     {
         await using var connection = await OpenAsync(cancellationToken);
         await using var command = Command(connection, """
-            SELECT sensor_id, at, moisture, temp_tenths, battery, battery_state FROM readings
+            SELECT sensor_id, at, moisture, temp_tenths, battery, battery_state, light_lux, conductivity FROM readings
              WHERE sync_state = 0 ORDER BY at, sensor_id LIMIT $n;
             """, ("$n", limit));
         var result = new List<StoredReading>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
             result.Add(new(reader.GetString(0), DateTimeOffset.FromUnixTimeMilliseconds(reader.GetInt64(1)),
-                Nullable(reader, 2), reader.IsDBNull(3) ? null : reader.GetInt32(3) / 10m, Nullable(reader, 4), Nullable(reader, 5)));
+                Nullable(reader, 2), reader.IsDBNull(3) ? null : reader.GetInt32(3) / 10m, Nullable(reader, 4), Nullable(reader, 5))
+            {
+                LightLux = Nullable(reader, 6), ConductivityMicroSiemens = Nullable(reader, 7)
+            });
         return result;
     }
 
@@ -177,9 +191,9 @@ public sealed class SqliteMonitorStore(string databasePath) : IMonitorStore, IRe
         await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
         var added = 0;
         await using (var insert = Command(connection, $"""
-            INSERT OR IGNORE INTO readings (sensor_id, at, moisture, temp_tenths, battery, battery_state, sync_state)
-            VALUES ($s, $at, $m, $t, $b, $bs, {Accepted});
-            """, ("$s", null), ("$at", null), ("$m", null), ("$t", null), ("$b", null), ("$bs", null)))
+            INSERT OR IGNORE INTO readings (sensor_id, at, moisture, temp_tenths, battery, battery_state, light_lux, conductivity, sync_state)
+            VALUES ($s, $at, $m, $t, $b, $bs, $l, $c, {Accepted});
+            """, ("$s", null), ("$at", null), ("$m", null), ("$t", null), ("$b", null), ("$bs", null), ("$l", null), ("$c", null)))
         {
             insert.Transaction = transaction;
             foreach (var reading in readings)
@@ -190,6 +204,8 @@ public sealed class SqliteMonitorStore(string databasePath) : IMonitorStore, IRe
                 insert.Parameters["$t"].Value = reading.SoilTemperatureCelsius is { } t ? (int)Math.Round(t * 10m, MidpointRounding.AwayFromZero) : DBNull.Value;
                 insert.Parameters["$b"].Value = (object?)reading.BatteryPercent ?? DBNull.Value;
                 insert.Parameters["$bs"].Value = (object?)reading.BatteryState ?? DBNull.Value;
+                insert.Parameters["$l"].Value = (object?)reading.LightLux ?? DBNull.Value;
+                insert.Parameters["$c"].Value = (object?)reading.ConductivityMicroSiemens ?? DBNull.Value;
                 added += await insert.ExecuteNonQueryAsync(cancellationToken);
             }
         }

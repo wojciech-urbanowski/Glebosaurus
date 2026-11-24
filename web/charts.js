@@ -1,7 +1,8 @@
 // Wykres wilgotności i temperatury gleby w czasie – czysty SVG, bez bibliotek i bez grafiki rastrowej.
 //
 // Dwie serie na jednej osi czasu i dwie osie pionowe: wilgotność po lewej, zawsze 0–100%, temperatura po prawej,
-// wyskalowana do zakresu wartości z widocznego okna; „okrągłe” podziałki i wspólna siatka. Dziury w danych (gapBefore z API)
+// wyskalowana do zakresu wartości z widocznego okna; „okrągłe” podziałki i wspólna siatka. Ten sam wykres rysuje też
+// światło i żyzność czujnika Flower Care (LIGHT_SERIES – obie osie dopasowane do danych, od zera). Dziury w danych (gapBefore z API)
 // przerywają linię; przy danych uśrednionych za linią leży blady pas min–max. Najechanie, dotknięcie albo strzałki
 // pokazują pionowy znacznik i dymek ze wszystkimi wartościami w tym miejscu. Wersja „interactive” (strona czujnika)
 // pozwala przesuwać okno przeciąganiem, powiększać Ctrl+kółkiem, gestem dwóch palców i klawiszami +/−.
@@ -21,6 +22,8 @@ const MOISTURE_HI = 100;
 /** Najmniejsza rozpiętość osi temperatury – przy prawie płaskim przebiegu szum nie powinien wyglądać jak skoki. */
 const TEMPERATURE_MIN_SPAN = 2;
 const TEMPERATURE_STEPS = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50];
+/** Kroki 1–2–5 dla światła (lx) i żyzności (µS/cm). */
+const NICE_STEPS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000];
 
 const X_STEPS = [
   { unit: 'h', n: 1, ms: HOUR }, { unit: 'h', n: 2, ms: 2 * HOUR }, { unit: 'h', n: 3, ms: 3 * HOUR },
@@ -37,6 +40,38 @@ const monthShort = new Intl.DateTimeFormat('pl-PL', { month: 'short' });
 const fullDate = new Intl.DateTimeFormat('pl-PL', { day: 'numeric', month: 'numeric', year: 'numeric' });
 
 let chartCount = 0;
+
+/** Podziałka w tysiącach (oś światła): 20000 → „20k”, 2500 → „2,5k”. */
+const thousands = (v) => (Math.abs(v) >= 1000 ? `${fixed[v % 1000 === 0 ? 0 : 1].format(v / 1000)}k` : fixed[0].format(v));
+
+/**
+ * Serie wykresu: lewa i prawa oś. key – pole punktu (z keyMin i keyMax przy średnich), fixed – stała oś [od, do], inaczej
+ * oś dopasowana do danych (steps, minSpan, floor – najniższa wartość osi), tick – zapis podziałki, digits/tipUnit – dymek.
+ * Klasa CSS serii to jej key (kolory w app.css).
+ */
+/** Wilgotność i temperatura; air – temperatura powietrza (Flower Care mierzy ją w główce nad ziemią), nie gleby. */
+export function soilSeries(air = false) {
+  return {
+    title: air ? 'Wykres wilgotności gleby i temperatury powietrza' : 'Wykres wilgotności i temperatury gleby',
+    threshold: true,
+    left: { key: 'moisture', unit: '%', fixed: [MOISTURE_LO, MOISTURE_HI], name: 'wilgotność', legend: 'Wilgotność gleby, % (lewa oś)',
+      compact: 'wilgotność, %', digits: (v) => (Number.isInteger(v) ? 0 : 1), tipUnit: '%' },
+    right: { key: 'temperature', unit: '°C', steps: TEMPERATURE_STEPS, minSpan: TEMPERATURE_MIN_SPAN, name: 'temperatura',
+      legend: `Temperatura ${air ? 'powietrza' : 'gleby'}, °C (prawa oś)`, compact: 'temperatura, °C', digits: () => 1, tipUnit: ' °C' }
+  };
+}
+
+export const SOIL_SERIES = soilSeries();
+
+/** Światło i żyzność (przewodność gleby) – czujnik Xiaomi Flower Care. */
+export const LIGHT_SERIES = {
+  title: 'Wykres światła i żyzności gleby',
+  threshold: false,
+  left: { key: 'light', unit: 'lx', steps: NICE_STEPS, minSpan: 100, floor: 0, tick: thousands, name: 'światło',
+    legend: 'Światło, lx (lewa oś)', compact: 'światło, lx', digits: () => 0, tipUnit: ' lx' },
+  right: { key: 'conductivity', unit: 'µS/cm', steps: NICE_STEPS, minSpan: 20, floor: 0, name: 'żyzność',
+    legend: 'Żyzność (przewodność gleby), µS/cm (prawa oś)', compact: 'żyzność, µS/cm', digits: () => 0, tipUnit: ' µS/cm' }
+};
 
 // ---- narzędzia ----------------------------------------------------------------------------------------------
 
@@ -108,11 +143,15 @@ function runs(points, key) {
  * Oś o n przedziałach z „okrągłym” krokiem, obejmująca [min, max] rozszerzone do minSpan. „waste” – ile razy oś jest
  * szersza od danych (mniej = lepiej wykorzystana wysokość).
  */
-function fitAxis(min, max, n, steps, minSpan) {
+function fitAxis(min, max, n, steps, minSpan, floor) {
   if (max - min < minSpan) {
     const center = (min + max) / 2;
     min = center - minSpan / 2;
     max = center + minSpan / 2;
+  }
+  if (floor !== undefined && min < floor) {
+    max += floor - min;
+    min = floor;
   }
   for (const step of steps) {
     if (step * n < max - min - 1e-9) continue;
@@ -125,22 +164,33 @@ function fitAxis(min, max, n, steps, minSpan) {
   return { lo: min, hi: max, step, n, waste: 100 };
 }
 
+function axisFor(side, range, n) {
+  if (!range) return null;
+  if (side.fixed) return { lo: side.fixed[0], hi: side.fixed[1], step: (side.fixed[1] - side.fixed[0]) / n, n, waste: 0 };
+  return fitAxis(range.min, range.max, n, side.steps, side.minSpan, side.floor);
+}
+
 /**
- * Wspólna liczba przedziałów dla obu osi (jedna siatka). Oś wilgotności jest stała (0–100%), więc przy niej w grę wchodzą
- * tylko liczby przedziałów o całkowitym kroku (4 → co 25, 5 → co 20); spośród nich wygrywa ta, przy której temperatura
- * najlepiej wypełnia wysokość.
+ * Wspólna liczba przedziałów dla obu osi (jedna siatka). Przy stałej osi (wilgotność 0–100%) w grę wchodzą tylko liczby
+ * przedziałów o całkowitym kroku (4 → co 25, 5 → co 20); spośród nich wygrywa ta, przy której osie dopasowane do danych
+ * najlepiej wypełniają wysokość. m – lewa oś, t – prawa.
  */
-function chooseScales(moisture, temperature, counts) {
-  const span = MOISTURE_HI - MOISTURE_LO;
-  const allowed = moisture ? counts.filter((n) => span % n === 0) : counts;
+function chooseScales(spec, left, right, counts) {
+  const fixedSpan = spec.left.fixed ? spec.left.fixed[1] - spec.left.fixed[0] : null;
+  const allowed = fixedSpan && left ? counts.filter((n) => fixedSpan % n === 0) : counts;
   let best = null;
   for (const n of allowed.length ? allowed : [4]) {
-    const m = moisture ? { lo: MOISTURE_LO, hi: MOISTURE_HI, step: span / n, n } : null;
-    const t = temperature ? fitAxis(temperature.min, temperature.max, n, TEMPERATURE_STEPS, TEMPERATURE_MIN_SPAN) : null;
-    const score = (t ? t.waste : 0) - (n === 4 ? 0.05 : 0);
+    const m = axisFor(spec.left, left, n);
+    const t = axisFor(spec.right, right, n);
+    const score = (m ? m.waste : 0) + (t ? t.waste : 0) - (n === 4 ? 0.05 : 0);
     if (!best || score < best.score) best = { score, n, m, t };
   }
   return best;
+}
+
+function tickText(side, axis, value) {
+  if (side.tick) return side.tick(value);
+  return fixed[side.fixed ? 0 : decimalsFor(axis.step)].format(value);
 }
 
 function extent(points, key, minKey, maxKey, useBand) {
@@ -240,6 +290,7 @@ export class TimeChart {
   constructor(options = {}) {
     this.compact = Boolean(options.compact);
     this.interactive = Boolean(options.interactive);
+    this.series = options.series || SOIL_SERIES;
     this.onView = options.onView || null;
     this.emptyText = options.emptyText || 'Brak odczytów w tym okresie.';
     this.id = ++chartCount;
@@ -297,6 +348,12 @@ export class TimeChart {
     this.render();
   }
 
+  /** Inne serie (np. temperatura przy roślinie zamiast gleby) – rysuje od nowa. */
+  setSeries(series) {
+    this.series = series;
+    this.render();
+  }
+
   /** Próg podlania czujnika (linia na osi wilgotności, gdy mieści się w jej zakresie). */
   setThreshold(percentValue) {
     this.threshold = percentValue;
@@ -327,10 +384,13 @@ export class TimeChart {
     // Po jednym punkcie spoza okna z każdej strony – linia dochodzi do krawędzi zamiast urywać się przed nią.
     const drawn = points.slice(Math.max(0, i0 - 1), Math.min(points.length, i1 + 1));
     const banded = this.bucketMinutes > 0;
-    const moistureRange = extent(visible, 'moisture', 'moistureMin', 'moistureMax', banded);
-    const temperatureRange = extent(visible, 'temperature', 'temperatureMin', 'temperatureMax', banded);
+    const spec = this.series;
+    const leftKey = spec.left.key;
+    const rightKey = spec.right.key;
+    const moistureRange = extent(visible, leftKey, `${leftKey}Min`, `${leftKey}Max`, banded);
+    const temperatureRange = extent(visible, rightKey, `${rightKey}Min`, `${rightKey}Max`, banded);
     const scales = moistureRange || temperatureRange
-      ? chooseScales(moistureRange, temperatureRange, this.compact ? [3, 4] : [3, 4, 5])
+      ? chooseScales(spec, moistureRange, temperatureRange, this.compact ? [3, 4] : [3, 4, 5])
       : null;
     const yScale = (axis) => (axis ? (v) => m.top + ((axis.hi - v) / (axis.hi - axis.lo)) * ph : null);
     const yM = scales ? yScale(scales.m) : null;
@@ -358,11 +418,11 @@ export class TimeChart {
       grid.append(svg('line', { x1: m.left, x2: m.left + pw, y1: round(y) + 0.5, y2: round(y) + 0.5 }));
       if (scales && scales.m) {
         const value = scales.m.hi - k * scales.m.step;
-        labels.append(text(m.left - 6, y + 4, fixed[0].format(value), 'tick', 'end'));
+        labels.append(text(m.left - 6, y + 4, tickText(spec.left, scales.m, value), 'tick', 'end'));
       }
       if (scales && scales.t) {
         const value = scales.t.hi - k * scales.t.step;
-        labels.append(text(m.left + pw + 6, y + 4, fixed[decimalsFor(scales.t.step)].format(value), 'tick', 'start'));
+        labels.append(text(m.left + pw + 6, y + 4, tickText(spec.right, scales.t, value), 'tick', 'start'));
       }
     }
 
@@ -383,28 +443,28 @@ export class TimeChart {
 
     // Jednostki osi z kluczem serii (tekst w kolorze tekstu – serię rozpoznaje kreska obok).
     if (scales && scales.m) {
-      root.append(svg('line', { x1: 2, x2: 14, y1: 8, y2: 8 }, 'key-line moisture'));
-      root.append(text(18, 12, '%', 'tick unit', 'start'));
+      root.append(svg('line', { x1: 2, x2: 14, y1: 8, y2: 8 }, `key-line ${leftKey}`));
+      root.append(text(18, 12, spec.left.unit, 'tick unit', 'start'));
     }
     if (scales && scales.t) {
-      root.append(svg('line', { x1: width - 14, x2: width - 2, y1: 8, y2: 8 }, 'key-line temperature'));
-      root.append(text(width - 18, 12, '°C', 'tick unit', 'end'));
+      root.append(svg('line', { x1: width - 14, x2: width - 2, y1: 8, y2: 8 }, `key-line ${rightKey}`));
+      root.append(text(width - 18, 12, spec.right.unit, 'tick unit', 'end'));
     }
     root.append(labels);
 
     const data = svg('g', { 'clip-path': `url(#${clipId})` });
     let thresholdVisible = false;
-    if (yM && this.threshold !== null && this.threshold !== undefined && this.threshold >= scales.m.lo && this.threshold <= scales.m.hi) {
+    if (yM && spec.threshold && this.threshold !== null && this.threshold !== undefined && this.threshold >= scales.m.lo && this.threshold <= scales.m.hi) {
       thresholdVisible = true;
       const ty = round(yM(this.threshold)) + 0.5;
       data.append(svg('line', { x1: m.left, x2: m.left + pw, y1: ty, y2: ty }, 'threshold'));
     }
-    if (yT) this.drawSeries(data, drawn, 'temperature', x, yT, banded);
-    if (yM) this.drawSeries(data, drawn, 'moisture', x, yM, banded);
+    if (yT) this.drawSeries(data, drawn, rightKey, x, yT, banded);
+    if (yM) this.drawSeries(data, drawn, leftKey, x, yM, banded);
     root.append(data);
 
     // Kropka na końcu linii – tylko gdy w oknie jest najnowszy punkt serii.
-    for (const [key, y] of [['temperature', yT], ['moisture', yM]]) {
+    for (const [key, y] of [[rightKey, yT], [leftKey, yM]]) {
       if (!y) continue;
       let last = points.length - 1;
       while (last >= 0 && (points[last][key] === null || points[last][key] === undefined)) last--;
@@ -438,18 +498,21 @@ export class TimeChart {
 
   renderLegend(thresholdVisible) {
     const item = (cls, label) => h('span', 'legend-item', h('span', `key ${cls}`), label);
+    const { left, right } = this.series;
     const items = [
-      item('moisture', this.compact ? 'wilgotność, %' : 'Wilgotność gleby, % (lewa oś)'),
-      item('temperature', this.compact ? 'temperatura, °C' : 'Temperatura gleby, °C (prawa oś)')
+      item(left.key, this.compact ? left.compact : left.legend),
+      item(right.key, this.compact ? right.compact : right.legend)
     ];
     if (thresholdVisible) items.push(item('threshold', this.compact ? 'próg podlania' : `Próg podlania (${this.threshold}%)`));
     this.legend.replaceChildren(...items);
   }
 
   summary(moistureRange, temperatureRange) {
-    const parts = ['Wykres wilgotności i temperatury gleby'];
-    if (moistureRange) parts.push(`wilgotność ${fixed[0].format(moistureRange.min)}–${fixed[0].format(moistureRange.max)}%`);
-    if (temperatureRange) parts.push(`temperatura ${num1.format(temperatureRange.min)}–${num1.format(temperatureRange.max)} °C`);
+    const { title, left, right } = this.series;
+    const parts = [title];
+    if (moistureRange) parts.push(`${left.name} ${fixed[0].format(moistureRange.min)}–${fixed[0].format(moistureRange.max)}${left.tipUnit}`);
+    if (temperatureRange) parts.push(`${right.name} ${right.key === 'temperature' ? num1.format(temperatureRange.min) : fixed[0].format(temperatureRange.min)}–` +
+      `${right.key === 'temperature' ? num1.format(temperatureRange.max) : fixed[0].format(temperatureRange.max)}${right.tipUnit}`);
     if (!moistureRange && !temperatureRange) parts.push(this.emptyText);
     return parts.join(', ');
   }
@@ -488,9 +551,10 @@ export class TimeChart {
     this.hoverT = t;
     const top = g.m.top;
     const bottom = g.m.top + g.ph;
+    const { left: leftSide, right: rightSide } = this.series;
     const nodes = [svg('line', { x1: round(px), x2: round(px), y1: top, y2: bottom }, 'crosshair')];
-    if (g.yT && p.temperature !== null && p.temperature !== undefined) nodes.push(svg('circle', { cx: round(px), cy: round(g.yT(p.temperature)), r: 4 }, 'dot temperature'));
-    if (g.yM && p.moisture !== null && p.moisture !== undefined) nodes.push(svg('circle', { cx: round(px), cy: round(g.yM(p.moisture)), r: 4 }, 'dot moisture'));
+    if (g.yT && p[rightSide.key] !== null && p[rightSide.key] !== undefined) nodes.push(svg('circle', { cx: round(px), cy: round(g.yT(p[rightSide.key])), r: 4 }, `dot ${rightSide.key}`));
+    if (g.yM && p[leftSide.key] !== null && p[leftSide.key] !== undefined) nodes.push(svg('circle', { cx: round(px), cy: round(g.yM(p[leftSide.key])), r: 4 }, `dot ${leftSide.key}`));
     this.hoverGroup.replaceChildren(...nodes);
 
     const averaged = this.bucketMinutes > 0 && p.count > 1;
@@ -501,9 +565,10 @@ export class TimeChart {
       const range = averaged && low !== high ? ` (${format(low)}–${format(high)})` : '';
       return h('div', 'tip-row', h('span', `key ${cls}`), h('strong', null, `${format(value)}${unit}`), `${range} ${name}`);
     };
+    const seriesRow = (side) => row(side.key, p[side.key], p[`${side.key}Min`], p[`${side.key}Max`], side.digits, side.tipUnit, side.name);
     this.tooltip.replaceChildren(
-      row('moisture', p.moisture, p.moistureMin, p.moistureMax, (v) => (Number.isInteger(v) ? 0 : 1), '%', 'wilgotność'),
-      row('temperature', p.temperature, p.temperatureMin, p.temperatureMax, () => 1, ' °C', 'temperatura'),
+      seriesRow(leftSide),
+      seriesRow(rightSide),
       h('div', 'tip-time', averaged
         ? `${bucketText(p.t, this.bucketMinutes)} · średnia z ${p.count} ${p.count === 1 ? 'odczytu' : 'odczytów'}`
         : `${weekday.format(new Date(p.t))} ${dayMonth(new Date(p.t))}, ${hhmm.format(new Date(p.t))}`));

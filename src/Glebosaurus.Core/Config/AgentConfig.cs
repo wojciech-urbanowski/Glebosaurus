@@ -147,6 +147,30 @@ public sealed class WebConfig
     }
 }
 
+/// <summary>Rodzaje czujników.</summary>
+public enum SensorModel
+{
+    /// <summary>Czujnik gleby Tuya BLE (np. ATLO SMS1): klucz lokalny z parowania, sesja Tuya.</summary>
+    Tuya,
+
+    /// <summary>Xiaomi / HHCC Flower Care (HHCCJCY01): bez klucza, rozpoznawany po MAC; także światło i żyzność.</summary>
+    FlowerCare
+}
+
+/// <summary>Nazwy rodzajów czujników w chmurze (kolumna <c>sensors.model</c>).</summary>
+public static class SensorModels
+{
+    public const string Tuya = "tuya", FlowerCare = "flower_care";
+
+    /// <summary>null (baza sprzed migracji) – Tuya; nieznana nazwa – null.</summary>
+    public static SensorModel? Parse(string? name) => name switch
+    {
+        null or Tuya => SensorModel.Tuya,
+        FlowerCare => SensorModel.FlowerCare,
+        _ => null
+    };
+}
+
 public sealed class SensorConfig
 {
     /// <summary>Stabilny identyfikator czujnika (w chmurze: małe litery, cyfry, „_” i „-”).</summary>
@@ -155,8 +179,17 @@ public sealed class SensorConfig
     /// <summary>Nazwa widoczna w mailach, np. „Monstera w salonie”.</summary>
     public string Name { get; set; } = "";
 
-    /// <summary>Dane lokalnego przypisania Tuya wpisane wprost: mac, uuid, deviceId, localKeyHex, productId.</summary>
+    /// <summary>Rodzaj czujnika – decyduje o protokole odczytu i o tym, jak go rozpoznać w reklamach.</summary>
+    public SensorModel Model { get; set; } = SensorModel.Tuya;
+
+    /// <summary>Dane lokalnego przypisania Tuya wpisane wprost: mac, uuid, deviceId, localKeyHex, productId (tylko <see cref="SensorModel.Tuya"/>).</summary>
     public TuyaCredentials Tuya { get; set; } = new();
+
+    /// <summary>Adres MAC czujnika bez klucza (<see cref="SensorModel.FlowerCare"/>); czujnik Tuya ma adres w <see cref="Tuya"/>.</summary>
+    public string? Mac { get; set; }
+
+    /// <summary>Adres MAC czujnika niezależnie od rodzaju (AA:BB:CC:DD:EE:FF).</summary>
+    public string Address => Model == SensorModel.FlowerCare ? Mac ?? "" : Tuya.Mac;
 
     /// <summary>Własny odstęp odczytów; null = domyślny z <see cref="AgentConfig.ReadIntervalMinutes"/>.</summary>
     public double? ReadIntervalMinutes { get; set; }

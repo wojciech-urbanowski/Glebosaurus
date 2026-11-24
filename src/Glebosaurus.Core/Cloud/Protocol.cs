@@ -59,12 +59,24 @@ public sealed record SightingReport(string Sensor, int? Rssi, double? HeardSecon
 /// lokalnym SQLite, więc klucz <c>(sensor_id, at)</c> jest ten sam po obu stronach (baza trzyma mikrosekundy, .NET 100 ns).</summary>
 public sealed record ReadingReport(string Sensor, DateTimeOffset At, int? Moisture, int? TempTenths, int? Battery, int? BatteryState)
 {
+    /// <summary>Światło w luksach (Flower Care; od migracji 20261124220000 – starsza baza je pomija).</summary>
+    public int? Light { get; init; }
+
+    /// <summary>Przewodność gleby w µS/cm (Flower Care; od migracji 20261124220000).</summary>
+    public int? Conductivity { get; init; }
+
     public static ReadingReport From(StoredReading reading) => new(reading.SensorId,
         DateTimeOffset.FromUnixTimeMilliseconds(reading.At.ToUnixTimeMilliseconds()), reading.MoisturePercent,
         reading.SoilTemperatureCelsius is { } t ? (int)Math.Round(t * 10m, MidpointRounding.AwayFromZero) : null,
-        reading.BatteryPercent, reading.BatteryState);
+        reading.BatteryPercent, reading.BatteryState)
+    {
+        Light = reading.LightLux, Conductivity = reading.ConductivityMicroSiemens
+    };
 
-    public StoredReading ToStored() => new(Sensor, At, Moisture, TempTenths is { } t ? t / 10m : null, Battery, BatteryState);
+    public StoredReading ToStored() => new(Sensor, At, Moisture, TempTenths is { } t ? t / 10m : null, Battery, BatteryState)
+    {
+        LightLux = Light, ConductivityMicroSiemens = Conductivity
+    };
 }
 
 public sealed record LeaseRelease(string Resource, long Epoch);
@@ -144,13 +156,17 @@ public sealed record CloudMailSettings(string? GmailAddress, IReadOnlyList<strin
 public sealed record CloudSensor(string Id, string Name, string Mac, bool Enabled, double? ReadIntervalMinutes, int WateringBelowPercent,
     int WateringClearAbovePercent, int ConsecutiveReadings, int LowBatteryPercent, double SilentAfterHours)
 {
+    /// <summary>Rodzaj czujnika: <c>tuya</c> albo <c>flower_care</c> (<see cref="Glebosaurus.Core.Config.SensorModels"/>); null – baza sprzed migracji
+    /// 20261124220000, czyli Tuya.</summary>
+    public string? Model { get; init; }
+
     /// <summary>Dane przypisania Tuya z Vault – sekret (klucz lokalny czujnika), więc poza <see cref="ToString"/>.</summary>
     public TuyaCredentials? Tuya { get; init; }
 
     /// <summary>Alerty mailowe czujnika wyciszone do tej chwili (strona w chmurze).</summary>
     public DateTimeOffset? AlertsMutedUntil { get; init; }
 
-    public override string ToString() => $"CloudSensor {{ Id = {Id}, Name = {Name}, Mac = {Mac}, Enabled = {Enabled} }}";
+    public override string ToString() => $"CloudSensor {{ Id = {Id}, Name = {Name}, Model = {Model}, Mac = {Mac}, Enabled = {Enabled} }}";
 }
 
 /// <summary>Konfiguracja z <c>get_config</c>. Sekcja poczty tylko dla kandydatów na nadawcę.</summary>

@@ -1,5 +1,7 @@
 using Glebosaurus.Core.Config;
+using Glebosaurus.Core.Domain;
 using Glebosaurus.Core.Monitoring;
+using Glebosaurus.FlowerCare;
 using Glebosaurus.Tuya;
 using Shiny.BluetoothLE;
 
@@ -21,7 +23,7 @@ internal sealed class ShinySensorRadio(BleHost ble) : ISensorRadio<SeenSensor>, 
         var seen = await BleScanner.ScanAsync(ble, window, stopWhen: null, cancellationToken);
         var heard = new List<HeardSensor>();
         foreach (var sensor in sensors)
-            if (seen.FirstOrDefault(device => device.Matches(sensor.Tuya)) is { } device)
+            if (seen.FirstOrDefault(device => device.Matches(sensor)) is { } device)
                 heard.Add(new(sensor.Id, device.Signal.Average, device.Packets));
         return heard;
     }
@@ -49,23 +51,34 @@ internal sealed class ShinySensorRadio(BleHost ble) : ISensorRadio<SeenSensor>, 
         IReadOnlyList<SensorConfig> wanted, TimeSpan limit, CancellationToken cancellationToken)
     {
         var seen = await BleScanner.ScanAsync(ble, limit,
-            device => device.Signal.Count > 0 && wanted.Any(s => device.Matches(s.Tuya)), cancellationToken);
+            device => device.Signal.Count > 0 && wanted.Any(device.Matches), cancellationToken);
         var found = new List<(SensorConfig, SeenSensor)>();
         foreach (var sensor in wanted)
-            if (seen.FirstOrDefault(device => device.Matches(sensor.Tuya)) is { } device) found.Add((sensor, device));
+            if (seen.FirstOrDefault(device => device.Matches(sensor)) is { } device) found.Add((sensor, device));
         return found;
     }
 
-    public Task<SensorReadOutcome> ReadAsync(SensorConfig sensor, SeenSensor found, CancellationToken cancellationToken) =>
-        ReadOneAsync(sensor, found, cancellationToken);
+    public Task<SensorReadOutcome> ReadAsync(SensorConfig sensor, SeenSensor found, DateTimeOffset? historySince, CancellationToken cancellationToken) =>
+        ReadOneAsync(sensor, found, historySince, cancellationToken);
 
     /// <summary>Łączy się z już znalezionym czujnikiem, odczytuje komplet punktów danych i rozłącza.</summary>
-    internal static async Task<SensorReadOutcome> ReadOneAsync(SensorConfig sensor, SeenSensor seen, CancellationToken cancellationToken)
+    internal static async Task<SensorReadOutcome> ReadOneAsync(SensorConfig sensor, SeenSensor seen, DateTimeOffset? historySince,
+        CancellationToken cancellationToken)
     {
         var peripheral = seen.Peripheral;
         var signal = seen.Signal.Average;
         try
         {
+            if (sensor.Model == SensorModel.FlowerCare)
+            {
+                await peripheral.ConnectAsync(new ConnectionConfig(false), cancellationToken, ConnectTimeout);
+                var connected = DateTimeOffset.UtcNow;
+                using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                deadline.CancelAfter(SessionDeadline);
+                var flowerCare = await new FlowerCareSession(new ShinyGattClient(peripheral), TimeProvider.System)
+                    .ReadAsync(historySince, FlowerCareOutcome.HistoryOptions, deadline.Token);
+                return FlowerCareOutcome.From(sensor, flowerCare, connected, signal);
+            }
             var profile = SoilSensorProfiles.ForProduct(sensor.Tuya.ProductId)
                 ?? throw new InvalidOperationException($"Brak profilu odczytu dla produktu „{sensor.Tuya.ProductId ?? "?"}”.");
             await peripheral.ConnectAsync(new ConnectionConfig(false), cancellationToken, ConnectTimeout);
@@ -76,10 +89,12 @@ internal sealed class ShinySensorRadio(BleHost ble) : ISensorRadio<SeenSensor>, 
                 sessionDeadline: SessionDeadline, quietTimeout: QuietTimeout);
             var result = await session.ReadAsync(cancellationToken);
             var mapped = SoilSensorProfiles.MapSession(profile, result.DataPoints, connectedAt, result.Truncated);
+            var earlier = mapped.Earlier.Select(SensorReading.From).ToArray();
             return mapped is { Current: null, Earlier.Count: > 0 }
                 ? new(sensor, null, SensorReadFailure.Incomplete, "sesja urwana w trakcie historii czujnika")
-                    { Earlier = mapped.Earlier, SignalDbm = signal, Notes = result.Notes }
-                : new(sensor, mapped.Current, SensorReadFailure.None) { Earlier = mapped.Earlier, SignalDbm = signal, Notes = result.Notes };
+                    { Earlier = earlier, SignalDbm = signal, Notes = result.Notes }
+                : new(sensor, mapped.Current is { } current ? SensorReading.From(current) : null, SensorReadFailure.None)
+                    { Earlier = earlier, SignalDbm = signal, Notes = result.Notes };
         }
         catch (TuyaUnboundException)
         {

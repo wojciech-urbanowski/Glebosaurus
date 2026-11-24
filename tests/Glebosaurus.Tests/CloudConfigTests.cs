@@ -82,6 +82,27 @@ public sealed class CloudConfigTests : IDisposable
         Assert.All(mapped.Warnings, w => Assert.DoesNotContain(Key, w));
     }
 
+    [Fact]
+    public void Map_FlowerCareNeedsOnlyItsMac_AndUnknownModelsAreSkipped()
+    {
+        var cloud = Config(sensors:
+        [
+            Sensor("cisy", "DC:23:51:CC:03:C9", Tuya("DC:23:51:CC:03:C9")) with { Model = SensorModels.Tuya },
+            Sensor("fikus", "5c:85:7e:14:78:3c", null) with { Model = SensorModels.FlowerCare },
+            Sensor("zly-mac", "5C:85:7E", null) with { Model = SensorModels.FlowerCare },
+            Sensor("z-przyszlosci", "5C:85:7E:00:00:01", null) with { Model = "czujnik_2030" }
+        ]);
+
+        var mapped = CloudConfigMapper.Map(cloud, Local());
+
+        Assert.Equal(["cisy", "fikus"], mapped.Config.Sensors.Select(s => s.Id));
+        var fikus = mapped.Config.Sensors[1];
+        Assert.Equal((SensorModel.FlowerCare, "5C:85:7E:14:78:3C", "5C:85:7E:14:78:3C", 30), (fikus.Model, fikus.Mac, fikus.Address, fikus.WateringBelowPercent));
+        Assert.Equal((SensorModel.Tuya, "DC:23:51:CC:03:C9"), (mapped.Config.Sensors[0].Model, mapped.Config.Sensors[0].Address));
+        Assert.Equal(2, mapped.Warnings.Count);
+        Assert.Contains(mapped.Warnings, w => w.Contains("zaktualizuj agenta"));
+    }
+
     /// <summary>Kody czujników do raportu liczone ze wszystkich czujników w chmurze – także wyłączonych i pominiętych – jak na stronie.</summary>
     [Fact]
     public void Map_SensorCodesCoverEverySensor_IncludingSkippedOnes()

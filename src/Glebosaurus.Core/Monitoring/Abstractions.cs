@@ -1,6 +1,5 @@
 using Glebosaurus.Core.Config;
 using Glebosaurus.Core.Domain;
-using Glebosaurus.Tuya;
 
 namespace Glebosaurus.Core.Monitoring;
 
@@ -25,13 +24,14 @@ public enum SensorReadFailure
 }
 
 /// <param name="Reading">Najnowszy pomiar – to jest „stan teraz”. null przy błędzie.</param>
-public sealed record SensorReadOutcome(SensorConfig Sensor, SoilReading? Reading, SensorReadFailure Failure, string? Error = null)
+public sealed record SensorReadOutcome(SensorConfig Sensor, SensorReading? Reading, SensorReadFailure Failure, string? Error = null)
 {
     /// <summary>
-    /// Zaległe pomiary, które czujnik zgromadził od ostatniego połączenia (od najstarszego), bez <see cref="Reading"/>.
-    /// Czujnik kasuje je po odebraniu, więc trzeba je zapisać od razu.
+    /// Zaległe pomiary z pamięci czujnika (od najstarszego), bez <see cref="Reading"/>: czujnik Tuya oddaje wszystko od
+    /// ostatniego połączenia i kasuje to po odebraniu, a Flower Care – rekordy nowsze niż ostatni znany odczyt
+    /// (<see cref="ISensorReader.ReadAsync"/>). Trzeba je zapisać od razu.
     /// </summary>
-    public IReadOnlyList<SoilReading> Earlier { get; init; } = [];
+    public IReadOnlyList<SensorReading> Earlier { get; init; } = [];
 
     /// <summary>
     /// Moc sygnału (RSSI, dBm) z reklam zebranych, zanim czujnik został znaleziony – zwykle z jednego–dwóch pakietów, bo
@@ -47,7 +47,10 @@ public sealed record SensorReadOutcome(SensorConfig Sensor, SoilReading? Reading
 public interface ISensorReader
 {
     /// <summary>Zwraca po jednym wyniku dla każdego z <paramref name="sensors"/>, w miarę jak są gotowe.</summary>
-    IAsyncEnumerable<SensorReadOutcome> ReadAsync(IReadOnlyList<SensorConfig> sensors, TimeSpan scanWindow, CancellationToken cancellationToken);
+    /// <param name="historySince">Czas ostatniego znanego odczytu czujnika (id → czas): czujnik, który nie kasuje historii
+    /// (Flower Care), oddaje tylko nowsze rekordy. Brak wpisu – czujnik bez odczytów.</param>
+    IAsyncEnumerable<SensorReadOutcome> ReadAsync(IReadOnlyList<SensorConfig> sensors, TimeSpan scanWindow,
+        IReadOnlyDictionary<string, DateTimeOffset> historySince, CancellationToken cancellationToken);
 }
 
 /// <param name="Rssi">Średnia z ważnych próbek (dBm); null – czujnik był słyszany, ale platforma nie podała mocy.</param>

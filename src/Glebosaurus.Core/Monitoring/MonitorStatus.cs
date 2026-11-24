@@ -29,7 +29,16 @@ public sealed record MonitorSummary(
 
 public sealed record ReadingStatus(DateTimeOffset At, int? MoisturePercent, decimal? SoilTemperatureCelsius, int? BatteryPercent, int? BatteryState)
 {
-    public static ReadingStatus From(StoredReading r) => new(r.At, r.MoisturePercent, r.SoilTemperatureCelsius, r.BatteryPercent, r.BatteryState);
+    /// <summary>Światło w luksach (Flower Care).</summary>
+    public int? LightLux { get; init; }
+
+    /// <summary>Przewodność gleby – żyzność – w µS/cm (Flower Care).</summary>
+    public int? ConductivityMicroSiemens { get; init; }
+
+    public static ReadingStatus From(StoredReading r) => new(r.At, r.MoisturePercent, r.SoilTemperatureCelsius, r.BatteryPercent, r.BatteryState)
+    {
+        LightLux = r.LightLux, ConductivityMicroSiemens = r.ConductivityMicroSiemens
+    };
 }
 
 /// <param name="MoistureTone">Kolor wilgotności względem progów, jak w mailach: red (poniżej progu podlania), amber (strefa histerezy), green.</param>
@@ -47,6 +56,9 @@ public sealed record SensorStatus(
     bool ReadRequested, DateTimeOffset? ReadOnRequestFrom)
 {
     // Kto ma dzierżawę czujnika i kto poza tym agentem słyszy go najlepiej (uzupełnia CloudPanel).
+
+    /// <summary>Rodzaj czujnika jak w chmurze: <c>tuya</c> albo <c>flower_care</c>.</summary>
+    public string Model { get; init; } = SensorModels.Tuya;
 
     /// <summary>Agent z dzierżawą (tylko on czyta czujnik); null – nikt.</summary>
     public string? Holder { get; init; }
@@ -115,7 +127,7 @@ public static class MonitorStatusBuilder
                 ? attempt + ReadOnRequestCooldown : null;
 
             sensors.Add(new(
-                sensor.Id, sensor.Name, sensor.Tuya.Mac, sensor.Tuya.ProductId,
+                sensor.Id, sensor.Name, sensor.Address, sensor.Model == SensorModel.Tuya ? sensor.Tuya.ProductId : null,
                 interval.TotalMinutes, sensor.WateringBelowPercent, sensor.WateringClearAbovePercent, sensor.ConsecutiveReadings,
                 sensor.LowBatteryPercent, sensor.SilentAfterHours,
                 latest is null ? null : ReadingStatus.From(latest),
@@ -125,7 +137,10 @@ public static class MonitorStatusBuilder
                 runtime.LastAttemptAt, ResultCode(runtime.LastResult), ResultText(runtime.LastResult, runtime.LastError),
                 runtime.Failures, runtime.RetryAt, runtime.LastSignalDbm, runtime.LastSignalAt,
                 open.Where(a => a.SensorId == sensor.Id).Select(a => MailTemplates.KindText(a.Kind)).ToList(),
-                requested, onRequestFrom));
+                requested, onRequestFrom)
+            {
+                Model = sensor.Model == SensorModel.FlowerCare ? SensorModels.FlowerCare : SensorModels.Tuya
+            });
         }
 
         var alerts = open

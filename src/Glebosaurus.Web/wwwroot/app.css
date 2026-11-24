@@ -135,6 +135,8 @@ button:disabled { opacity: 0.6; cursor: default; }
 /* Wykres (charts.js): serie w kolorach z walidowanej palety (niebieski i pomarańczowy rozróżnialne także przy
    zaburzeniach widzenia barw); tekst zawsze w kolorach tekstu – serię rozpoznaje kreska obok. */
 :root { --moisture: #2a78d6; --temperature: #eb6834; --grid: #ebeae5; }
+/* Światło i żyzność (Flower Care) na osobnym wykresie: bursztyn i fiolet – rozróżnialne także przy zaburzeniach widzenia barw. */
+:root { --light: #c98a00; --conductivity: #8257c9; }
 .chart { margin-top: 10px; min-width: 0; }
 .chart-legend { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
 .legend-item { white-space: nowrap; }
@@ -142,6 +144,8 @@ button:disabled { opacity: 0.6; cursor: default; }
 .key.moisture { border-color: var(--moisture); }
 .key.temperature { border-color: var(--temperature); opacity: 0.5; }
 .key.threshold { border-top: 1px solid var(--red-mid); }
+.key.light { border-color: var(--light); }
+.key.conductivity { border-color: var(--conductivity); }
 .plot { position: relative; touch-action: pan-y; -webkit-user-select: none; user-select: none; }
 .plot:focus { outline: none; }
 .plot:focus-visible { outline: 2px solid var(--green-ink); outline-offset: 2px; }
@@ -161,6 +165,12 @@ button:disabled { opacity: 0.6; cursor: default; }
 .chart svg .band.temperature { fill: var(--temperature); fill-opacity: 0.35; }
 .chart svg .point.moisture, .chart svg .dot.moisture { fill: var(--moisture); }
 .chart svg .point.temperature, .chart svg .dot.temperature { fill: var(--temperature); fill-opacity: 0.5; }
+.chart svg .light.line, .chart svg .key-line.light { stroke: var(--light); }
+.chart svg .conductivity.line, .chart svg .key-line.conductivity { stroke: var(--conductivity); }
+.chart svg .band.light { fill: var(--light); fill-opacity: 0.15; }
+.chart svg .band.conductivity { fill: var(--conductivity); fill-opacity: 0.15; }
+.chart svg .point.light, .chart svg .dot.light { fill: var(--light); }
+.chart svg .point.conductivity, .chart svg .dot.conductivity { fill: var(--conductivity); }
 .chart svg .dot { stroke: var(--card); stroke-width: 2; }
 .chart svg .threshold { stroke: var(--red-mid); stroke-width: 1; shape-rendering: crispEdges; }
 .chart svg .crosshair { stroke: var(--muted); stroke-width: 1; }

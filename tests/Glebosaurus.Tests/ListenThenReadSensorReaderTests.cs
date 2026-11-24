@@ -54,7 +54,7 @@ public class ListenThenReadSensorReaderTests
             return Task.FromResult(found);
         }
 
-        public Task<SensorReadOutcome> ReadAsync(SensorConfig sensor, string found, CancellationToken cancellationToken)
+        public Task<SensorReadOutcome> ReadAsync(SensorConfig sensor, string found, DateTimeOffset? historySince, CancellationToken cancellationToken)
         {
             events.Add($"odczyt {sensor.Id}");
             clock.Advance(ReadTime);
@@ -74,7 +74,7 @@ public class ListenThenReadSensorReaderTests
         setup?.Invoke(radio);
         var outcomes = new List<SensorReadOutcome>();
         var reader = new ListenThenReadSensorReader<string>(radio, clock, logger, listenRetryPause: TimeSpan.Zero);
-        await foreach (var outcome in reader.ReadAsync(sensors, Window, TestContext.Current.CancellationToken))
+        await foreach (var outcome in reader.ReadAsync(sensors, Window, new Dictionary<string, DateTimeOffset>(), TestContext.Current.CancellationToken))
         {
             events.Add($"wynik {outcome.Sensor.Id}: {outcome.Failure}");
             outcomes.Add(outcome);
@@ -191,7 +191,7 @@ public class ListenThenReadSensorReaderTests
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
         {
-            await foreach (var _ in reader.ReadAsync([A], Window, stop.Token)) { }
+            await foreach (var _ in reader.ReadAsync([A], Window, new Dictionary<string, DateTimeOffset>(), stop.Token)) { }
         });
         Assert.Single(radio.Limits);
     }

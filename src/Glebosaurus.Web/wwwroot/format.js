@@ -73,6 +73,18 @@ export const percent = (value) => (value === null || value === undefined ? '–'
 export const celsius = (value) => (value === null || value === undefined ? '–' : `${num1.format(value)} °C`);
 export const dbm = (value) => `${value} dBm`.replace('-', '−');
 
+const int0 = new Intl.NumberFormat('pl-PL', { maximumFractionDigits: 0 });
+/** Światło (Flower Care), np. „82 386 lx”. */
+export const lux = (value) => (value === null || value === undefined ? '–' : `${int0.format(value)} lx`);
+/** Żyzność – przewodność gleby (Flower Care), np. „1 607 µS/cm”. */
+export const microSiemens = (value) => (value === null || value === undefined ? '–' : `${int0.format(value)} µS/cm`);
+/** Liczba całkowita z odstępami tysięcy (wartość w karcie, jednostka w etykiecie). */
+export const whole = (value) => (value === null || value === undefined ? '–' : int0.format(value));
+/** Czujnik Xiaomi Flower Care (model z chmury albo z panelu). */
+export const isFlowerCare = (sensor) => Boolean(sensor) && sensor.model === 'flower_care';
+/** Temperatura czujnika: Tuya mierzy ją w glebie, Flower Care – w główce nad ziemią. */
+export const temperatureLabel = (sensor) => (isFlowerCare(sensor) ? 'Temp. powietrza' : 'Temp. gleby');
+
 export function plural(n, one, few, many) {
   if (n === 1) return one;
   const lastTwo = n % 100;
