@@ -729,6 +729,8 @@ dane surowe: HISTORIA.md):
   światło, wilgotność, przewodność), 0x1A12 zegar czujnika (sekundy od startu). Kasowania historii (`A2 00 00`) nie używamy.
 - **Połączenie** ok. 1,5 s, cały odczyt bez historii ok. 6 s (Windows); bez parowania i bez szyfrowania.
 - **Temperatura** – czujnik w główce nad ziemią: temperatura powietrza przy roślinie, nie gleby (etykiety „Temp. powietrza”).
+- **Historia:** pierwszy rekord powstaje dokładnie godzinę po włożeniu baterii (czas 3600 s), potem co godzinę; układ
+  rekordu sprawdzony (światło na 4 bajtach, 7–10; bajt 6 = 03 jak bajt 2 pomiaru bieżącego).
 - **Niesprawdzone:** kolejność rekordów w pamięci i jej pojemność (sesja rozstrzyga kierunek po zegarze), zachowanie po
   zapełnieniu pamięci, odczyt na Androidzie i na Linuksie, trwałość baterii przy odczycie co 2 h.
 

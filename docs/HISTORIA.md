@@ -489,6 +489,13 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   sprawdzone parserem Acornima); w mailach – wiersz „Światło, lx · Żyzność, µS/cm” pod paskiem i „Temp. powietrza”
   (`mail-preview` obejrzany w 375 px; **wygląd zaakceptowany przez użytkownika** tego samego wieczoru). Prawdziwy projekt bez
   migracji, bez wydania.
+  **Pierwszy rekord historii** (22:42, `read --mac --verbose`; czujnik już w ziemi – wilgotność 13%, przewodność 72 µS/cm,
+  −75 dBm): zegar 3750 s, 1 rekord o czasie **3600 s** – czujnik zapisuje pierwszy rekord dokładnie godzinę po włożeniu
+  baterii; surowo `100E0000 0501 03 96000000 03 1100 0000` = 26,1 °C, bajt 6 = 03 (jak bajt 2 pomiaru bieżącego), światło
+  uint32 LE na bajtach 7–10 (150 lx), wilgotność 3%, przewodność 17 µS/cm – układ zgodny z sesją. Odczyt drogą agenta
+  (5,3 s) oddał go jako historię z czasem 22:39:59 (zrzut tuż przed nim: 22:40:01 – czas liczony w każdej sesji od nowa
+  różni się o sekundy, stąd granica historii z ostatniego znanego odczytu). Odpowiedź z liczbą rekordów: bajty 2–3
+  zmieniły się z 0000 na 0680 (znaczenie nieznane). Kolejność rekordów – przy drugim rekordzie (ok. 23:40).
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 
