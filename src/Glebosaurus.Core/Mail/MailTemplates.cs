@@ -37,7 +37,7 @@ public static partial class MailTemplates
             text.AppendLine();
             text.AppendLine($"{notice.Sensor.Name} – {KindText(notice.Alert.Kind)}{(notice.IsReminder ? " (przypomnienie)" : "")}");
             text.AppendLine($"  {notice.Alert.Detail}");
-            AppendReadingText(text, notice.Latest, now);
+            AppendReadingText(text, notice.Sensor, notice.Latest, now);
 
             var tone = AlertTone(notice.Alert.Kind);
             var badges = new List<(string Text, Tone Tone)> { (KindText(notice.Alert.Kind), tone) };
@@ -138,7 +138,7 @@ public static partial class MailTemplates
             var (labels, accent) = Status(snapshot, now, zone);
             text.AppendLine();
             text.AppendLine($"{snapshot.Sensor.Name} – {string.Join(", ", labels.Select(l => l.Text))}");
-            AppendReadingText(text, snapshot.Latest, now);
+            AppendReadingText(text, snapshot.Sensor, snapshot.Latest, now);
             if (snapshot.History.Count > 0 && MailChart.TextLine(snapshot.History, now, zone) is { } spark) text.AppendLine(spark);
             rows.Append(SensorCard(snapshot.Sensor, snapshot.Latest, AgeLine(snapshot.Latest, now), accent, labels, null,
                 charts.GetValueOrDefault(snapshot)));
@@ -229,8 +229,11 @@ public static partial class MailTemplates
     private static string AgeLine(StoredReading? reading, DateTimeOffset now) =>
         reading is null ? "Brak odczytu" : $"Odczyt: {Age(now, reading.At)}";
 
-    /// <summary>Dwa krótkie wiersze (mieszczą się na wąskim ekranie bez zawijania): wartości i wiek odczytu.</summary>
-    private static void AppendReadingText(StringBuilder text, StoredReading? reading, DateTimeOffset now)
+    /// <summary>
+    /// Dwa krótkie wiersze (mieszczą się na wąskim ekranie bez zawijania): wartości i wiek odczytu; czujnik Flower Care –
+    /// trzeci ze światłem i żyznością.
+    /// </summary>
+    private static void AppendReadingText(StringBuilder text, SensorConfig sensor, StoredReading? reading, DateTimeOffset now)
     {
         if (reading is null)
         {
@@ -239,5 +242,7 @@ public static partial class MailTemplates
         }
         text.AppendLine($"  wilgotność {Percent(reading.MoisturePercent)}, temp. {Temperature(reading.SoilTemperatureCelsius)}");
         text.AppendLine($"  bateria {Percent(reading.BatteryPercent)}, odczyt {Age(now, reading.At)}");
+        if (sensor.Model == SensorModel.FlowerCare)
+            text.AppendLine($"  światło {MailText.Whole(reading.LightLux)} lx, żyzność {MailText.Whole(reading.ConductivityMicroSiemens)} µS/cm");
     }
 }

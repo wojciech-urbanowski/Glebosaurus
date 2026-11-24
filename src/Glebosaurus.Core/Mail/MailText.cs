@@ -10,6 +10,21 @@ internal static class MailText
     public static string Temperature(decimal? value) =>
         value is { } v ? v.ToString("0.0", CultureInfo.InvariantCulture).Replace('.', ',') + " °C" : "–";
 
+    /// <summary>Liczba całkowita z niełamliwą spacją co trzy cyfry od 10 000 (jak po polsku): „82 386”, „1607”; brak – „–”.
+    /// Agent działa z InvariantGlobalization, więc bez kultury pl-PL.</summary>
+    public static string Whole(int? value)
+    {
+        if (value is not { } v) return "–";
+        var digits = Math.Abs(v).ToString(CultureInfo.InvariantCulture);
+        if (digits.Length > 4)
+            for (var i = digits.Length - 3; i > 0; i -= 3) digits = digits.Insert(i, " ");
+        return v < 0 ? "-" + digits : digits;
+    }
+
+    /// <summary>Temperatura czujnika: Tuya mierzy ją w glebie, Flower Care – w główce nad ziemią (powietrze przy roślinie).</summary>
+    public static string TemperatureLabel(Glebosaurus.Core.Config.SensorConfig sensor) =>
+        sensor.Model == Glebosaurus.Core.Config.SensorModel.FlowerCare ? "Temp. powietrza" : "Temp. gleby";
+
     /// <summary>„3 min temu” – przy braku odczytu „brak”.</summary>
     public static string Age(DateTimeOffset now, DateTimeOffset at)
     {

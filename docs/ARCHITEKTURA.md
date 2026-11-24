@@ -4,15 +4,16 @@ Jak zbudowany jest Glebosaurus i dlaczego tak. Użycie: [README](../README.md); 
 dziennik prób na sprzęcie i decyzji z datami: [HISTORIA.md](HISTORIA.md).
 
 Cel: bezobsługowa aplikacja .NET 10 (Windows 11, Raspberry Pi OS 64-bit, Android), która po cichu zbiera dane z kilkunastu
-czujników gleby Tuya BLE (wilgotność, temperatura gleby, bateria), zapisuje je w chmurze, wysyła alerty o podlewaniu i
+czujników gleby Tuya BLE (wilgotność, temperatura gleby, bateria) i Xiaomi Flower Care (do tego światło i żyzność),
+zapisuje je w chmurze, wysyła alerty o podlewaniu i
 raporty o stałych porach mailem (Gmail), a stan pokazuje w przeglądarce – za darmo (darmowy plan Supabase, bez własnego
 serwera).
 
 ## Komponenty
 
 ```
- Czujniki Tuya BLE (np. ATLO SMS1)
-        │ BLE: GATT 0x1910 (notify 0x2B10, write 0x2B11), AES, klucz lokalny
+ Czujniki Tuya BLE (np. ATLO SMS1)                Xiaomi Flower Care (HHCCJCY01)
+        │ BLE: GATT 0x1910 (notify 0x2B10, write 0x2B11), AES, klucz lokalny · Flower Care: odczyt 0x1204/0x1206, bez klucza
         │ łączy się tylko agent z dzierżawą czujnika; słuchać mogą wszyscy
  ┌──────┴────────────┐ ┌───────────────────┐ ┌──────────────────────┐
  │ Windows 11        │ │ Android           │ │ Raspberry Pi 24/7    │  agenci .NET 10, bufor SQLite,
@@ -40,6 +41,7 @@ administratora (hasło bazy).
 
 ```
 src/Glebosaurus.Tuya        protokół Tuya BLE 3.x, poświadczenia, profile czujników, sesja, reguły parowania (bez zależności od BLE)
+src/Glebosaurus.FlowerCare  protokół Xiaomi Flower Care: charakterystyki, sesja z historią, reklamy MiBeacon (bez zależności od BLE)
 src/Glebosaurus.Core        konfiguracja, alerty, harmonogram raportów, szablony maili, dane do wykresów, części agenta
                             (Core/Cloud: protokół, synchronizacja, zbieracz, nadawca, panel), aktualizacje i hosting (logika z testami)
 src/Glebosaurus.Data        lokalna baza SQLite (bufor odczytów, kopia odczytów innych agentów)
@@ -62,7 +64,8 @@ deploy/                     install-windows.ps1, package-windows.ps1 (Windows); 
                             pages.yml (tag v* i ręcznie → web/ na GitHub Pages)
 ```
 
-Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLink` (BLE dla protokołu), `ISensorRadio` /
+Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLink` (BLE dla protokołu Tuya), `IGattClient`
+(odczyt i zapis charakterystyk – Flower Care), `ISensorRadio` /
 `ISensorReader` / `ISensorListener` (radio), `IMonitorStore` + `IReadingOutbox` + `IReadingMirrorStore` (SQLite),
 `ICloudApi` (chmura), `IMailGateway` (poczta), `ILogArchive` (dziennik), a czas zawsze przez `TimeProvider`.
 
@@ -167,8 +170,13 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
    polecenie; zapisany klucz parowania znika, gdy czujnik o tym id powstaje, znika albo dostaje nowy MAC (wyzwalacz), a
    właściciel może go porzucić (`owner_pair_forget` – pod tym id ma być inny czujnik). Na razie tylko
    agent na Windows; inny agent odpowiada na `pair` od razu odmową (`CollectorEngine.NoPairingError`).
+   **Czujnik Xiaomi Flower Care** nie ma parowania ani klucza: w chmurze jest tylko jego adres MAC (`sensors.model =
+   'flower_care'`, nic w Vault), właściciel dodaje go na stronie po adresie z `scan` (`owner_sensor_add_flower_care`), a
+   nowy egzemplarz przy tej samej roślinie dostaje „Nowy adres MAC” (`owner_sensor_mac`). Klucz Tuya i parowanie zdalne
+   dla takiego id baza odrzuca (`require_unique_device`, `owner_pair_start`).
 6. **Warstwa BLE: Shiny.BluetoothLE (+ `.Linux`, BlueZ)** za własnym wąskim interfejsem (`IGattLink`); protokół Tuya jest
-   czysto zarządzany (`Glebosaurus.Tuya`) i nie zna biblioteki BLE. Zapasowo: SimpleSharpBLE (licencja BUSL-1.1, tylko
+   czysto zarządzany (`Glebosaurus.Tuya`) i nie zna biblioteki BLE; tak samo protokół Flower Care (`Glebosaurus.FlowerCare`
+   za `IGattClient` – odczyt i zapis z potwierdzeniem). Zapasowo: SimpleSharpBLE (licencja BUSL-1.1, tylko
    użytek niekomercyjny) albo bezpośrednio WinRT + Linux.Bluetooth. Na Androidzie radio jest wprost na API systemu
    (Shiny nie filtruje tam skanu po MAC – zasada 12), za tymi samymi interfejsami.
 7. **Uruchamianie, instalacja i aktualizacje.** Raspberry Pi i inny Linux: usługa systemd (niżej, „Linux”). Windows: zadanie
@@ -253,7 +261,16 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
    `TuyaReadResult.Truncated` mówi, że sesję urwał limit; bez zwykłego raportu stanu (`SoilSensorProfiles.MapSession`)
    nie ma wtedy stanu bieżącego, a rekordy zostają z czasem czujnika. Radio zwraca `SensorReadFailure.Incomplete`;
    zbieracz zapisuje rekordy od razu (czujnik już je skasował), wraca po resztę po 2 min (czujnik odpoczywa po sesji do 3 min) i nie liczy tego jako porażki
-   dzierżawy. Parowanie to osobna, interaktywna komenda (okno czujnika ok. 20 s – skan musi już działać, gdy użytkownik
+   dzierżawy. **Flower Care** (`FlowerCareSession`): bateria i firmware, zapis trybu odczytu `0xA01F` (bez niego czujnik
+   zwraca stały wzór), pomiar bieżący, potem historia – czujnik zapisuje rekord co godzinę i go nie kasujemy (zostaje też dla
+   aplikacji Flower Care), więc sesja czyta pamięć od najnowszego rekordu wstecz tylko do ostatniego znanego odczytu.
+   Granicę daje zbieracz: nowszy z odczytów w lokalnej bazie (własne i kopia odczytów innych agentów) i w chmurze z
+   ostatnich 11 dób – chmurę pyta raz na epokę dzierżawy (`HistorySinceAsync`); bez tego te same godziny wracałyby przy
+   każdym połączeniu, a czas rekordu liczony w każdej sesji od nowa różni się o ułamki sekundy, więc klucz bazy by ich nie
+   odrzucił. Czas rekordu to sekundy od startu czujnika – na zegar rzeczywisty przelicza go zegar czujnika odczytany w tej
+   samej sesji; który koniec pamięci jest najnowszy, rozstrzyga zegar (najnowszy rekord nie jest starszy niż 90 min), a
+   idąc wstecz czas musi maleć – większy oznacza rekord sprzed wymiany baterii i kończy historię. Limit: 240 rekordów (10
+   dób) i 2 min na sesję; starsze rekordy przy dłuższej przerwie nie trafiają do bazy. Parowanie to osobna, interaktywna komenda (okno czujnika ok. 20 s – skan musi już działać, gdy użytkownik
    wkłada baterie); przy kilku niesparowanych kandydatach wymaga `--mac`.
 9. **Alerty i raporty.** Liczy je nadawca z odczytów wszystkich agentów (`AlertEvaluator`): progi per czujnik z
    histerezą i kilkoma kolejnymi odczytami („czas podlać”), niska bateria (DP15 – docelowo trend albo DP14), „brak
@@ -265,7 +282,8 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
    strefie z konfiguracji chmury), nadrabiane do `catchUpHours`. Wysyłka: Gmail SMTP (MailKit, smtp.gmail.com:465, hasło
    aplikacji). Odbiorcy alertów i raportów to osobne listy; adresy są walidowane, przycinane i pozbawiane powtórzeń.
    **Maile są projektowane pod telefon:** HTML to jedna kolumna do 480 px (karta na czujnik, trzy duże liczby: wilgotność,
-   temperatura, bateria, pasek wilgotności względem progów), style wyłącznie inline, bez sztywnych szerokości. Elementy
+   temperatura, bateria, pasek wilgotności względem progów; czujnik Flower Care pod paskiem także „Światło, lx” i „Żyzność,
+   µS/cm”, a temperatura jako „Temp. powietrza” – od 0.4.0), style wyłącznie inline, bez sztywnych szerokości. Elementy
    kwadratowe (żadnych zaokrągleń), pastelowe kolory, ciemny tekst (kontrast ≥ 5:1), nigdy biały tekst na nasyconym tle;
    paleta to `Tone` w `MailLayout.cs`, a testy pilnują braku `border-radius` i `color:#fff`; wersja tekstowa ma wiersze
    ≤ 40 znaków. Tytuł zaczyna się od tego, co ważne („Monstera – czas podlać”, „Poranny raport – do podlania: Monstera,
@@ -400,7 +418,9 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
     `report_now` do obecnego nadawcy. Ten sam czujnik i raport najwyżej raz na minutę; zlecony odczyt „czeka” w panelu,
     dopóki nie przyjdzie nowszy odczyt, najwyżej 6 min (odczyt innego agenta dochodzi przez jego synchronizację i kopię
     odczytów). **Strony:** statyczny HTML + JS wbudowany w bibliotekę, dane z
-    JSON API, wstawiane wyłącznie jako tekst. Pulpit (`/`) ma przy każdym czujniku wykres ostatnich 72 h; strona czujnika
+    JSON API, wstawiane wyłącznie jako tekst. Czujnik Flower Care ma w karcie także światło i żyzność, a na stronie czujnika
+    drugi wykres (światło i żyzność – `charts.js` z opisem serii `LIGHT_SERIES`, ten sam w obu stronach, obie osie od zera,
+    to samo okno i te same dane serii co wykres wilgotności). Pulpit (`/`) ma przy każdym czujniku wykres ostatnich 72 h; strona czujnika
     (`/sensor?id=…`) – wszystko o jednym czujniku z przeglądalnym wykresem całej historii. Dane wykresów:
     `GET /api/sensors/{id}/series?from&to&points` → `ReadingSeriesBuilder` (Core): dopóki odczytów jest nie więcej niż
     `points`, zwraca je wprost, inaczej uśrednia w przedziałach z drabinki 30 min … 28 dni (średnia, min, max, liczba) w
@@ -413,6 +433,9 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
     częściami agenta z Core i buforem SQLite (`Glebosaurus.Data`) – protokół nie powstaje drugi raz. Projekt jest poza
     `Glebosaurus.slnx` (wymaga obciążenia `android`, JDK i Android SDK); buduje go `deploy/build-android.ps1`, w CI osobne
     zadanie `android`.
+    - **Flower Care:** `GattConnection` to także `IGattClient` (odczyt i zapis z potwierdzeniem, jedna operacja naraz), usługa
+      Tuya 0x1910 jest potrzebna dopiero sesji Tuya; skan oddaje też dane usługi 0xFE95 (MiBeacon), więc podgląd zasięgu
+      pokazuje czujniki Flower Care.
     - **Radio na API Androida, nie Shiny:** Shiny.BluetoothLE na Androidzie filtruje skan tylko po UUID usług, a skan bez
       filtra system wstrzymuje przy zgaszonym ekranie; Shiny prosi też o uprawnienia przez aktywność, a agent pracuje w
       usłudze od startu telefonu. `AndroidRadio` (`ISensorRadio`, `ISensorListener`) skanuje zawsze z filtrem po MAC
@@ -459,8 +482,9 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
     schematu to nowa migracja):
     - **Schemat `glebosaurus`** (Data API go nie wystawia, RLS na każdej tabeli bez żadnych zasad): `agents` (skrót tokenu,
       `can_send_mail`, `sender_priority`, sygnał życia), `enrollment_codes`, `settings` (jeden wiersz; strefa raportów,
-      `config_version` rośnie przy każdej zmianie ustawień i czujników), `sensors` (progi jak `SensorConfig`; dane Tuya w
-      Vault jako `glebosaurus:sensor:<id>`), `readings` (klucz `(sensor_id, at)`, temperatura w dziesiątych częściach, agent,
+      `config_version` rośnie przy każdej zmianie ustawień i czujników), `sensors` (progi jak `SensorConfig`, `model` –
+      `tuya` albo `flower_care`; dane Tuya w Vault jako `glebosaurus:sensor:<id>`, Flower Care – nic), `readings` (klucz
+      `(sensor_id, at)`, temperatura w dziesiątych częściach, `light_lux` i `conductivity` – tylko Flower Care, agent,
       numer kolejny i chwila przyjęcia), `sightings`, `leases` (wiersz zostaje po oddaniu, więc epoka tylko rośnie),
       `mail_outbox`, `alerts` (jeden otwarty na czujnik i rodzaj), `commands`, `agent_logs`, `environment` (znacznik bazy
       próbnej), `owners` (właściciele strony w chmurze – faza 3) i `schema_migrations`.
@@ -491,7 +515,7 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
       (konto, czas bazy, lista migracji), `owner_dashboard` (czujniki spoza archiwum z ostatnim odczytem i dzierżawcą,
       agenci z sygnałem życia przez `agent_status_view`, nadawca), `owner_config` (cała konfiguracja; sekrety tylko jako
       data ustawienia z `vault.secrets`), zapisy z `config_version` (`owner_settings_update`, `owner_sensor_add|update|
-      credentials|archive|delete`; inna wersja w bazie → PT409 „conflict”, przez Data API HTTP 409; niżej „Środowisko
+      credentials|archive|delete`, od 0.4.0 `owner_sensor_add_flower_care` i `owner_sensor_mac`; inna wersja w bazie → PT409 „conflict”, przez Data API HTTP 409; niżej „Środowisko
       Data API”), `owner_secret_set` (hasło Gmaila, adres
       strażnika; null – usunięcie), `owner_agent_save|code|revoke`, `owner_command` (`read_now`, `report_now`,
       `mail_test`, `send_log`) i `owner_command_status`, `owner_series` (dane wykresu: uśrednianie w bazie jak
@@ -552,7 +576,8 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
       raportów to nazwa IANA – agent działa z `InvariantGlobalization`, więc na Windows zapasowa mapa najczęstszych stref.
       `CloudConfigCache` – ostatnia dobra kopia (z kluczami Tuya) chroniona `ILocalProtector`. `CloudConfigSource` – start
       z chmury, bez niej z kopii, bez obu – czytelny błąd; odświeżanie przy nowej wersji albo zmienionej roli agenta.
-    - **(d) Zbieracz** (`CollectorEngine`): cykl co 60 s, czyta tylko czujniki z dzierżawą starczającą na odczyt; co 4 min
+    - **(d) Zbieracz** (`CollectorEngine`): cykl co 60 s, czyta tylko czujniki z dzierżawą starczającą na odczyt (czujnikom
+      Flower Care podaje granicę historii – zasada 8); co 4 min
       30 s nasłuchu wszystkich czujników (`ISensorListener`) dla przydziału, co godzinę podsumowanie nasłuchu w dzienniku
       (nasłuchy, ilu czujników słychać, pakiety na czujnik – do oceny zmian radia); polecenia `read_now`, `release`, `send_log`;
       dziennik z poprzedniego dnia do chmury. Alertów nie liczy. **Bez radia** (agent z `"bluetooth": false`, np.
@@ -684,6 +709,28 @@ Daty, przebieg prób i dane surowe: [HISTORIA.md](HISTORIA.md).
 Tuya (sesja przyjmie też takie klucze); sesja czeka 3 s ciszy (SDK 1,5 s), limit to 3 min, a po nim oddaje to, co
 przyszło; nieczytelna ramka z punktami danych nie przerywa odczytu i jest potwierdzana (inaczej ten sam rekord mógłby
 wracać na początku każdej sesji).
+
+## Czujnik Xiaomi Flower Care (HHCCJCY01) – fakty
+
+Protokół według opisów z projektów [basnijholt/miflora](https://github.com/basnijholt/miflora) i
+[vrachieru/xiaomi-flower-care-api](https://github.com/vrachieru/xiaomi-flower-care-api) (MIT) oraz wiki
+[ChrisScheffler/miflora](https://github.com/ChrisScheffler/miflora/wiki/The-Basics); implementacja własna (bez
+zapożyczonego kodu). Sprawdzone na sprzęcie 2026-11-24 (Windows, Shiny; egzemplarz HHCCJCY01HHCC, firmware 3.3.6 – daty i
+dane surowe: HISTORIA.md):
+
+- **Reklamy:** nazwa „Flower care”, dane usługi 0xFE95 (MiBeacon) z modelem 0x0098, jawne (bez szyfrowania), po jednym
+  pomiarze w pakiecie (0x1004 temperatura, 0x1007 światło, 0x1008 wilgotność, 0x1009 przewodność) – agent ich nie używa
+  (odczyt przez połączenie daje baterię i historię), `scan` je pokazuje. MAC egzemplarza autora zaczyna się od 5C:85:7E (nie
+  od znanego z opisów C4:7C:8D) – rozpoznanie po modelu w MiBeacon albo po nazwie.
+- **GATT:** usługa 0x1204 – 0x1A00 polecenia (zapis `A0 1F` – tryb odczytu; bez niego 0x1A01 zwraca `AABBCCDDEEFF99887766…`),
+  0x1A01 pomiar (16 B: temperatura int16 LE ×0,1 °C, bajt 2 nieznany, światło uint32 LE lx, wilgotność u8 %, przewodność
+  uint16 LE µS/cm), 0x1A02 bateria % i firmware ASCII („3.3.6”); usługa 0x1206 – 0x1A10 sterowanie historią (`A0 00 00`
+  tryb historii, `A1 lo hi` rekord), 0x1A11 liczba rekordów / rekord (czas uint32 LE w sekundach od startu, temperatura,
+  światło, wilgotność, przewodność), 0x1A12 zegar czujnika (sekundy od startu). Kasowania historii (`A2 00 00`) nie używamy.
+- **Połączenie** ok. 1,5 s, cały odczyt bez historii ok. 6 s (Windows); bez parowania i bez szyfrowania.
+- **Temperatura** – czujnik w główce nad ziemią: temperatura powietrza przy roślinie, nie gleby (etykiety „Temp. powietrza”).
+- **Niesprawdzone:** kolejność rekordów w pamięci i jej pojemność (sesja rozstrzyga kierunek po zegarze), zachowanie po
+  zapełnieniu pamięci, odczyt na Androidzie i na Linuksie, trwałość baterii przy odczycie co 2 h.
 
 ## Ryzyka
 

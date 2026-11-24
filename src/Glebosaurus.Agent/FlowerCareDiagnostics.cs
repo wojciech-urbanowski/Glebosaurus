@@ -1,6 +1,9 @@
 using System.Globalization;
 using Glebosaurus.Agent.Ble;
+using Glebosaurus.Core.Config;
+using Glebosaurus.Core.Domain;
 using Glebosaurus.Core.Hosting;
+using Glebosaurus.Core.Monitoring;
 using Glebosaurus.FlowerCare;
 using Glebosaurus.Tuya;
 using Shiny.BluetoothLE;
@@ -8,9 +11,10 @@ using Shiny.BluetoothLE;
 namespace Glebosaurus.Agent;
 
 /// <summary>
-/// <c>read --mac ADRES</c> dla czujnika Xiaomi Flower Care: jednorazowy odczyt z wypisaniem surowych danych – tabela GATT
-/// (z --verbose), bateria i firmware, pomiar bieżący, zegar czujnika i rekordy historii z początku i końca pamięci.
-/// Historii nie kasuje i niczego w czujniku nie zmienia (poza trybem odczytu, który czujnik przełącza sam przy każdym połączeniu).
+/// <c>read --mac ADRES</c> dla czujnika Xiaomi Flower Care: jednorazowy odczyt tą samą drogą co agent (radio Shiny, sesja
+/// Flower Care, wynik zbieracza) – stan bieżący, bateria i cała historia z pamięci czujnika (do limitu sesji). Z --verbose
+/// najpierw osobne połączenie z surowymi danymi: tabela GATT, bajty baterii i pomiaru, zegar czujnika, rekordy z początku
+/// i końca pamięci. Historii nie kasuje i niczego w czujniku nie zmienia (tryb odczytu czujnik przełącza przy każdym połączeniu).
 /// </summary>
 internal static class FlowerCareDiagnostics
 {
@@ -24,21 +28,77 @@ internal static class FlowerCareDiagnostics
         using var ble = new BleHost();
         await ble.EnsureAccessAsync();
 
-        Console.WriteLine($"Szukam czujnika {BleAddress.Format(wanted)} (do {seconds} s, {BleHost.Backend})...");
-        SeenSensor? target = null;
-        await BleScanner.ScanAsync(ble, TimeSpan.FromSeconds(seconds), sensor =>
+        async Task<SeenSensor?> FindAsync()
         {
-            if (!BleAddress.TryExtract(sensor.Peripheral.Uuid, out var address) || address != wanted) return false;
-            target = sensor;
-            return true;
-        }, cancellationToken);
-        if (target is null)
-        {
-            Console.Error.WriteLine("Nie znaleziono czujnika w reklamach. Zbliż komputer, sprawdź baterię i czy nic innego (telefon z aplikacją Flower Care) nie trzyma połączenia.");
-            return ExitCodes.NotFound;
+            Console.WriteLine($"Szukam czujnika {BleAddress.Format(wanted)} (do {seconds} s, {BleHost.Backend})...");
+            SeenSensor? found = null;
+            await BleScanner.ScanAsync(ble, TimeSpan.FromSeconds(seconds), sensor =>
+            {
+                if (!BleAddress.TryExtract(sensor.Peripheral.Uuid, out var address) || address != wanted) return false;
+                found = sensor;
+                return true;
+            }, cancellationToken);
+            if (found is null)
+                Console.Error.WriteLine("Nie znaleziono czujnika w reklamach. Zbliż komputer, sprawdź baterię i czy nic innego (telefon z aplikacją Flower Care) nie trzyma połączenia.");
+            else Console.WriteLine("Znaleziono: " + found.DescribeFlowerCare(options.Verbose));
+            return found;
         }
-        Console.WriteLine("Znaleziono: " + target.DescribeFlowerCare(options.Verbose));
 
+        if (await FindAsync() is not { } target) return ExitCodes.NotFound;
+        if (options.Verbose)
+        {
+            await RawDumpAsync(target, cancellationToken);
+            Console.WriteLine();
+            // Po rozłączeniu Shiny zwalnia urządzenie – drugie połączenie wymaga świeżego nasłuchu (agent i tak czyta zawsze
+            // urządzenie z bieżącego nasłuchu), a tuż po zrzucie (pełna tabela GATT) połączenie potrafi się urwać po 2 s
+            // (2026-11-24) – stąd przerwa jak między odczytami --repeat.
+            await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+            if (await FindAsync() is not { } again) return ExitCodes.NotFound;
+            target = again;
+        }
+
+        var sensor = new SensorConfig { Id = "read", Name = "czujnik", Model = SensorModel.FlowerCare, Mac = BleAddress.Format(wanted) };
+        var repeat = options.Repeat ?? 1;
+        SensorReadOutcome outcome = null!;
+        for (var attempt = 1; attempt <= repeat; attempt++)
+        {
+            if (attempt > 1)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+                if (await FindAsync() is not { } next) return ExitCodes.NotFound;
+                target = next;
+            }
+            Console.WriteLine($"Odczyt drogą agenta (radio Shiny, sesja Flower Care){(repeat > 1 ? $", {attempt} z {repeat}" : "")}...");
+            outcome = await ReadOnceAsync(sensor, target, cancellationToken);
+        }
+        return outcome.Failure == SensorReadFailure.None ? ExitCodes.Success : ExitCodes.NoData;
+    }
+
+    private static async Task<SensorReadOutcome> ReadOnceAsync(SensorConfig sensor, SeenSensor target, CancellationToken cancellationToken)
+    {
+        var timer = System.Diagnostics.Stopwatch.StartNew();
+        var outcome = await ShinySensorRadio.ReadOneAsync(sensor, target, null, cancellationToken);
+        Console.WriteLine($"Wynik po {timer.Elapsed.TotalSeconds:0.0} s: {outcome.Failure}{(outcome.Error is null ? "" : " – " + outcome.Error)}, sygnał {SignalStats.Format(outcome.SignalDbm)}.");
+        if (outcome.Earlier.Count > 0)
+        {
+            Console.WriteLine($"Historia z pamięci czujnika ({outcome.Earlier.Count}), od najstarszego:");
+            foreach (var earlier in outcome.Earlier) Console.WriteLine("  " + Describe(earlier));
+        }
+        else Console.WriteLine("Historia: brak rekordów (czujnik zapisuje rekord co godzinę od włożenia baterii).");
+        if (outcome.Reading is { } reading) Console.WriteLine("Stan bieżący: " + Describe(reading));
+        foreach (var note in outcome.Notes) Console.WriteLine($"  Uwaga: {note}");
+        return outcome;
+    }
+
+    private static string Describe(SensorReading reading) =>
+        string.Create(CultureInfo.InvariantCulture,
+            $"{reading.At.ToLocalTime():yyyy-MM-dd HH:mm:ss}  wilgotność {reading.MoisturePercent}%, temperatura {reading.TemperatureCelsius} °C, " +
+            $"światło {reading.LightLux} lx, żyzność {reading.ConductivityMicroSiemens} µS/cm{(reading.BatteryPercent is { } battery ? $", bateria {battery}%" : "")}");
+
+    /// <summary>Surowe dane z osobnego połączenia (--verbose) – do sprawdzenia protokołu na nowym firmware.</summary>
+    private static async Task RawDumpAsync(SeenSensor target, CancellationToken cancellationToken)
+    {
+        var verbose = true;
         var peripheral = target.Peripheral;
         var started = DateTimeOffset.Now;
         try
@@ -49,7 +109,7 @@ internal static class FlowerCareDiagnostics
             // Mapa charakterystyka → usługa z tabeli GATT: źródła nie są zgodne, w której usłudze jest historia.
             var characteristics = await peripheral.GetAllCharacteristicsAsync(cancellationToken, TimeSpan.FromSeconds(20));
             var services = characteristics.GroupBy(c => c.Uuid.ToLowerInvariant()).ToDictionary(g => g.Key, g => g.First().Service.Uuid.ToLowerInvariant());
-            if (options.Verbose)
+            if (verbose)
             {
                 Console.WriteLine("Tabela GATT:");
                 foreach (var service in characteristics.GroupBy(c => c.Service.Uuid))
@@ -101,7 +161,6 @@ internal static class FlowerCareDiagnostics
             if (indexes.Count > 0)
                 Console.WriteLine($"Rekordy: {indexes.Count} w {(DateTimeOffset.Now - historyStarted).TotalSeconds:0.0} s.");
             Console.WriteLine($"Sesja: {(DateTimeOffset.Now - started).TotalSeconds:0.0} s od początku łączenia. Historii nie skasowano.");
-            return ExitCodes.Success;
         }
         finally
         {

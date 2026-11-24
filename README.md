@@ -1,9 +1,10 @@
 # Glebosaurus
 
-Bezobsługowy monitor czujników gleby Tuya BLE (ATLO SMS1 i zgodne): agenci na Windows 11, Androidzie i Raspberry Pi
-czytają czujniki przez Bluetooth, odczyty trafiają do chmury Supabase (darmowy plan), a jeden z agentów wysyła mailem
-przez Gmail alerty „czas podlać”, „słaba bateria”, „brak odczytów” i raporty o stałych porach – z wykresem ostatnich 3 dób,
-pisane pod ekran telefonu. Bez konta Tuya (czujniki paruje się lokalnie), bez własnego serwera i bez opłat.
+Bezobsługowy monitor czujników gleby Tuya BLE (ATLO SMS1 i zgodne) i Xiaomi Flower Care (HHCCJCY01 – także światło i
+żyzność gleby): agenci na Windows 11, Androidzie i Raspberry Pi czytają czujniki przez Bluetooth, odczyty trafiają do
+chmury Supabase (darmowy plan), a jeden z agentów wysyła mailem przez Gmail alerty „czas podlać”, „słaba bateria”, „brak
+odczytów” i raporty o stałych porach – z wykresem ostatnich 3 dób, pisane pod ekran telefonu. Bez konta Tuya (czujniki
+Tuya paruje się lokalnie, Flower Care w ogóle nie wymaga parowania), bez własnego serwera i bez opłat.
 
 Dokumenty: [docs/ARCHITEKTURA.md](docs/ARCHITEKTURA.md) – jak to jest zbudowane i dlaczego ·
 [docs/ROADMAP.md](docs/ROADMAP.md) – stan i plan · [docs/HISTORIA.md](docs/HISTORIA.md) – dziennik prób na sprzęcie i
@@ -27,14 +28,16 @@ czujniki BLE ──► agenci (Windows / Android / Raspberry Pi) ──► Supab
 - **Panel WWW** (opcjonalnie, na agencie w sieci domowej): stan wszystkich czujników, wykresy całej historii, odczyt i raport
   na żądanie.
 
-Stan: wersja 0.2.8; agent pracuje na co dzień na Windows 11, Androidzie i Raspberry Pi (nadawca maili bez Bluetooth),
-właściciel ma stronę w chmurze (GitHub Pages, logowanie z TOTP); **niesprawdzone:** czytanie czujników na Raspberry Pi,
-parowanie zdalne przy czujniku, kalibracja wilgotności, dłuższa praca telefonu – szczegóły w [ROADMAP](docs/ROADMAP.md).
+Stan: wersja 0.4.0; agent pracuje na co dzień na Windows 11, Androidzie i Raspberry Pi (nadawca maili bez Bluetooth),
+właściciel ma stronę w chmurze (GitHub Pages, logowanie z TOTP); czujnik Xiaomi Flower Care – od 0.4.0 (odczyt sprawdzony
+na Windows); **niesprawdzone:** czytanie czujników na Raspberry Pi, Flower Care na telefonie i w dłuższej pracy, parowanie
+zdalne przy czujniku, kalibracja wilgotności – szczegóły w [ROADMAP](docs/ROADMAP.md).
 
 ## Czego potrzeba
 
 - **Czujniki gleby Tuya BLE** – sprawdzone na ATLO SMS1 (produkt Tuya `gvygg3m8`, „SGS01”); w kodzie jest też profil
-  `ojzlzzsw` (niesprawdzony).
+  `ojzlzzsw` (niesprawdzony) – i/lub **Xiaomi / HHCC Flower Care** (HHCCJCY01, „Mi Flora”, bateria CR2032): wilgotność,
+  światło, żyzność (przewodność gleby) i temperatura powietrza przy roślinie, bez parowania.
 - **Agent z Bluetooth LE** w zasięgu czujników (zwykle kilka metrów, zależy od ułożenia czujnika): komputer z Windows 11
   albo telefon z Androidem 10+ (Raspberry Pi – później, ROADMAP 2.3b). Kilku agentów pokrywa większy teren.
 - **Nadawca maili** – agent z rolą nadawcy, najlepiej pracujący bez przerwy: komputer z Windows albo Raspberry Pi z
@@ -98,8 +101,9 @@ jeden agent z kopią zapasową – niżej).
 ### 4. Czujniki
 
 Na stronie → Konfiguracja → Czujniki → **„Sparuj czujnik zdalnie”** przez agenta na Windows w zasięgu czujnika albo
-parowanie lokalne poleceniem `pair` i **„Dodaj czujnik z pliku klucza”** (niżej, „Nowy czujnik”). Pierwsze odczyty
-pojawiają się, gdy agent usłyszy czujnik (nasłuch co 4 min), pierwszy raport – o najbliższej porze raportu.
+parowanie lokalne poleceniem `pair` i **„Dodaj czujnik z pliku klucza”** (niżej, „Nowy czujnik”); czujnik Xiaomi Flower
+Care – **„Dodaj czujnik Xiaomi Flower Care”** z samym adresem MAC (niżej). Pierwsze odczyty pojawiają się, gdy agent
+usłyszy czujnik (nasłuch co 4 min), pierwszy raport – o najbliższej porze raportu.
 
 ## Windows: instalacja jako usługa
 
@@ -190,6 +194,30 @@ narzędzi Tuya IoT): zapisz go w pliku JSON jak z `pair` – `{ "mac": "…", "u
 `glebosaurus scan --verbose` (po UUID Tuya z reklamy). Uwaga: nasze odczyty kasują zapisane w czujniku rekordy, więc Smart Life traci od tej
 pory ich historię, a telefon z otwartą aplikacją blokuje odczyt.
 
+## Nowy czujnik: Xiaomi Flower Care
+
+Czujnik Xiaomi / HHCC Flower Care (HHCCJCY01) nie ma parowania ani klucza – agenci rozpoznają go po adresie MAC. Wyjmij
+izolację spod baterii (dioda mrugnie), wbij czujnik w ziemię co najmniej do znaczka na obudowie i odczytaj jego adres
+na komputerze w zasięgu:
+
+```powershell
+glebosaurus scan --seconds 30
+```
+
+Polecenie wypisuje czujniki Flower Care osobno („Xiaomi Flower Care (adres MAC do dodania czujnika na stronie)”); na
+telefonie ten sam adres pokazuje podgląd zasięgu. Potem strona w chmurze → Konfiguracja → Czujniki → **„Dodaj czujnik
+Xiaomi Flower Care (po adresie MAC)”**: adres, id i nazwa. Gdy czujnik się zepsuje, „Nowy adres MAC” przy tej samej
+roślinie zachowuje historię pod tym samym id.
+
+Co mierzy: wilgotność gleby (jej skala różni się od czujników Tuya – próg podlania najlepiej ustawić po kilku dniach
+obserwacji), **światło** w luksach, **żyzność** – przewodność gleby w µS/cm (spada też, gdy gleba wysycha) – i temperaturę
+w główce nad ziemią (temperatura powietrza przy roślinie), a do tego baterię. Czujnik zapisuje rekord co godzinę i trzyma
+historię w pamięci; agent przy każdym połączeniu bierze tylko rekordy nowsze niż ostatni odczyt w bazie (najwyżej 10 dób),
+więc noc z wyłączonym komputerem nie zostawia dziury na wykresie. Historii nie kasuje – zostaje też dla aplikacji Flower
+Care, ale telefon z otwartą aplikacją blokuje odczyt (czujnik przyjmuje jedno połączenie naraz). Połączenie trwa kilka
+sekund. Światło i żyzność widać na pulpicie, w mailach (pod paskiem wilgotności) i na stronie czujnika (osobny wykres);
+alertów dla nich na razie nie ma.
+
 ## Konfiguracja
 
 | Plik | Kto i gdzie | Zawiera | Sekret? |
@@ -232,8 +260,9 @@ glebosaurus web-password --config glebosaurus.config.json  # hasło i certyfikat
 glebosaurus pair --id ID --confirm-bind                 # nowy czujnik lokalnie (skan rusza pierwszy); potem plik klucza na stronę
 glebosaurus mail-preview --out mail-preview             # przykładowe maile (HTML i tekst) do obejrzenia, niczego nie wysyła
 glebosaurus cloud migrate|settings|agent|owner|web-link|backup --admin cloud-admin.json …   # właściciel chmury
-glebosaurus scan --seconds 15 --verbose                 # diagnostyka: urządzenia Tuya w zasięgu, z mocą sygnału
-glebosaurus read --credentials monstera.credentials.json             # diagnostyka: jednorazowy odczyt jednego czujnika
+glebosaurus scan --seconds 15 --verbose                 # diagnostyka: czujniki Tuya i Flower Care w zasięgu, z mocą sygnału
+glebosaurus read --credentials monstera.credentials.json             # diagnostyka: jednorazowy odczyt jednego czujnika Tuya
+glebosaurus read --mac 5C:85:7E:14:78:3C [--verbose]                 # diagnostyka: odczyt czujnika Flower Care z historią
 glebosaurus listen --credentials monstera.credentials.json --out listen.log  # diagnostyka: wszystkie ramki czujnika
 ```
 
@@ -243,7 +272,7 @@ może go czytać, i zamknij Smart Life (czujnik przyjmuje jedno połączenie nar
 
 ## Odczyty, alerty i maile
 
-**Odczyty.** ATLO SMS1 zapisuje pomiar co godzinę i przy każdym połączeniu, a przy połączeniu oddaje całą zaległą serię i ją
+**Odczyty.** (Czujnik Flower Care – wyżej, „Nowy czujnik: Xiaomi Flower Care”.) ATLO SMS1 zapisuje pomiar co godzinę i przy każdym połączeniu, a przy połączeniu oddaje całą zaległą serię i ją
 kasuje. Agent zapisuje te zaległe pomiary z czasem czujnika, a najnowszy traktuje jako stan bieżący – dlatego domyślny
 odstęp odczytów to **2 h 5 min** (`readIntervalMinutes`): wykres i alerty mają dane godzinowe, a bateria – mniej połączeń.
 Agent nasłuchuje reklam BLE i każdy należny czujnik, który się pojawi, czyta od razu (czujnik poza zasięgiem nie opóźnia

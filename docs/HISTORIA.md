@@ -461,6 +461,33 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   `upload-pages-artifact` się udał – chwilowe opóźnienie widoczności artefaktu po stronie GitHuba); `gh run rerun
   --failed` nie pomaga, bo powtarza cały job i tworzy drugi artefakt o tej samej nazwie („Multiple artifacts named
   github-pages”). Wdrożenie przeszło z nowego przebiegu: `gh workflow run pages.yml --ref v0.2.11`.
+- **2026-11-24** – **czujnik Xiaomi Flower Care** (prośba użytkownika: kupiony HHCCJCY01HHCC – skan pudełka i instrukcji,
+  „dodaj jego obsługę i obsługę parametrów poza wilgotnością i temperaturą”, wersja 0.4.0). Plan w 7 etapach z decyzjami
+  (wszystkie zalecane, przyjęte): historia z czujnika **bez kasowania**, tylko nowsza niż ostatni znany odczyt; dla światła
+  i żyzności **na razie bez alertów** (przewodność spada też przy suchej glebie – najpierw dane); adres MAC wpisywany
+  ręcznie (z `scan`), wyszukiwanie ze strony – później; wersja 0.4.0 (pominięte 0.3.0 – zgodnie z prośbą).
+  **Próba na sprzęcie** (bestia5, obok działającej usługi, Shiny/WinRT; czujnik z baterią włożoną o 21:39): `scan` – czujnik
+  „Flower care”, **MAC 5C:85:7E:14:78:3C** (nie C4:7C:8D z opisów), −45…−59 dBm przy komputerze, MiBeacon 0xFE95 z modelem
+  0x0098, **jawny** (kontrola 0x2071), w reklamach po jednym pomiarze (np. `…0D0410022501` = 29,3 °C, `…0D0910020000` =
+  przewodność 0). `read --mac --verbose`: połączenie po 1,4–1,5 s, MTU 20; tabela GATT – usługi 0x1800, 0x1801, 0xFE95,
+  0xFEF5, **0x1204** (0x1A00 R/W, 0x1A01 R/W/N, 0x1A02 R) i **0x1206** (0x1A10 R/W/N, 0x1A11 R, 0x1A12 R) – historia jest w
+  osobnej usłudze (opisy się różniły); 0x1A02 `6439332E332E36` = bateria 100%, firmware 3.3.6; 0x1A01 przed zapisem `A0 1F`
+  = `AABBCCDDEEFF99887766000000000000`, po nim pomiar (`260103AE…` = 29,4 °C, 174 lx, 0%, 0 µS/cm – czujnik w powietrzu przy
+  lampie); zegar 0x1A12 = 80 s od startu, rekordów historii 0 (odpowiedź `00000000BA130800D815080000000000` – bajty 4–11 nieznane,
+  stałe). Odczyt drogą agenta (`ShinySensorRadio`, `FlowerCareSession`, `FlowerCareOutcome`): 6,0 s, potem trzy odczyty w
+  jednym procesie co 10 s (`--repeat 3`) – 4,5, 5,4 i 3,4 s, bez błędu. Połączenie zaraz po surowym zrzucie (pełna tabela
+  GATT) urwało się po 2 s („A task was canceled”), a ten sam obiekt urządzenia po rozłączeniu – „Device is disposed”;
+  diagnostyka słucha teraz od nowa i czeka 10 s (agent zawsze bierze urządzenie z bieżącego nasłuchu).
+  **W kodzie** (etapy 1–5): projekt `Glebosaurus.FlowerCare` (protokół, sesja z historią, MiBeacon; testy na atrapie
+  zachowującej się jak sprzęt), światło i żyzność w odczytach (SQLite – kolumny bez zmiany `user_version`, bo powrót do
+  poprzedniej wersji po nieudanej aktualizacji musi otworzyć bazę), migracja `20261124220000_flower_care` (rodzaj czujnika,
+  kolumny, funkcje agentów i strony, `owner_sensor_add_flower_care`, `owner_sensor_mac`) – na **próbnym** projekcie: testy
+  SQL 147/147 (w tym kontrakt serii ze światłem i żyznością i funkcje strony przez prawdziwe Data API); radio Shiny i
+  Android (APK się buduje, na telefonie niesprawdzone); strona i panel – światło i żyzność w kartach, drugi wykres na stronie
+  czujnika, dodawanie po MAC i nowy adres w edytorze (przeklikane w podglądzie `web-preview.cs` z czujnikiem „Fikus przy
+  oknie” w danych pokazowych; błąd składni w `charts.js` znaleziony w przeglądarce i poprawiony, wszystkie moduły JS
+  sprawdzone parserem Acornima); w mailach – wiersz „Światło, lx · Żyzność, µS/cm” pod paskiem i „Temp. powietrza”
+  (`mail-preview` obejrzany w 375 px). Prawdziwy projekt bez migracji, bez wydania.
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 

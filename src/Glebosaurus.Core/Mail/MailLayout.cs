@@ -109,7 +109,7 @@ internal static class MailLayout
 
     /// <summary>
     /// Karta jednego czujnika: nazwa, plakietki stanu, opcjonalny opis, trzy liczby (wilgotność, temperatura, bateria),
-    /// pasek wilgotności i wiek odczytu.
+    /// pasek wilgotności (czujnik Flower Care pod nim także światło i żyzność) i wiek odczytu.
     /// </summary>
     /// <param name="chart">Gotowy wykres z ostatnich dób (<see cref="MailChart.Html"/>) pod liczbami; null = bez wykresu.</param>
     public static string SensorCard(
@@ -130,10 +130,17 @@ internal static class MailLayout
             var batteryLow = reading.BatteryPercent is { } b && sensor.IsBatteryLow(b);
             html.Append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin-top:10px\"><tr>");
             html.Append(Metric("34%", "Wilgotność", MailText.Percent(reading.MoisturePercent), moistureTone?.Ink ?? TextColor));
-            html.Append(Metric("33%", "Temp. gleby", MailText.Temperature(reading.SoilTemperatureCelsius), TextColor));
+            html.Append(Metric("33%", MailText.TemperatureLabel(sensor), MailText.Temperature(reading.SoilTemperatureCelsius), TextColor));
             html.Append(Metric("33%", "Bateria", MailText.Percent(reading.BatteryPercent), batteryLow ? Amber.Ink : TextColor));
             html.Append("</tr></table>");
             if (reading.MoisturePercent is { } level && moistureTone is not null) html.Append(Bar(level, moistureTone));
+            if (sensor.Model == SensorModel.FlowerCare)
+            {
+                html.Append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin-top:8px\"><tr>");
+                html.Append(Metric("34%", "Światło, lx", MailText.Whole(reading.LightLux), TextColor));
+                html.Append(Metric("66%", "Żyzność, µS/cm", MailText.Whole(reading.ConductivityMicroSiemens), TextColor));
+                html.Append("</tr></table>");
+            }
         }
         if (chart is not null) html.Append(chart);
 

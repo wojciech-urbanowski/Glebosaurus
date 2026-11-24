@@ -128,6 +128,35 @@ public class MailTemplatesTests
     }
 
     [Fact]
+    public void FlowerCareCard_ShowsLightAndFertility_AndAirTemperature_TuyaCardDoesNot()
+    {
+        var flowerCare = Fixtures.FlowerCare("fikus", "Fikus");
+        var reading = new StoredReading("fikus", Now.AddMinutes(-3), 41, 21.4m, 99, null) { LightLux = 82_386, ConductivityMicroSiemens = 1607 };
+        var message = Report(new SensorSnapshot(flowerCare, reading, []), Snapshot("Monstera", 50));
+
+        Assert.Contains("Światło, lx", message.HtmlBody);
+        Assert.Contains("82 386", message.HtmlBody);
+        Assert.Contains("Żyzność, µS/cm", message.HtmlBody);
+        Assert.Contains(">1607<", message.HtmlBody);
+        Assert.Contains("Temp. powietrza", message.HtmlBody);
+        Assert.Equal(1, Regex.Count(message.HtmlBody, "Światło, lx"));   // tylko karta Flower Care
+        Assert.Contains("Temp. gleby", message.HtmlBody);
+        Assert.Contains("  światło 82 386 lx, żyzność 1607 µS/cm", message.TextBody);
+        foreach (var line in message.TextBody.Split('\n'))
+            Assert.True(line.TrimEnd('\r').Length <= 40, $"Za długi wiersz ({line.Length} znaków): {line}");
+    }
+
+    [Theory]
+    [InlineData(null, "–")]
+    [InlineData(0, "0")]
+    [InlineData(1607, "1607")]
+    [InlineData(12_480, "12 480")]
+    [InlineData(120_000, "120 000")]
+    public void WholeNumbersUsePolishGroupingFromTenThousand(int? value, string expected) =>
+        Assert.Equal(expected, typeof(MailTemplates).Assembly.GetType("Glebosaurus.Core.Mail.MailText")!
+            .GetMethod("Whole")!.Invoke(null, [value]));
+
+    [Fact]
     public void SensorWithoutAnyReadingIsShownAsMissingNotAsZero()
     {
         var message = Report(Snapshot("Nowy", null));

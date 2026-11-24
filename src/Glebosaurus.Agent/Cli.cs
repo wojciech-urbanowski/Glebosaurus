@@ -21,7 +21,7 @@ internal sealed record CliOptions(
     int? Minutes, bool ConfirmBind, string? Id, string? Name, string? Mac, int? Linger, string? StopEvent,
     string? Code = null, string? Subcommand = null, string? Admin = null, bool Confirm = false, int? SenderPriority = null,
     int? Keep = null, bool Revoke = false, int? ReadInterval = null, string? Qr = null, string? Email = null,
-    bool Remove = false, string? Page = null);
+    bool Remove = false, string? Page = null, int? Repeat = null);
 
 internal static class Cli
 {
@@ -101,6 +101,10 @@ internal static class Cli
               Pokazuje urządzenia Tuya BLE w zasięgu (tylko nasłuch reklam, bez łączenia).
           glebosaurus read --credentials PLIK [--seconds N] [--timeout N]
               Jednorazowy odczyt jednego czujnika z pliku klucza; wypisuje też zaległe pomiary z czujnika (a on je potem kasuje).
+          glebosaurus read --mac ADRES [--verbose] [--repeat N]
+              Odczyt czujnika Xiaomi Flower Care tą samą drogą co agent: stan bieżący, bateria i historia z pamięci czujnika
+              (której nie kasuje). --verbose: najpierw surowe dane (tabela GATT, bajty, zegar czujnika, rekordy historii);
+              --repeat N: N odczytów w jednym procesie, co 10 s (próba kolejnych połączeń, jak w pracy agenta).
           glebosaurus listen --credentials PLIK [--seconds N] [--timeout N] [--linger N] [--out PLIK]
               Jak read, ale nie kończy po zebraniu wilgotności, temperatury i baterii: zostaje połączony, aż czujnik
               zamilknie na --linger sekund (domyślnie 20, najdłużej 5 min), i wypisuje każdą ramkę (komenda, DP, czas
@@ -154,7 +158,7 @@ internal static class Cli
         var timeout = 12;
         string? credentials = null, config = null, output = null, id = null, name = null, mac = null, stopEvent = null, code = null;
         string? admin = null, qr = null, email = null, page = null;
-        int? senderPriority = null, keep = null, readInterval = null;
+        int? senderPriority = null, keep = null, readInterval = null, repeat = null;
         bool verbose = false, quiet = false, confirmBind = false, confirm = false, revoke = false, remove = false;
         for (var i = (hasCommand ? 1 : 0) + (subcommand is null ? 0 : 1); i < args.Length; i++)
         {
@@ -186,13 +190,14 @@ internal static class Cli
                 case "--email": email = Value(args, ++i, "--email"); break;
                 case "--remove": remove = true; break;
                 case "--page": page = Value(args, ++i, "--page"); break;
+                case "--repeat": repeat = Number(args, ++i, "--repeat", 10); break;
                 // Prywatny sygnał zatrzymania od usługi Windows (glebosaurus-service); nie dla ludzi, więc bez opisu w pomocy.
                 case "--stop-event": stopEvent = Value(args, ++i, "--stop-event"); break;
                 default: throw new ArgumentException($"Nieznany parametr {args[i]}. Użyj --help.");
             }
         }
         return new(command, seconds, timeout, credentials, config, output, verbose, quiet, minutes, confirmBind, id, name, mac, linger, stopEvent, code,
-            subcommand, admin, confirm, senderPriority, keep, revoke, readInterval, qr, email, remove, page);
+            subcommand, admin, confirm, senderPriority, keep, revoke, readInterval, qr, email, remove, page, repeat);
     }
 
     private static string Value(string[] args, int index, string flag) =>

@@ -19,12 +19,13 @@ public static class MailSamples
 
         var monstera = new SensorConfig { Id = "monstera", Name = "Monstera w salonie" };
         var fikus = new SensorConfig { Id = "fikus", Name = "Fikus" };
-        var papro = new SensorConfig { Id = "paprot", Name = "Paproć w kuchni" };
+        // Paproć ma czujnik Xiaomi Flower Care – w karcie także światło i żyzność.
+        var papro = new SensorConfig { Id = "paprot", Name = "Paproć w kuchni", Model = SensorModel.FlowerCare, Mac = "5C:85:7E:00:00:01" };
         var cisy = new SensorConfig { Id = "cisy", Name = "Cisy" };
 
         var dry = new StoredReading(monstera.Id, now.AddMinutes(-4), 18, 21.4m, 63, 2);
         var lowBattery = new StoredReading(fikus.Id, now.AddMinutes(-9), 46, 22.8m, 14, 1);
-        var fine = new StoredReading(papro.Id, now.AddMinutes(-2), 64, 23.7m, 88, 2);
+        var fine = new StoredReading(papro.Id, now.AddMinutes(-2), 64, 23.7m, 88, null) { LightLux = 12_480, ConductivityMicroSiemens = 1140 };
         var stale = new StoredReading(cisy.Id, now.AddHours(-7), 52, 19.5m, 71, 2);
 
         AlertRecord Alert(SensorConfig sensor, AlertKind kind, string detail) => new(0, sensor.Id, kind, detail, now.AddHours(-1), null, null);

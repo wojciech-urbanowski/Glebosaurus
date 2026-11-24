@@ -1,6 +1,6 @@
 # Glebosaurus – kontekst dla pracy nad projektem
 
-Bezobsługowy monitor czujników gleby Tuya BLE (ATLO SMS1) na .NET 10: agenci na Windows 11, Androidzie i Raspberry Pi OS
+Bezobsługowy monitor czujników gleby Tuya BLE (ATLO SMS1) i Xiaomi Flower Care (od 0.4.0) na .NET 10: agenci na Windows 11, Androidzie i Raspberry Pi OS
 czytają czujniki i wysyłają odczyty do chmury Supabase (darmowy plan); jeden z agentów (nadawca z blokadą) wysyła alerty
 „czas podlać” i raporty mailem przez Gmail. Tryb samodzielny (bez chmury) usunięto 2026-11-19 – nie przywracaj go.
 
@@ -31,6 +31,9 @@ bash deploy/test-install-linux.sh STARA NOWA [--systemd]   # próba install-linu
 
 ## Mapa
 
+- `src/Glebosaurus.FlowerCare` – protokół czujnika Xiaomi Flower Care (HHCCJCY01): charakterystyki 0x1204/0x1206, sesja z
+  historią od najnowszego rekordu do ostatniego znanego odczytu (bez kasowania), reklamy MiBeacon; przez `IGattClient`
+  (odczyt i zapis z potwierdzeniem). Czujnik bez klucza – `SensorConfig.Model`/`Mac`, w chmurze `sensors.model`.
 - `src/Glebosaurus.Tuya` – protokół Tuya BLE 3.x (ramki, AES, DP), sesja (`TuyaSession`), lokalne parowanie, poświadczenia,
   profile czujników. **Nie zna biblioteki BLE** – rozmawia przez `IGattLink`.
 - `src/Glebosaurus.Core` – konfiguracja (`AgentConfig` + `AgentConfigLoader` – plik agenta; `SensorIds` – reguła
@@ -134,7 +137,7 @@ bash deploy/test-install-linux.sh STARA NOWA [--systemd]   # próba install-linu
 - Czas przez `TimeProvider`, radio/baza/poczta/chmura przez interfejsy – dzięki temu silniki testują się bez sprzętu.
 - Każda zmiana zachowania dostaje test; sprawdzenia na sprzęcie i na żywo dopisuje się z datą do docs/HISTORIA.md, a
   ARCHITEKTURA.md opisuje stan obecny (bez dziennika).
-- Wersja (obecnie 0.2.11) jest w jednym miejscu: `Directory.Build.props`; widać ją w stopce każdego maila (`AppInfo.Version`).
+- Wersja (obecnie 0.4.0) jest w jednym miejscu: `Directory.Build.props`; widać ją w stopce każdego maila (`AppInfo.Version`).
   Podbijaj ją tylko na prośbę użytkownika (przy wydaniu paczki). Wydanie = tag `v<wersja>` (musi zgadzać się z
   `Directory.Build.props`) → Actions publikuje je, a zainstalowane usługi same się zaktualizują w ciągu doby.
 - Skrypty `.sh` – LF (`.gitattributes`), bez BOM, `set -Eeuo pipefail`, przechodzą `shellcheck -S warning` (CI); bez awk z
