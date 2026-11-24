@@ -487,7 +487,8 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   czujnika, dodawanie po MAC i nowy adres w edytorze (przeklikane w podglądzie `web-preview.cs` z czujnikiem „Fikus przy
   oknie” w danych pokazowych; błąd składni w `charts.js` znaleziony w przeglądarce i poprawiony, wszystkie moduły JS
   sprawdzone parserem Acornima); w mailach – wiersz „Światło, lx · Żyzność, µS/cm” pod paskiem i „Temp. powietrza”
-  (`mail-preview` obejrzany w 375 px). Prawdziwy projekt bez migracji, bez wydania.
+  (`mail-preview` obejrzany w 375 px; **wygląd zaakceptowany przez użytkownika** tego samego wieczoru). Prawdziwy projekt bez
+  migracji, bez wydania.
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 

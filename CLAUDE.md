@@ -217,4 +217,5 @@ maszyna jest prawdziwym nadawcą, telefon, czujniki, prawdziwy projekt Supabase)
 przy wielu czujnikach 2 doby albo ostatnia doba; temperatura jako blady zakres – półprzezroczysta też na wykresach strony
 i panelu), zestawienie kafelkami nad wykresami (od najsuchszej gleby, kody jak na pulpicie strony, `SensorCodes`),
 wyciszenia w raporcie (notka o urlopie pod paskiem, szara etykieta „alerty wyciszone do …” przy czujniku),
-panel WWW bez edycji konfiguracji (pełny edytor – faza 3c), log administratora jako osobny mail od każdego agenta.
+panel WWW bez edycji konfiguracji (pełny edytor – faza 3c), log administratora jako osobny mail od każdego agenta,
+karta czujnika Flower Care w mailu („Temp. powietrza”, pod paskiem wiersz „Światło, lx · Żyzność, µS/cm”; od 2026-11-24).
