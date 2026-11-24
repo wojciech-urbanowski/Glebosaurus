@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Protokół czujnika Xiaomi / HHCC Flower Care (HHCCJCY01): charakterystyki GATT, ramki, historia, reklamy MiBeacon.
+       Bez zależności od biblioteki BLE – rozmawia przez IGattClient. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Glebosaurus.FlowerCare</RootNamespace>
+  </PropertyGroup>
+
+</Project>

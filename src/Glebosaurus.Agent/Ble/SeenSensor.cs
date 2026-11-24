@@ -1,5 +1,6 @@
 using System.Globalization;
 using Glebosaurus.Core.Monitoring;
+using Glebosaurus.FlowerCare;
 using Glebosaurus.Tuya;
 using Shiny.BluetoothLE;
 
@@ -35,6 +36,18 @@ internal sealed class SeenSensor(IPeripheral peripheral)
 
     public bool IsTuyaLike => ServiceData is not null || ManufacturerData is not null;
 
+    /// <summary>Ostatnia reklama MiBeacon (dane usługi 0xFE95) – czujnik Xiaomi Flower Care.</summary>
+    public MiBeacon? Beacon { get; private set; }
+
+    /// <summary>Pomiary z reklam MiBeacon według obiektu (ostatni z każdego) – do diagnostyki.</summary>
+    public SortedDictionary<ushort, string> BeaconValues { get; } = [];
+
+    /// <summary>Surowe dane usługi 0xFE95 z kolejnych pakietów (różne) – do diagnostyki.</summary>
+    public SortedSet<string> RawBeacons { get; } = [];
+
+    /// <summary>Czujnik Xiaomi Flower Care: model 0x0098 w reklamie MiBeacon albo nazwa „Flower care”.</summary>
+    public bool IsFlowerCare => Beacon?.IsFlowerCare == true || FlowerCareAdvertising.IsFlowerCareName(Name);
+
     public TuyaIdentity? Identity =>
         ServiceData is null || ManufacturerData is null ? null : TuyaIdentity.TryParse(ServiceData, ManufacturerData);
 
@@ -67,12 +80,34 @@ internal sealed class SeenSensor(IPeripheral peripheral)
             ServiceData = data is [0x01, 0xA2, ..] ? data[2..] : data;
         }
 
+        foreach (var service in advertisement.ServiceData ?? [])
+        {
+            if (!service.Uuid.StartsWith("0000fe95", StringComparison.OrdinalIgnoreCase) && !service.Uuid.Equals("fe95", StringComparison.OrdinalIgnoreCase)
+                || service.Data is not { } data || MiBeacon.TryParse(data) is not { } beacon) continue;
+            Beacon = beacon;
+            RawBeacons.Add(Convert.ToHexString(data));
+            if (beacon is { ObjectId: { } id } && beacon.DescribeObject() is { } text) BeaconValues[id] = text;
+        }
+
         if (advertisement.ManufacturerData is { CompanyId: TuyaIdentity.CompanyId, Data: { } mfg })
         {
             RawManufacturerLength = mfg.Length;
             // Niektóre platformy dołączają ID firmy (D0 07) na początku danych producenta.
             ManufacturerData = mfg.Length == 24 && mfg[0] == 0xD0 && mfg[1] == 0x07 ? mfg[2..] : mfg;
         }
+    }
+
+    public string DescribeFlowerCare(bool verbose)
+    {
+        var text = string.Create(CultureInfo.InvariantCulture,
+            $"{BleAddress.TryExtract(Peripheral.Uuid, out var address) switch { true => BleAddress.Format(address), false => Peripheral.Uuid }}  " +
+            $"{Name ?? "(bez nazwy)"}  pakietów: {Packets,-4} sygnał {Signal.Describe()}  ");
+        text += BeaconValues.Count == 0 ? "bez pomiarów w reklamach" : "w reklamach: " + string.Join(", ", BeaconValues.Values);
+        if (verbose && Beacon is { } beacon)
+            text += $"{Environment.NewLine}      MiBeacon: kontrola 0x{beacon.FrameControl:X4}, model 0x{beacon.ProductId:X4}, MAC {beacon.Mac ?? "-"}," +
+                    $" {(beacon.Encrypted ? "szyfrowana" : "jawna")}, {(IsConnectable == false ? "niełączliwy" : "łączliwy")}" +
+                    $"{Environment.NewLine}      dane 0xFE95: {string.Join(" ", RawBeacons)}";
+        return text;
     }
 
     public string Describe(bool verbose)

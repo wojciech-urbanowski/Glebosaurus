@@ -10,6 +10,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="11.0.0" />
     <ProjectReference Include="..\Glebosaurus.Tuya\Glebosaurus.Tuya.csproj" />
+    <ProjectReference Include="..\Glebosaurus.FlowerCare\Glebosaurus.FlowerCare.csproj" />
   </ItemGroup>
 
 </Project>

@@ -409,14 +409,18 @@ internal static class Cli
         var seen = await BleScanner.ScanAsync(ble, TimeSpan.FromSeconds(seconds), null, cancellationToken);
 
         var tuya = seen.Where(s => s.IsTuyaLike).OrderByDescending(s => s.Signal.Average ?? int.MinValue).ToArray();
-        Console.WriteLine($"Urządzeń BLE: {seen.Count}, w tym Tuya: {tuya.Length}.");
+        var flowerCare = seen.Where(s => s.IsFlowerCare).OrderByDescending(s => s.Signal.Average ?? int.MinValue).ToArray();
+        Console.WriteLine($"Urządzeń BLE: {seen.Count}, w tym Tuya: {tuya.Length}, Xiaomi Flower Care: {flowerCare.Length}.");
         foreach (var sensor in tuya) Console.WriteLine("  " + sensor.Describe(options.Verbose));
+        if (flowerCare.Length > 0) Console.WriteLine("Xiaomi Flower Care (adres MAC do dodania czujnika na stronie):");
+        foreach (var sensor in flowerCare) Console.WriteLine("  " + sensor.DescribeFlowerCare(options.Verbose));
         return 0;
     }
 
     private static async Task<int> ReadAsync(CliOptions options, CancellationToken cancellationToken)
     {
-        if (options.Credentials is null) throw new ArgumentException("Podaj plik klucza: --credentials PLIK.");
+        if (options.Credentials is null && options.Mac is not null) return await FlowerCareDiagnostics.ReadAsync(options, cancellationToken);
+        if (options.Credentials is null) throw new ArgumentException("Podaj plik klucza: --credentials PLIK (czujnik Tuya) albo --mac ADRES (Xiaomi Flower Care).");
         var credentials = TuyaCredentials.Load(options.Credentials);
         var sensorConfig = new SensorConfig { Id = "read", Name = "czujnik", Tuya = credentials };
         var profile = SoilSensorProfiles.ForProduct(credentials.ProductId)
