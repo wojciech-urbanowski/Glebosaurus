@@ -510,6 +510,13 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   ostrzeżeniem (`KestrelHeartbeat`). Kształt wpisu Kestrela (zdarzenie 22, klucz `heartbeatDuration` jako `TimeSpan`)
   sprawdzony wywołaniem prawdziwej metody Kestrela. Na bestia5 – z najbliższym wydaniem (do sprawdzenia w logu
   administratora: wpisy `[INF] Microsoft.AspNetCore.Server.Kestrel`, temat maila bez tych ostrzeżeń).
+  **Wydanie 0.4.1** (na prośbę użytkownika). Przed nim pakiety NuGet według API NuGet: Npgsql 10.0.3 → 11.0.0, QRCoder
+  1.8.1 → 1.9.0, Jint 4.18.0 → 4.18.1; **Shiny.BluetoothLE i .Linux zostają na 6.6.0** – 7.0.0–7.1.0 (od 2026-11-22) są
+  tylko dla `net11.0` (przejście wymagałoby .NET 11 w całym agencie, runtime 11 na Pi i próby BLE na sprzęcie). Testy
+  rozwiązania zielone (733, 141 pominiętych), testy SQL z Npgsql 11 na próbnym projekcie 147/147, kod QR z
+  `cloud web-link --qr` sprawdzony. CI zielone na 7324ec2, tag `v0.4.1` – „Wydanie” i „Strona w chmurze” zielone, wydanie
+  opublikowane o 19:10 jako najnowsze (paczka Windows, paczka linux-arm64, oba skrypty instalacji, SHA256SUMS; bez APK).
+  bestia5 i rasp3 wezmą je same (przy starcie usługi albo o 03:30); prawdziwy projekt bez zmian (bez migracji).
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 
