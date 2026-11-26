@@ -496,6 +496,11 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   (5,3 s) oddał go jako historię z czasem 22:39:59 (zrzut tuż przed nim: 22:40:01 – czas liczony w każdej sesji od nowa
   różni się o sekundy, stąd granica historii z ostatniego znanego odczytu). Odpowiedź z liczbą rekordów: bajty 2–3
   zmieniły się z 0000 na 0680 (znaczenie nieznane). Kolejność rekordów – przy drugim rekordzie (ok. 23:40).
+  **Wydanie 0.4.0 i migracja na prawdziwym projekcie** – tego samego wieczoru (uzupełnione 2026-11-26 na podstawie
+  wydania i dziennika bestia5): tag `v0.4.0` na 09b0380, wydanie 22:53; o 22:54 konfiguracja w chmurze (wersja 69) miała
+  już czujnik Kompozycja (Flower Care) – agent 0.2.11 pominął go jako czujnik bez danych Tuya. bestia5 na 0.4.0 od
+  2026-11-25 16:50: odczyty Kompozycji na żądanie z chmury o 18:58 i 20:05 (światło, żyzność, 2 i 1 rekord z pamięci
+  czujnika, −65/−66 dBm); zwykłych odczytów co odstęp bestia5 w dzienniku z 25.11 nie ma.
 - **2026-11-26** – **ostrzeżenia Kestrela o heartbeat w logu bestia5** (z maila „log z 25.11 – ostrzeżenia: 6”): „the
   heartbeat has been running for 00:00:02.4 … thread pool starvation”. W dziennikach 19–25.11 – 39 razy, 1,0–3,7 s, tylko
   za dnia i wieczorem, bez związku z odczytami czujników. Zegar Kestrela (.NET 8+) ma własny wątek „Kestrel Timer”, a

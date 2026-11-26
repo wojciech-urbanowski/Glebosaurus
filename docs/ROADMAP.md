@@ -6,7 +6,7 @@ użycie – [README](../README.md); kiedy co zrobiono i sprawdzono na sprzęcie 
 Wielkości: **S** – dzień lub mniej, **M** – kilka dni, **L** – tydzień lub więcej (przy pracy w wolnych chwilach).
 Stan: ✔ zrobione · ◐ w toku albo częściowo · ○ do zrobienia.
 
-## Stan w skrócie (wersja 0.4.0)
+## Stan w skrócie (wersja 0.4.1)
 
 **Działa i pracuje na co dzień** (u autora: komputer z Windows 11 jako nadawca i telefon z Androidem jako drugi
 zbieracz, 9 czujników):
@@ -24,7 +24,7 @@ zbieracz, 9 czujników):
 - strona właściciela w chmurze (GitHub Pages, logowanie z TOTP; od 2026-11-21): pulpit z wykresami (na telefonie widok
   skrócony z kafelkami, od 2026-11-22), historia czujnika,
   alerty z potwierdzeniem i wyciszeniami, historia maili, edytor konfiguracji, parowanie zdalne;
-- czujnik **Xiaomi Flower Care** (HHCCJCY01, w kodzie od 2026-11-24, wersja 0.4.0): bez parowania, po adresie MAC; światło i
+- czujnik **Xiaomi Flower Care** (HHCCJCY01, wydanie 0.4.0 z 2026-11-24, na prawdziwym projekcie): bez parowania, po adresie MAC; światło i
   żyzność w odczytach, na stronie, w panelu i w mailach, historia z pamięci czujnika bez kasowania;
 - CI na każdy push, wydania z tagu `v*`.
 
@@ -40,7 +40,7 @@ zbieracz, 9 czujników):
 | Android | noc i tydzień pracy; przejęcie czujników po wyłączeniu komputera; błąd GATT 133; APK z CI |
 | Raspberry Pi | 2.3a (nadawca bez Bluetooth): instalacja na Pi, tydzień pracy 24/7, przejęcie blokady w obie strony, samoaktualizacja z nocnego timera (z prawdziwego wydania uruchomiona ręcznie – 0.2.8 ✔ 2026-11-21), powrót poprzedniej wersji przy zepsutym wydaniu; 2.3b (czujniki) – wszystko |
 | Czujnik | kalibracja wilgotności; profil `ojzlzzsw`; czy niesparowany czujnik zawsze milknie po oknie 20 s |
-| Flower Care | migracja `20261124220000_flower_care` na prawdziwym projekcie i wydanie 0.4.0; `run` z czujnikiem w konfiguracji (dzierżawa, granica historii z chmury); kolejność i pojemność pamięci historii (pierwsze rekordy po godzinie od włożenia baterii); odczyt na telefonie (APK); bateria przy odczycie co 2 h; próg podlania w skali tego czujnika |
+| Flower Care | (wydanie 0.4.0 i migracja na prawdziwym projekcie ✔ 2026-11-24; odczyty na żądanie z chmury przez bestia5, z historią z pamięci czujnika ✔ 2026-11-25) zwykłe odczyty co odstęp w dłuższej pracy; kolejność i pojemność pamięci historii (pierwsze rekordy po godzinie od włożenia baterii); odczyt na telefonie (APK); bateria przy odczycie co 2 h; próg podlania w skali tego czujnika |
 | Bateria | rzadsze odpytywanie (wydanie 0.2.7 z 2026-11-20; APK na mi11 od 15:36): połączenia na dobę, przejęcia i opóźnienia z odczytów w chmurze, bateria telefonu – HISTORIA.md, „Rzadsze odpytywanie – jak sprawdzić”; potem tryb skanu Balanced dla nasłuchu na telefonie (po 1–2 dniach godzinnych podsumowań nasłuchu) |
 
 ### Następne kroki (w tej kolejności)
