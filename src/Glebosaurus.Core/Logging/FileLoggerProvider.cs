@@ -65,7 +65,8 @@ public sealed class FileLoggerProvider(DailyLogFiles files, int keepDays) : ILog
 
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
         {
-            if (IsEnabled(logLevel)) provider.Write(logLevel, category, formatter(state, exception), exception);
+            if (!IsEnabled(logLevel)) return;
+            provider.Write(KestrelHeartbeat.Level(category, eventId, logLevel, state), category, formatter(state, exception), exception);
         }
     }
 }

@@ -204,7 +204,13 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
      potrafi zawiesić następny odczyt. `Stop-ScheduledTask` zabija – nie używać.
    - **Zadanie Harmonogramu**: wyzwalacz przy logowaniu własnego użytkownika (wyzwalacz „dowolny użytkownik” wymaga
      administratora) z powtórką co godzinę (strażnik; przy działającej usłudze nowa kopia jest pomijana –
-     `MultipleInstances IgnoreNew`), `LogonType Interactive`, `RunLevel Limited`, praca na baterii, bez limitu czasu.
+     `MultipleInstances IgnoreNew`), `LogonType Interactive`, `RunLevel Limited`, praca na baterii, bez limitu czasu,
+     **priorytet 7** wpisany wprost (domyślny Harmonogramu; decyzja użytkownika – usługa w tle nie przeszkadza w pracy):
+     CPU BelowNormal, priorytet pamięci 2, niski I/O, a agent dziedziczy je po usłudze (priorytet 4 = zwykły program:
+     Normal, 5, normalny I/O). Cena: przy zajętym komputerze agent stoi czasem 1–4 s, zanim Windows podbije zagłodzony
+     wątek. Kestrel zgłasza wtedy `HeartbeatSlow` („the heartbeat has been running for …”) – jego zegar ma własny wątek,
+     więc to postój procesu, nie głód puli wątków; dziennik zapisuje taki wpis jako informację, a ostrzeżeniem zostaje
+     dopiero postój od 10 s (`KestrelHeartbeat`). Skrypt rejestruje zadanie przy każdej aktualizacji.
    - **Terminal aplikacji z pakietu MSIX** (np. aplikacji z Microsoft Store) bywa przekierowany: zapisy w `%LOCALAPPDATA%`
      trafiają do prywatnej kopii pakietu, której Harmonogram nie widzi. Skrypt zapisuje plik próbny i szuka go w
      `Packages\*\LocalCache\Local\…` – jeśli tam jest, przerywa z wyjaśnieniem. Zatrzymanie przed podmianą dotyczy tylko
@@ -313,7 +319,8 @@ Interfejsy brzegowe, dzięki którym silniki testuje się bez sprzętu: `IGattLi
    tekstowa: linijka `▁…█` ze średnich z 6 godz. Stopka podaje wersję (`AppInfo.Version`, jedno źródło:
    `Directory.Build.props`).
    **Log administratora:** dziennik agenta to pliki dzienne `glebosaurus-RRRRMMDD.log` (`DailyLogFiles`,
-   `FileLoggerProvider`, retencja `logs.retentionDays`). Zbieracz wysyła wczorajszy dziennik do chmury w pierwszym cyklu
+   `FileLoggerProvider`, retencja `logs.retentionDays`; krótki postój zegara Kestrela – jako informacja, zasada 7).
+   Zbieracz wysyła wczorajszy dziennik do chmury w pierwszym cyklu
    dnia, a nadawca od 01:00 wysyła pod `mail.adminRecipients` osobny mail z dziennika każdego agenta: streszczenie
    (liczniki, ostatnie ostrzeżenia i błędy) i pełny plik jako załącznik (limit 5 mln znaków, obcinany od początku).
    „**Agent milczy**”: agent bez synchronizacji ponad 30 min → mail do administratora, raz na epizod ciszy. Dotyczy

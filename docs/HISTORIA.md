@@ -496,6 +496,20 @@ Stan z planu prac z tego dnia (przed usunięciem trybu samodzielnego):
   (5,3 s) oddał go jako historię z czasem 22:39:59 (zrzut tuż przed nim: 22:40:01 – czas liczony w każdej sesji od nowa
   różni się o sekundy, stąd granica historii z ostatniego znanego odczytu). Odpowiedź z liczbą rekordów: bajty 2–3
   zmieniły się z 0000 na 0680 (znaczenie nieznane). Kolejność rekordów – przy drugim rekordzie (ok. 23:40).
+- **2026-11-26** – **ostrzeżenia Kestrela o heartbeat w logu bestia5** (z maila „log z 25.11 – ostrzeżenia: 6”): „the
+  heartbeat has been running for 00:00:02.4 … thread pool starvation”. W dziennikach 19–25.11 – 39 razy, 1,0–3,7 s, tylko
+  za dnia i wieczorem, bez związku z odczytami czujników. Zegar Kestrela (.NET 8+) ma własny wątek „Kestrel Timer”, a
+  mierzony czas to sam przebieg jego krótkich wywołań – więc stawał cały proces, nie pula wątków. Przyczyna: zadanie
+  Harmonogramu z domyślnym priorytetem **7** – usługa i agent miały CPU **BelowNormal**, priorytet pamięci **2** i
+  **niski** I/O (sprawdzone na działających procesach), więc przy zajętym komputerze (kompilacja, gra) czekały, aż
+  Windows podbije zagłodzony wątek (ok. 4 s – stąd najwyżej 3,7 s). Próba na tymczasowym zadaniu z programem
+  sprawdzającym własny proces: priorytet 4 → Normal / pamięć 5 / I/O 2, 5 → Normal / 4 / 2, 6 → Normal / 3 / 2,
+  7 → BelowNormal / 2 / 1. **Decyzja użytkownika: niski priorytet zostaje** (usługa w tle nie przeszkadza w pracy) –
+  `install-windows.ps1` wpisuje `-Priority 7` wprost (test `InstallScriptTests`), a dziennik zapisuje krótki postój
+  (`HeartbeatSlow` poniżej 10 s) jako informację – nie liczy się do ostrzeżeń w logu administratora; dłuższy zostaje
+  ostrzeżeniem (`KestrelHeartbeat`). Kształt wpisu Kestrela (zdarzenie 22, klucz `heartbeatDuration` jako `TimeSpan`)
+  sprawdzony wywołaniem prawdziwej metody Kestrela. Na bestia5 – z najbliższym wydaniem (do sprawdzenia w logu
+  administratora: wpisy `[INF] Microsoft.AspNetCore.Server.Kestrel`, temat maila bez tych ostrzeżeń).
 
 ## Tryb samodzielny i przejście na chmurę (0.1.0–0.2.1)
 

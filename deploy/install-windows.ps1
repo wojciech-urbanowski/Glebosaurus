@@ -257,8 +257,11 @@ function Register-GlebosaurusTask {
     $trigger.Repetition = (New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Hours 1)).Repetition
     $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
     # Laptop: także na baterii; bez domyślnego limitu 72 godzin pracy zadania.
+    # Priorytet 7 (domyślny Harmonogramu, wpisany celowo – decyzja użytkownika 2026-11-26): CPU BelowNormal, pamięć 2 i niski
+    # I/O, dziedziczy je też agent – usługa w tle nie przeszkadza w pracy na komputerze. Cena: przy zajętym komputerze agent
+    # stoi czasem 1–4 s (Kestrel zgłasza wtedy HeartbeatSlow; dziennik zapisuje to jako informację). Priorytet 4 = zwykły program.
     $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero) `
-        -MultipleInstances IgnoreNew -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -StartWhenAvailable
+        -MultipleInstances IgnoreNew -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -StartWhenAvailable -Priority 7
     Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force `
         -Description 'Glebosaurus – agent czujników gleby (usługa bez okna; https://github.com/wojciech-urbanowski/Glebosaurus).' | Out-Null
 }
