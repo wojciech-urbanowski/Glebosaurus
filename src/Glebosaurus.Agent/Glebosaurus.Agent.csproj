@@ -19,7 +19,7 @@
     <PackageReference Include="Microsoft.Extensions.Logging" Version="11.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="11.0.0" />
     <!-- Kod QR rejestracji telefonu (cloud agent z opcją qr). -->
-    <PackageReference Include="QRCoder" Version="1.8.1" />
+    <PackageReference Include="QRCoder" Version="1.9.0" />
     <ProjectReference Include="..\Glebosaurus.Tuya\Glebosaurus.Tuya.csproj" />
     <ProjectReference Include="..\Glebosaurus.Core\Glebosaurus.Core.csproj" />
     <ProjectReference Include="..\Glebosaurus.Data\Glebosaurus.Data.csproj" />
